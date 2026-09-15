@@ -60,7 +60,7 @@ correction is still in progress; see MISSION before generating a new comparison.
 | `evidence/` | historical provenance/prediction tarballs; not the fresh corpus |
 | `results/` | fresh run outputs only after reset validation |
 | `docs/archive/` | superseded material; preserve as evidence, not instructions |
-| `docs/audits/` | dated verification receipts and unresolved audit findings |
+| `docs/archive/` | **quarantined.** Superseded documents, the paper tree, audit receipts. Not current evidence -- see `docs/archive/README.md` |
 | `.github/workflows/preflight.yml` | CI preflight |
 
 ## Verify before running

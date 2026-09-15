@@ -931,7 +931,28 @@ def test_the_saturation_gate_fails_a_FROZEN_boundary_and_passes_a_LIVE_one(tmp_p
     assert verdicts == {"4": False, "29": True}, (
         "a swept campaign was not judged per budget -- the same 3 live epochs "
         "must pass at 4 constraint epochs and FAIL at 29:" + chr(10) + out)
-    assert rc == 1, "the 29-epoch arm saturated but the gate exited 0"
+    # AMENDMENT 2026-09-15: in a sweep the long budget is the frozen REFERENCE
+    # end of the dose axis, deliberately included. One live budget is enough for
+    # the campaign to have contrast, so it passes while still REPORTING the
+    # frozen verdict above.
+    assert rc == 0, (
+        "a swept campaign with a live budget was killed for containing its own "
+        "frozen reference arm:" + chr(10) + out)
+    assert "1 of 2 budgets are live" in out, out
+
+    # ... but a sweep where NOTHING is live has no contrast and must still die.
+    dead = str(tmp_path / "dead")
+    for seed in (1, 2):
+        for arm, con in (("tralo_b12", 11), ("tralo", 29)):
+            _fake_log(dead, "fmow2", "L80_G95", arm, seed,
+                      [0.80, 0.88, 0.93, 0.96, 0.98] + [0.99] * 25,
+                      constraint_epochs=con)
+    rc = mod.main(["--glob", dead + "/*/*/*/*/seed_*", "--strict"])
+    out = capsys.readouterr().out
+    assert rc == 1, (
+        "a swept campaign with NO live budget measures the frozen regime twice "
+        "and must be killed:" + chr(10) + out)
+    assert "NO budget is live" in out, out
 
     # A POST-HOC arm has no constraint phase. Its (short) live window must not
     # drag a cell down, or clippers decide whether trained arms pass.

@@ -130,9 +130,18 @@ campaign is read as evidence:
 - **Preserve evidence by recoverable archival.** Never delete predictions,
   checkpoints, data, or Git objects as a cleanup shortcut. Protect unrelated
   dirty changes.
+- 🛑 **`docs/archive/` IS QUARANTINED. Never source a claim from it.** Everything
+  under it is historical and much of it is contaminated with retired datasets
+  (dermMNIST leaked, BCN blocked, iwildcam retired) -- the archived paper sources
+  carry 78-115 references each. Every archived markdown carries an `ARCHIVED --
+  NOT CURRENT EVIDENCE` banner in its first lines; if I am reading one, I am
+  already off course. `tests/test_archive_quarantine.py` enforces this.
+- **The live record is exactly eight files** and the same test enforces that too.
+  A new document is a deliberate decision, not something that accretes.
 - Never `git gc` / `prune` / `repack` / `reflog expire` / `worktree prune`.
   Pass `-c gc.auto=0` on every git call.
-- Never edit `docs/paper/main.tex` -- it is the professor's file.
+- Never edit `docs/archive/paper/main.tex` -- it is the professor's file, and
+  it is preserved byte-identical through the archival move.
 - Retract in place, in the same document. Do not leave a stale claim standing
   and correct it further down.
 - **A gate is not done until a mutation makes it FAIL**, and the restore is

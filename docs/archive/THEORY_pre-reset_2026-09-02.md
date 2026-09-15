@@ -1,5 +1,13 @@
 # TraLO: transductive prediction-count constraints — theory, method, and evidence
 
+> **ARCHIVED -- NOT CURRENT EVIDENCE.** This file is historical. It does not
+> establish a result, a winner, a rejection, or a protocol, and it may be
+> contaminated with retired datasets (dermMNIST leaked, BCN blocked, iwildcam
+> retired). The evidence was reset on 2026-09-14. Do not cite, quote or reason
+> from it. The live record is `RULESET.md`, `docs/MISSION.md`, `docs/LEDGER.md`
+> and `docs/FRAMEWORK.md`. See `docs/archive/README.md`.
+
+
 **Status: written 2026-09-02 as a review document.** It states the thesis, the
 method, the experimental design and everything measured so far, in the form a
 reviewer needs to attack it. It is deliberately written against the project's

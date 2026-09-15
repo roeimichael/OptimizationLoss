@@ -1,0 +1,50 @@
+{
+    "methodology": "fioretto_ldf",
+    "model_name": "RegNetY400MF",
+    "constraint": [
+        0.2,
+        0.2
+    ],
+    "constraint_tag": "L20_G20",
+    "dataset_mode": "dermmnist",
+    "dataset_config": {
+        "data_dir": "data/dermmnist/slice_1",
+        "num_classes": 7,
+        "image_size": 224,
+        "target_column": "label",
+        "group_column": "loc_group",
+        "constrained_class": 4
+    },
+    "hyperparams": {
+        "lr": 0.0001,
+        "lr_constraint": 5e-06,
+        "dropout": 0.3,
+        "batch_size": 64,
+        "warmup_epochs": 50,
+        "constraint_epochs": 300,
+        "pretrained": true,
+        "class_weighted_ce": false,
+        "constraint_chunk_size": 256,
+        "fioretto_step_size": 0.005,
+        "seed": 4
+    },
+    "base_model_id": "RegNetY400MF_dermmnist_88c3ae4270af",
+    "exp_name": "paper_bb_RegNetY400MF_fioretto_ldf_dermmnist_L20_G20_seed4",
+    "experiment_path": "results/pending_runs/paper_backbones/RegNetY400MF/dermmnist/L20_G20/fioretto_ldf/seed_4",
+    "code_version": "c35f4bc8ec84-dirty",
+    "results": {
+        "accuracy": 0.8262606090863704,
+        "precision_macro": 0.8031378989970674,
+        "recall_macro": 0.6428662742804186,
+        "f1_macro": 0.674318104305353,
+        "training_time": 75.61061334609985,
+        "warmup_time": 0.16780304908752441,
+        "constraint_train_time": 75.44281029701233,
+        "posthoc_time": 0.6965646743774414,
+        "used_cached_model": true,
+        "samples_adjusted": 8,
+        "lp_fallback_used": false,
+        "lp_fallback_candidates": 0
+    },
+    "status": "completed"
+}

@@ -1,0 +1,24 @@
+% tab_deploy.tex -- deployment cost at L30 (MobileNetV3). Split from tab_results.tex.
+% \input-ready: float-only. Requires: booktabs (loaded by main.tex).
+% Houses the secondary deployment diagnostics (flips); lives in the appendix.
+% table* (full width, datasets side by side): as a single-column table it cannot share
+% the two-column float page with Fig. 5 and gets flushed to a lonely final page.
+\begin{table*}[t]\centering\small
+\caption{\textbf{Model quality at the tight $L30$ cap} (MobileNetV3; each value is the mean over seeds 1--4 \emph{at this single cap level}). All methods meet the count; the post-hoc clippers do so by \emph{editing predictions}, and Flips is the number of test predictions overwritten to enforce the cap. This editing erodes \textbf{macro-F1}, the imbalance-aware quality metric, on every dataset. Raw \emph{accuracy} is nearly blind to it: the constrained class is rare, so clipping it barely moves the aggregate and the clippers can tie or even beat the trained methods on accuracy while losing macro-F1. This is why F1, not accuracy, is the right quality metric here. $^{\dagger}$ = post-hoc clipping. \textbf{Bold} = best, \underline{underline} = 2nd-best per column within each dataset block.}
+\label{tab:deploy}
+\vspace{5pt}
+\begin{tabular}{l ccc ccc ccc}
+\toprule
+ & \multicolumn{3}{c}{Tissue} & \multicolumn{3}{c}{Derm} & \multicolumn{3}{c}{OctMNIST} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}
+Method & macro-F1 $\uparrow$ & Acc.\ $\uparrow$ & Flips $\downarrow$ & macro-F1 $\uparrow$ & Acc.\ $\uparrow$ & Flips $\downarrow$ & macro-F1 $\uparrow$ & Acc.\ $\uparrow$ & Flips $\downarrow$ \\
+\midrule
+Heur.$^{\dagger}$  & 0.347 & 0.478 & 99.5 & 0.722 & \textbf{0.846} & 136.5 & 0.666 & 0.695 & 109.5 \\
+LP-LG$^{\dagger}$ & 0.347 & 0.478 & 99.5 & 0.721 & \textbf{0.846} & 136.5 & 0.665 & 0.695 & 109.5 \\
+Fioretto           & 0.405 & 0.536 & \underline{7.8} & 0.723 & 0.842 & 10.2 & \underline{0.701} & \textbf{0.738} & \underline{0.2} \\
+Hounie             & \underline{0.406} & \underline{0.537} & 11.2 & \textbf{0.728} & 0.843 & 19.2 & 0.678 & 0.723 & \textbf{0.0} \\
+TraLO-b            & 0.405 & 0.536 & 10.0 & \underline{0.727} & \underline{0.844} & \underline{9.8} & 0.700 & \textbf{0.738} & \textbf{0.0} \\
+\textbf{TraLO}     & \textbf{0.408} & \textbf{0.539} & \textbf{7.0} & 0.726 & \underline{0.844} & \textbf{1.0} & \textbf{0.702} & \underline{0.736} & \textbf{0.0} \\
+\bottomrule
+\end{tabular}
+\end{table*}

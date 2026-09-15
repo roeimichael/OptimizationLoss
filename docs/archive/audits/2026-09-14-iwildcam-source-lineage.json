@@ -1,0 +1,72 @@
+{
+  "cross_split_source_cameras": [],
+  "label_mapping": {
+    "0": [
+      {
+        "category_id": 372,
+        "name": "meleagris ocellata"
+      }
+    ],
+    "1": [
+      {
+        "category_id": 374,
+        "name": "crax rubra"
+      }
+    ],
+    "2": [
+      {
+        "category_id": 96,
+        "name": "aepyceros melampus"
+      }
+    ],
+    "3": [
+      {
+        "category_id": 317,
+        "name": "cephalophus nigrifrons"
+      }
+    ],
+    "4": [
+      {
+        "category_id": 2,
+        "name": "tayassu pecari"
+      }
+    ],
+    "5": [
+      {
+        "category_id": 3,
+        "name": "dasyprocta punctata"
+      }
+    ],
+    "6": [
+      {
+        "category_id": 10,
+        "name": "leopardus pardalis"
+      }
+    ],
+    "7": [
+      {
+        "category_id": 71,
+        "name": "bos taurus"
+      }
+    ]
+  },
+  "source": "/home/dsi/michaer8/optloss-audit/data/iwildcam/train_annotations.json",
+  "source_annotations": 217959,
+  "source_duplicate_basenames": 0,
+  "source_ids_with_conflicting_categories": 0,
+  "source_ids_with_multiple_annotations": 0,
+  "source_images": 217959,
+  "source_sha256": "c332b93c8fad2d0b43e6d0fb7865e1a0f582d556fd64f74fe377d2af1e37831c",
+  "splits": {
+    "test": {
+      "issues": [],
+      "rows": 2943,
+      "source_cameras": 7
+    },
+    "train": {
+      "issues": [],
+      "rows": 20000,
+      "source_cameras": 143
+    }
+  }
+}

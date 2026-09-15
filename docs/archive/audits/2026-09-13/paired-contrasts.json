@@ -1,0 +1,1316 @@
+[
+  {
+    "campaign": "snap3",
+    "model": "MobileNetV2",
+    "dataset": "bcn",
+    "cap": "L100_G95",
+    "arm": "tralo_snap",
+    "control": "clip",
+    "metric": "deployed_items",
+    "seeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "differences": [
+      38.0,
+      20.0,
+      -1.0,
+      -8.0
+    ],
+    "mean": 12.25,
+    "sample_sd": 20.886598574205422
+  },
+  {
+    "campaign": "snap3",
+    "model": "MobileNetV2",
+    "dataset": "bcn",
+    "cap": "L100_G95",
+    "arm": "tralo_snap",
+    "control": "clip",
+    "metric": "ccF1",
+    "seeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "differences": [
+      0.019233180853034604,
+      0.009925469910079476,
+      -2.7788465649214444e-05,
+      -0.0013466717968450004
+    ],
+    "mean": 0.006946047625154966,
+    "sample_sd": 0.009613431321940275
+  },
+  {
+    "campaign": "snap3",
+    "model": "MobileNetV2",
+    "dataset": "bcn",
+    "cap": "L100_G95",
+    "arm": "tralo_snap",
+    "control": "focal_clip",
+    "metric": "deployed_items",
+    "seeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "differences": [
+      6.0,
+      -3.0,
+      18.0,
+      18.0
+    ],
+    "mean": 9.75,
+    "sample_sd": 10.21028892833107
+  },
+  {
+    "campaign": "snap3",
+    "model": "MobileNetV2",
+    "dataset": "bcn",
+    "cap": "L100_G95",
+    "arm": "tralo_snap",
+    "control": "focal_clip",
+    "metric": "ccF1",
+    "seeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "differences": [
+      0.0026028529491399777,
+      -0.004580821683553449,
+      0.007433770823536134,
+      0.010994257050432554
+    ],
+    "mean": 0.004112514784888804,
+    "sample_sd": 0.006738998345340034
+  },
+  {
+    "campaign": "snap3",
+    "model": "MobileNetV2",
+    "dataset": "bcn",
+    "cap": "L100_G95",
+    "arm": "tralo_snap",
+    "control": "tralo_snap_null",
+    "metric": "deployed_items",
+    "seeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "differences": [
+      10.0,
+      -7.0,
+      6.0,
+      -5.0
+    ],
+    "mean": 1.0,
+    "sample_sd": 8.286535263104035
+  },
+  {
+    "campaign": "snap3",
+    "model": "MobileNetV2",
+    "dataset": "bcn",
+    "cap": "L100_G95",
+    "arm": "tralo_snap",
+    "control": "tralo_snap_null",
+    "metric": "ccF1",
+    "seeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "differences": [
+      0.0027140068117367244,
+      -0.00319282345061489,
+      0.0020406709133141687,
+      -0.0007011243640716591
+    ],
+    "mean": 0.000215182477591086,
+    "sample_sd": 0.0027098987506696095
+  },
+  {
+    "campaign": "snap3",
+    "model": "MobileNetV2",
+    "dataset": "bcn",
+    "cap": "L100_G95",
+    "arm": "tralo_snap",
+    "control": "tralo_snap_reseed",
+    "metric": "deployed_items",
+    "seeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "differences": [
+      24.0,
+      1.0,
+      10.0,
+      7.0
+    ],
+    "mean": 10.5,
+    "sample_sd": 9.746794344808963
+  },
+  {
+    "campaign": "snap3",
+    "model": "MobileNetV2",
+    "dataset": "bcn",
+    "cap": "L100_G95",
+    "arm": "tralo_snap",
+    "control": "tralo_snap_reseed",
+    "metric": "ccF1",
+    "seeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "differences": [
+      0.01078619982044371,
+      -0.0007217875821183828,
+      0.003650976871446221,
+      0.00675330967751131
+    ],
+    "mean": 0.005117174696820714,
+    "sample_sd": 0.004866826484315855
+  },
+  {
+    "campaign": "snap3",
+    "model": "MobileNetV2",
+    "dataset": "bcn",
+    "cap": "L100_G95",
+    "arm": "tralo_snap",
+    "control": "tralo_snap_reseed2",
+    "metric": "deployed_items",
+    "seeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "differences": [
+      21.0,
+      6.0,
+      8.0,
+      -16.0
+    ],
+    "mean": 4.75,
+    "sample_sd": 15.348724159790395
+  },
+  {
+    "campaign": "snap3",
+    "model": "MobileNetV2",
+    "dataset": "bcn",
+    "cap": "L100_G95",
+    "arm": "tralo_snap",
+    "control": "tralo_snap_reseed2",
+    "metric": "ccF1",
+    "seeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "differences": [
+      0.008828894304077073,
+      0.002790246961081988,
+      0.0037827939520898024,
+      -0.006816011856412008
+    ],
+    "mean": 0.002146480840209214,
+    "sample_sd": 0.006533831965433635
+  },
+  {
+    "campaign": "snap3",
+    "model": "MobileNetV2",
+    "dataset": "bcn",
+    "cap": "L90_G95",
+    "arm": "tralo_snap",
+    "control": "clip",
+    "metric": "deployed_items",
+    "seeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "differences": [
+      34.0,
+      11.0,
+      -9.0,
+      6.0
+    ],
+    "mean": 10.5,
+    "sample_sd": 17.8232058470598
+  },
+  {
+    "campaign": "snap3",
+    "model": "MobileNetV2",
+    "dataset": "bcn",
+    "cap": "L90_G95",
+    "arm": "tralo_snap",
+    "control": "clip",
+    "metric": "ccF1",
+    "seeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "differences": [
+      0.017318681604604924,
+      0.005506782341369365,
+      -0.0029469078732902165,
+      0.004597366421562166
+    ],
+    "mean": 0.00611898062356156,
+    "sample_sd": 0.008372847640211352
+  },
+  {
+    "campaign": "snap3",
+    "model": "MobileNetV2",
+    "dataset": "bcn",
+    "cap": "L90_G95",
+    "arm": "tralo_snap",
+    "control": "focal_clip",
+    "metric": "deployed_items",
+    "seeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "differences": [
+      0.0,
+      -6.0,
+      20.0,
+      25.0
+    ],
+    "mean": 9.75,
+    "sample_sd": 15.063753405664428
+  },
+  {
+    "campaign": "snap3",
+    "model": "MobileNetV2",
+    "dataset": "bcn",
+    "cap": "L90_G95",
+    "arm": "tralo_snap",
+    "control": "focal_clip",
+    "metric": "ccF1",
+    "seeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "differences": [
+      0.0005779231842516497,
+      -0.004982648544396673,
+      0.009994818705997499,
+      0.013793850547063169
+    ],
+    "mean": 0.004845985973228911,
+    "sample_sd": 0.008590560233834595
+  },
+  {
+    "campaign": "snap3",
+    "model": "MobileNetV2",
+    "dataset": "bcn",
+    "cap": "L90_G95",
+    "arm": "tralo_snap",
+    "control": "tralo_snap_null",
+    "metric": "deployed_items",
+    "seeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "differences": [
+      0.0,
+      -10.0,
+      -7.0,
+      -1.0
+    ],
+    "mean": -4.5,
+    "sample_sd": 4.795831523312719
+  },
+  {
+    "campaign": "snap3",
+    "model": "MobileNetV2",
+    "dataset": "bcn",
+    "cap": "L90_G95",
+    "arm": "tralo_snap",
+    "control": "tralo_snap_null",
+    "metric": "ccF1",
+    "seeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "differences": [
+      -0.0009632053070861568,
+      -0.005671653067959026,
+      -0.0028913672036349203,
+      0.0005501528494240571
+    ],
+    "mean": -0.0022440181823140115,
+    "sample_sd": 0.0026842512947840456
+  },
+  {
+    "campaign": "snap3",
+    "model": "MobileNetV2",
+    "dataset": "bcn",
+    "cap": "L90_G95",
+    "arm": "tralo_snap",
+    "control": "tralo_snap_reseed",
+    "metric": "deployed_items",
+    "seeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "differences": [
+      4.0,
+      -7.0,
+      -4.0,
+      7.0
+    ],
+    "mean": 0.0,
+    "sample_sd": 6.582805886043833
+  },
+  {
+    "campaign": "snap3",
+    "model": "MobileNetV2",
+    "dataset": "bcn",
+    "cap": "L90_G95",
+    "arm": "tralo_snap",
+    "control": "tralo_snap_reseed",
+    "metric": "ccF1",
+    "seeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "differences": [
+      0.002037491953482906,
+      -0.00462513675638998,
+      -0.002037491953482906,
+      0.005588342063476026
+    ],
+    "mean": 0.00024080132677151145,
+    "sample_sd": 0.00449786107829194
+  },
+  {
+    "campaign": "snap3",
+    "model": "MobileNetV2",
+    "dataset": "bcn",
+    "cap": "L90_G95",
+    "arm": "tralo_snap",
+    "control": "tralo_snap_reseed2",
+    "metric": "deployed_items",
+    "seeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "differences": [
+      -1.0,
+      5.0,
+      -11.0,
+      -19.0
+    ],
+    "mean": -6.5,
+    "sample_sd": 10.63014581273465
+  },
+  {
+    "campaign": "snap3",
+    "model": "MobileNetV2",
+    "dataset": "bcn",
+    "cap": "L90_G95",
+    "arm": "tralo_snap",
+    "control": "tralo_snap_reseed2",
+    "metric": "ccF1",
+    "seeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "differences": [
+      -0.001183616703331114,
+      0.001487339104058849,
+      -0.004736218095700684,
+      -0.010159689432587049
+    ],
+    "mean": -0.0036480462818899995,
+    "sample_sd": 0.005034256337940582
+  },
+  {
+    "campaign": "snap3",
+    "model": "MobileNetV2",
+    "dataset": "bcn",
+    "cap": "L95_G95",
+    "arm": "tralo_snap",
+    "control": "clip",
+    "metric": "deployed_items",
+    "seeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "differences": [
+      27.0,
+      18.0,
+      -4.0,
+      2.0
+    ],
+    "mean": 10.75,
+    "sample_sd": 14.26826315054966
+  },
+  {
+    "campaign": "snap3",
+    "model": "MobileNetV2",
+    "dataset": "bcn",
+    "cap": "L95_G95",
+    "arm": "tralo_snap",
+    "control": "clip",
+    "metric": "ccF1",
+    "seeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "differences": [
+      0.01387344173905447,
+      0.008560572789821808,
+      -0.0004838522625083552,
+      0.0015561221094817501
+    ],
+    "mean": 0.005876571093962418,
+    "sample_sd": 0.0065897665593137675
+  },
+  {
+    "campaign": "snap3",
+    "model": "MobileNetV2",
+    "dataset": "bcn",
+    "cap": "L95_G95",
+    "arm": "tralo_snap",
+    "control": "focal_clip",
+    "metric": "deployed_items",
+    "seeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "differences": [
+      1.0,
+      -4.0,
+      22.0,
+      23.0
+    ],
+    "mean": 10.5,
+    "sample_sd": 14.011899704655802
+  },
+  {
+    "campaign": "snap3",
+    "model": "MobileNetV2",
+    "dataset": "bcn",
+    "cap": "L95_G95",
+    "arm": "tralo_snap",
+    "control": "focal_clip",
+    "metric": "ccF1",
+    "seeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "differences": [
+      0.0009658033373449726,
+      -0.004614182479795059,
+      0.010734105595765708,
+      0.011324424367902597
+    ],
+    "mean": 0.004602537705304555,
+    "sample_sd": 0.007766458929990096
+  },
+  {
+    "campaign": "snap3",
+    "model": "MobileNetV2",
+    "dataset": "bcn",
+    "cap": "L95_G95",
+    "arm": "tralo_snap",
+    "control": "tralo_snap_null",
+    "metric": "deployed_items",
+    "seeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "differences": [
+      -3.0,
+      -3.0,
+      5.0,
+      -6.0
+    ],
+    "mean": -1.75,
+    "sample_sd": 4.716990566028302
+  },
+  {
+    "campaign": "snap3",
+    "model": "MobileNetV2",
+    "dataset": "bcn",
+    "cap": "L95_G95",
+    "arm": "tralo_snap",
+    "control": "tralo_snap_null",
+    "metric": "ccF1",
+    "seeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "differences": [
+      -0.0025219254468265007,
+      -0.0015832140338069012,
+      0.0031393361432886513,
+      -0.003729654915425762
+    ],
+    "mean": -0.001173864563192628,
+    "sample_sd": 0.0030066925235788296
+  },
+  {
+    "campaign": "snap3",
+    "model": "MobileNetV2",
+    "dataset": "bcn",
+    "cap": "L95_G95",
+    "arm": "tralo_snap",
+    "control": "tralo_snap_reseed",
+    "metric": "deployed_items",
+    "seeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "differences": [
+      9.0,
+      1.0,
+      14.0,
+      11.0
+    ],
+    "mean": 8.75,
+    "sample_sd": 5.560275772537426
+  },
+  {
+    "campaign": "snap3",
+    "model": "MobileNetV2",
+    "dataset": "bcn",
+    "cap": "L95_G95",
+    "arm": "tralo_snap",
+    "control": "tralo_snap_reseed",
+    "metric": "ccF1",
+    "seeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "differences": [
+      0.004561899818816828,
+      -0.0005361349234866974,
+      0.007513493679501604,
+      0.00649350649350644
+    ],
+    "mean": 0.004508191267084544,
+    "sample_sd": 0.003578706957536226
+  },
+  {
+    "campaign": "snap3",
+    "model": "MobileNetV2",
+    "dataset": "bcn",
+    "cap": "L95_G95",
+    "arm": "tralo_snap",
+    "control": "tralo_snap_reseed2",
+    "metric": "deployed_items",
+    "seeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "differences": [
+      3.0,
+      9.0,
+      8.0,
+      -8.0
+    ],
+    "mean": 3.0,
+    "sample_sd": 7.788880963698615
+  },
+  {
+    "campaign": "snap3",
+    "model": "MobileNetV2",
+    "dataset": "bcn",
+    "cap": "L95_G95",
+    "arm": "tralo_snap",
+    "control": "tralo_snap_reseed2",
+    "metric": "ccF1",
+    "seeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "differences": [
+      0.0010199871859951637,
+      0.003435446123193242,
+      0.004910292459699539,
+      -0.004534807894491788
+    ],
+    "mean": 0.0012077294685990392,
+    "sample_sd": 0.004150649616923232
+  },
+  {
+    "campaign": "bcn1vit",
+    "model": "ViTB16",
+    "dataset": "bcn",
+    "cap": "L80_G95",
+    "arm": "tralo",
+    "control": "clip",
+    "metric": "deployed_items",
+    "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "differences": [
+      19.0,
+      4.0,
+      -8.0,
+      60.0,
+      -16.0,
+      4.0,
+      12.0,
+      12.0,
+      -1.0,
+      -43.0,
+      10.0,
+      18.0
+    ],
+    "mean": 5.916666666666667,
+    "sample_sd": 24.224174001616774
+  },
+  {
+    "campaign": "bcn1vit",
+    "model": "ViTB16",
+    "dataset": "bcn",
+    "cap": "L80_G95",
+    "arm": "tralo",
+    "control": "clip",
+    "metric": "ccF1",
+    "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "differences": [
+      0.010528149316825886,
+      0.003373161426039939,
+      -0.0032869063051655933,
+      0.03472480429299274,
+      -0.006166822428341212,
+      -8.625512087445664e-05,
+      0.009508999005135133,
+      0.006253077549215669,
+      0.0028196212813994537,
+      -0.020999353505307683,
+      0.005380477200175537,
+      0.01049883932429585
+    ],
+    "mean": 0.004378982669699272,
+    "sample_sd": 0.013018823837484128
+  },
+  {
+    "campaign": "bcn1vit",
+    "model": "ViTB16",
+    "dataset": "bcn",
+    "cap": "L80_G95",
+    "arm": "tralo",
+    "control": "focal_clip",
+    "metric": "deployed_items",
+    "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "differences": [
+      6.0,
+      26.0,
+      -21.0,
+      -15.0,
+      -24.0,
+      3.0,
+      -14.0,
+      -2.0,
+      2.0,
+      -39.0,
+      -11.0,
+      -5.0
+    ],
+    "mean": -7.833333333333333,
+    "sample_sd": 16.781122149786665
+  },
+  {
+    "campaign": "bcn1vit",
+    "model": "ViTB16",
+    "dataset": "bcn",
+    "cap": "L80_G95",
+    "arm": "tralo",
+    "control": "focal_clip",
+    "metric": "ccF1",
+    "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "differences": [
+      0.003635276502095275,
+      0.0135822505384664,
+      -0.009365798755916366,
+      -0.007968968254765785,
+      -0.011692174734451388,
+      8.792997759032861e-05,
+      -0.006922182807260868,
+      -0.0004656101670501567,
+      0.003314541440979757,
+      -0.018643667534242514,
+      -0.00215386573678622,
+      -0.00380946160056006
+    ],
+    "mean": -0.0033668109276584666,
+    "sample_sd": 0.008396222988415821
+  },
+  {
+    "campaign": "bcn1vit",
+    "model": "ViTB16",
+    "dataset": "bcn",
+    "cap": "L80_G95",
+    "arm": "tralo",
+    "control": "tralo_null",
+    "metric": "deployed_items",
+    "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "differences": [
+      3.0,
+      -12.0,
+      -19.0,
+      21.0,
+      17.0,
+      -2.0,
+      -13.0,
+      -6.0,
+      -4.0,
+      9.0,
+      18.0,
+      3.0
+    ],
+    "mean": 1.25,
+    "sample_sd": 13.018343701380477
+  },
+  {
+    "campaign": "bcn1vit",
+    "model": "ViTB16",
+    "dataset": "bcn",
+    "cap": "L80_G95",
+    "arm": "tralo",
+    "control": "tralo_null",
+    "metric": "ccF1",
+    "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "differences": [
+      0.0015123956145551842,
+      -0.005846087367225805,
+      -0.007679218042896396,
+      0.012418225120840898,
+      0.013318460605695304,
+      -0.0018900758040150123,
+      -0.009131318815675304,
+      -0.003431781411100232,
+      0.000696740393859363,
+      0.008403593572569812,
+      0.012940780416235365,
+      0.0025298710695300652
+    ],
+    "mean": 0.001986798779364437,
+    "sample_sd": 0.00810925461299777
+  },
+  {
+    "campaign": "bcn1vit",
+    "model": "ViTB16",
+    "dataset": "bcn",
+    "cap": "L80_G95",
+    "arm": "tralo",
+    "control": "fioretto",
+    "metric": "deployed_items",
+    "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "differences": [
+      2.0,
+      3.0,
+      -33.0,
+      5.0,
+      6.0,
+      -8.0,
+      11.0,
+      10.0,
+      -2.0,
+      -10.0,
+      10.0,
+      -10.0
+    ],
+    "mean": -1.3333333333333333,
+    "sample_sd": 12.54325848148452
+  },
+  {
+    "campaign": "bcn1vit",
+    "model": "ViTB16",
+    "dataset": "bcn",
+    "cap": "L80_G95",
+    "arm": "tralo",
+    "control": "fioretto",
+    "metric": "ccF1",
+    "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "differences": [
+      0.0016865807130199695,
+      0.0021228808875399796,
+      -0.017450332124086865,
+      0.0007570352356355281,
+      0.004856247048065088,
+      -0.005321857215115355,
+      0.006630757738675386,
+      0.004363001745200656,
+      0.0017728358338944261,
+      -0.0035490213812209292,
+      0.008229408474105027,
+      -0.006194457564155265
+    ],
+    "mean": -0.00017474338403686285,
+    "sample_sd": 0.007063433033355076
+  },
+  {
+    "campaign": "bcn1vit",
+    "model": "ViTB16",
+    "dataset": "bcn",
+    "cap": "L90_G95",
+    "arm": "tralo",
+    "control": "clip",
+    "metric": "deployed_items",
+    "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "differences": [
+      8.0,
+      23.0,
+      26.0,
+      75.0,
+      4.0,
+      -10.0,
+      6.0,
+      -1.0,
+      2.0,
+      -20.0,
+      11.0,
+      6.0
+    ],
+    "mean": 10.833333333333334,
+    "sample_sd": 23.74038880486292
+  },
+  {
+    "campaign": "bcn1vit",
+    "model": "ViTB16",
+    "dataset": "bcn",
+    "cap": "L90_G95",
+    "arm": "tralo",
+    "control": "clip",
+    "metric": "ccF1",
+    "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "differences": [
+      0.002341214354210863,
+      0.011233976078983798,
+      0.013436338759056254,
+      0.04099626951835489,
+      -0.0008521239677754533,
+      -0.0058642941293761686,
+      0.0055605717286483225,
+      -2.7770334827703635e-05,
+      0.0025598744680792596,
+      -0.010380100828831895,
+      0.003387730665779909,
+      0.0042120842987276585
+    ],
+    "mean": 0.005550314217585811,
+    "sample_sd": 0.01290805096069806
+  },
+  {
+    "campaign": "bcn1vit",
+    "model": "ViTB16",
+    "dataset": "bcn",
+    "cap": "L90_G95",
+    "arm": "tralo",
+    "control": "focal_clip",
+    "metric": "deployed_items",
+    "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "differences": [
+      -1.0,
+      29.0,
+      5.0,
+      -2.0,
+      -31.0,
+      -15.0,
+      -36.0,
+      -8.0,
+      -5.0,
+      -24.0,
+      -14.0,
+      -31.0
+    ],
+    "mean": -11.083333333333334,
+    "sample_sd": 18.342490825865763
+  },
+  {
+    "campaign": "bcn1vit",
+    "model": "ViTB16",
+    "dataset": "bcn",
+    "cap": "L90_G95",
+    "arm": "tralo",
+    "control": "focal_clip",
+    "metric": "ccF1",
+    "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "differences": [
+      -0.001183616703331003,
+      0.011593239149367052,
+      0.0026431854725622594,
+      -0.0004408227924898034,
+      -0.018583858030042588,
+      -0.008892761724772935,
+      -0.018144786519929235,
+      -0.0038823428455485587,
+      -0.003221108656813909,
+      -0.012032310659480405,
+      -0.005397452284435333,
+      -0.01627216529303588
+    ],
+    "mean": -0.0061512334073291946,
+    "sample_sd": 0.009079184870023443
+  },
+  {
+    "campaign": "bcn1vit",
+    "model": "ViTB16",
+    "dataset": "bcn",
+    "cap": "L90_G95",
+    "arm": "tralo",
+    "control": "tralo_null",
+    "metric": "deployed_items",
+    "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "differences": [
+      16.0,
+      6.0,
+      19.0,
+      55.0,
+      26.0,
+      -11.0,
+      -19.0,
+      5.0,
+      -9.0,
+      27.0,
+      23.0,
+      4.0
+    ],
+    "mean": 11.833333333333334,
+    "sample_sd": 20.305992547357377
+  },
+  {
+    "campaign": "bcn1vit",
+    "model": "ViTB16",
+    "dataset": "bcn",
+    "cap": "L90_G95",
+    "arm": "tralo",
+    "control": "tralo_null",
+    "metric": "ccF1",
+    "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "differences": [
+      0.007957326752514482,
+      0.0017077505003038063,
+      0.009581766248335288,
+      0.029652963382436837,
+      0.013243697697639112,
+      -0.0053141412799522225,
+      -0.011315535801090237,
+      0.0034137497182311627,
+      -0.005258600610296815,
+      0.015775801830890668,
+      0.013545668815990508,
+      0.0031933383219863165
+    ],
+    "mean": 0.0063486487980824085,
+    "sample_sd": 0.01114867242333145
+  },
+  {
+    "campaign": "bcn1vit",
+    "model": "ViTB16",
+    "dataset": "bcn",
+    "cap": "L90_G95",
+    "arm": "tralo",
+    "control": "fioretto",
+    "metric": "deployed_items",
+    "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "differences": [
+      34.0,
+      -1.0,
+      -6.0,
+      36.0,
+      20.0,
+      -24.0,
+      -21.0,
+      -15.0,
+      -19.0,
+      3.0,
+      -9.0,
+      -14.0
+    ],
+    "mean": -1.3333333333333333,
+    "sample_sd": 20.794812873027794
+  },
+  {
+    "campaign": "bcn1vit",
+    "model": "ViTB16",
+    "dataset": "bcn",
+    "cap": "L90_G95",
+    "arm": "tralo",
+    "control": "fioretto",
+    "metric": "ccF1",
+    "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "differences": [
+      0.016933399481770528,
+      -0.0007983345804966069,
+      -0.004212084298727881,
+      0.018915350765598027,
+      0.007297843846156393,
+      -0.012224951720897659,
+      -0.010793153286493995,
+      -0.007158992172017875,
+      -0.009389125186918035,
+      -0.00030197111835139623,
+      -0.0025616257504558204,
+      -0.005012170161600937
+    ],
+    "mean": -0.000775484515202938,
+    "sample_sd": 0.010207283142884332
+  }
+]

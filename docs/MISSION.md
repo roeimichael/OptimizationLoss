@@ -212,12 +212,14 @@ confirmatory evidence. Code cleanup and data-integrity checks can proceed.
   snapshot; its earlier CPU test pass does not validate current source.
   **Re-sync and verify actual bytes before any campaign.**
 - Recovery paths and backup verification: [`GIT_TRACKING.md`](GIT_TRACKING.md).
-- Data provenance: [`paper/data/PROVENANCE.md`](paper/data/PROVENANCE.md).
+- Data provenance: `docs/archive/paper/data/PROVENANCE.md` -- **archived and
+  contaminated with retired datasets.** Read it only for the fmow2 rebuild
+  keys, never for results.
 
 ## Preservation
 
 No old scientific result is promoted or erased by the reset. Folder titles carry
 no evidential meaning. Archive records must state original path, destination,
 inventory/hash verification and restore procedure. **Keep this file concise** --
-completed audit receipts go in `docs/audits/`, findings go in `LEDGER.md`, and
-neither belongs here as a growing narrative.
+completed audit receipts go in `docs/archive/audits/`, findings go in
+`LEDGER.md`, and neither belongs here as a growing narrative.

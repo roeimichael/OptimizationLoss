@@ -1,0 +1,193 @@
+{
+  "cross_split_source_countries": [],
+  "cross_split_source_sites": [],
+  "duplicate_source_basenames": 7429,
+  "label_mapping": {
+    "0": [
+      "recreational_facility"
+    ],
+    "1": [
+      "crop_field"
+    ],
+    "2": [
+      "place_of_worship"
+    ],
+    "3": [
+      "military_facility"
+    ],
+    "4": [
+      "parking_lot_or_garage"
+    ],
+    "5": [
+      "educational_institution"
+    ],
+    "6": [
+      "single-unit_residential"
+    ],
+    "7": [
+      "ground_transportation_station"
+    ]
+  },
+  "parse_errors": [],
+  "source": "/home/dsi/michaer8/optloss-audit/data/fmow/_cache/val-metadata.tar.gz",
+  "source_rows": 63422,
+  "source_sha256": "3089d4b0350ac6ae109c457a056d4050f91a4acd224ca9278a8ce67e2ea4519e",
+  "splits": {
+    "test": {
+      "issue_counts": {},
+      "issue_examples": [],
+      "issue_inventory_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "repeated_source_examples": [
+        {
+          "candidates": [
+            {
+              "class": "single-unit_residential",
+              "country": "BRA",
+              "sidecar_categories": [
+                "false_detection",
+                "single-unit_residential"
+              ],
+              "site": "single-unit_residential_315",
+              "source_path": "val/single-unit_residential/single-unit_residential_315/single-unit_residential_150057/single-unit_residential_315_1_rgb.json"
+            },
+            {
+              "class": "single-unit_residential",
+              "country": "BRA",
+              "sidecar_categories": [
+                "false_detection",
+                "single-unit_residential"
+              ],
+              "site": "single-unit_residential_315",
+              "source_path": "val/single-unit_residential/single-unit_residential_315/false_detection_160979/single-unit_residential_315_1_rgb.json"
+            },
+            {
+              "class": "single-unit_residential",
+              "country": "BRA",
+              "sidecar_categories": [
+                "false_detection",
+                "single-unit_residential"
+              ],
+              "site": "single-unit_residential_315",
+              "source_path": "val/single-unit_residential/single-unit_residential_315/false_detection_160980/single-unit_residential_315_1_rgb.json"
+            }
+          ],
+          "filename": "single-unit_residential_315_1_rgb.jpg",
+          "row": 123
+        },
+        {
+          "candidates": [
+            {
+              "class": "single-unit_residential",
+              "country": "BRA",
+              "sidecar_categories": [
+                "false_detection",
+                "single-unit_residential"
+              ],
+              "site": "single-unit_residential_315",
+              "source_path": "val/single-unit_residential/single-unit_residential_315/single-unit_residential_150057/single-unit_residential_315_3_rgb.json"
+            },
+            {
+              "class": "single-unit_residential",
+              "country": "BRA",
+              "sidecar_categories": [
+                "false_detection",
+                "single-unit_residential"
+              ],
+              "site": "single-unit_residential_315",
+              "source_path": "val/single-unit_residential/single-unit_residential_315/false_detection_160979/single-unit_residential_315_3_rgb.json"
+            },
+            {
+              "class": "single-unit_residential",
+              "country": "BRA",
+              "sidecar_categories": [
+                "false_detection",
+                "single-unit_residential"
+              ],
+              "site": "single-unit_residential_315",
+              "source_path": "val/single-unit_residential/single-unit_residential_315/false_detection_160980/single-unit_residential_315_3_rgb.json"
+            }
+          ],
+          "filename": "single-unit_residential_315_3_rgb.jpg",
+          "row": 129
+        }
+      ],
+      "rows": 4168,
+      "rows_with_repeated_source_basename": 301,
+      "source_countries": 13,
+      "source_sites": 795
+    },
+    "train": {
+      "issue_counts": {},
+      "issue_examples": [],
+      "issue_inventory_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "repeated_source_examples": [
+        {
+          "candidates": [
+            {
+              "class": "parking_lot_or_garage",
+              "country": "FRA",
+              "sidecar_categories": [
+                "false_detection",
+                "parking_lot_or_garage"
+              ],
+              "site": "parking_lot_or_garage_282",
+              "source_path": "val/parking_lot_or_garage/parking_lot_or_garage_282/parking_lot_or_garage_99299/parking_lot_or_garage_282_0_rgb.json"
+            },
+            {
+              "class": "parking_lot_or_garage",
+              "country": "FRA",
+              "sidecar_categories": [
+                "false_detection",
+                "parking_lot_or_garage"
+              ],
+              "site": "parking_lot_or_garage_282",
+              "source_path": "val/parking_lot_or_garage/parking_lot_or_garage_282/false_detection_160516/parking_lot_or_garage_282_0_rgb.json"
+            },
+            {
+              "class": "parking_lot_or_garage",
+              "country": "FRA",
+              "sidecar_categories": [
+                "false_detection",
+                "parking_lot_or_garage"
+              ],
+              "site": "parking_lot_or_garage_282",
+              "source_path": "val/parking_lot_or_garage/parking_lot_or_garage_282/false_detection_160517/parking_lot_or_garage_282_0_rgb.json"
+            }
+          ],
+          "filename": "parking_lot_or_garage_282_0_rgb.jpg",
+          "row": 51
+        },
+        {
+          "candidates": [
+            {
+              "class": "single-unit_residential",
+              "country": "DEU",
+              "sidecar_categories": [
+                "false_detection",
+                "single-unit_residential"
+              ],
+              "site": "single-unit_residential_413",
+              "source_path": "val/single-unit_residential/single-unit_residential_413/single-unit_residential_152542/single-unit_residential_413_0_rgb.json"
+            },
+            {
+              "class": "single-unit_residential",
+              "country": "DEU",
+              "sidecar_categories": [
+                "false_detection",
+                "single-unit_residential"
+              ],
+              "site": "single-unit_residential_413",
+              "source_path": "val/single-unit_residential/single-unit_residential_413/false_detection_161223/single-unit_residential_413_0_rgb.json"
+            }
+          ],
+          "filename": "single-unit_residential_413_0_rgb.jpg",
+          "row": 62
+        }
+      ],
+      "rows": 15386,
+      "rows_with_repeated_source_basename": 788,
+      "source_countries": 136,
+      "source_sites": 3362
+    }
+  }
+}

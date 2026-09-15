@@ -1,0 +1,173 @@
+{
+  "timestamp_utc": "20260914T073749818489Z",
+  "torch_version": "2.5.1+cu121",
+  "device": "cpu",
+  "source_hashes": {
+    "docs\\research\\loss_mechanism_probe.py": "31bb6ac2835a6bdcc0cb3eef07b26ef3f8e759fc7eb3452319db5c227319a05f",
+    "src\\losses\\transductive_loss.py": "a8b244034a27bc767a7e6295d3c5086db3c8f66f31a4b3ce1a9976bb81fd3de2",
+    "src\\methodologies\\tralo\\train.py": "8873cacd64a33f321a0aa472249c5d836944152fe3144a8a8990775fe774c32d",
+    "src\\training\\constraint_step.py": "4f5d29bfba7944bb7fe82f33e4d5dac30281e1691742601c5f57f881a82d0ba6",
+    "src\\training\\logging.py": "a9ed0dff76318dde7e09c185eda6edab19a0554dfdadcad5cd493ac45588bbe9",
+    "scripts\\smoke_arms.py": "1a13489fb9f3a4040d4ee375af42c8f97bfe2fa8a8bbcd9daed6321f78b0be02"
+  },
+  "git_head": "d17306b30b4add3f2def94214dd1a9baaa857b9d",
+  "penalty_derivative": [
+    {
+      "K": 0.0,
+      "S": 2.0,
+      "autograd": 0.671111121561481,
+      "analytic": 0.6711111215614812,
+      "finite_difference": 0.6711111215418342
+    },
+    {
+      "K": 10.0,
+      "S": 9.0,
+      "autograd": 0.0,
+      "analytic": 0.0,
+      "finite_difference": 0.0
+    },
+    {
+      "K": 10.0,
+      "S": 10.1,
+      "autograd": 0.10502820497060925,
+      "analytic": 0.10502820497060923,
+      "finite_difference": 0.10502820496673114
+    },
+    {
+      "K": 10.0,
+      "S": 16.0,
+      "autograd": 0.2661386232753962,
+      "analytic": 0.2661386232753963,
+      "finite_difference": 0.26613862326163584
+    },
+    {
+      "K": 10.0,
+      "S": 90.0,
+      "autograd": 0.0025600117045929674,
+      "analytic": 0.0025600117045929674,
+      "finite_difference": 0.002560011669316964
+    }
+  ],
+  "chunk_gradient": {
+    "sum": {
+      "max_gradient_difference": 0.0,
+      "full_norm": 0.41073618068232326,
+      "chunked_norm": 0.41073618068232326
+    },
+    "uniform": {
+      "max_gradient_difference": 0.11287593165673107,
+      "full_norm": 0.31244551783906993,
+      "chunked_norm": 0.4102627092144851
+    }
+  },
+  "optimizer_counterexample": {
+    "raw_gradient_dot": 0.0,
+    "actual_task_directional_change": 0.009098642312263872,
+    "constraint_directional_change": -0.00511997243605863,
+    "actual_delta": [
+      [
+        0.009098642312263872,
+        -0.00511997243605863
+      ]
+    ],
+    "zero_gradient_adam_delta": [
+      [
+        0.009098642312263872,
+        0.0
+      ]
+    ],
+    "incremental_constraint_delta": [
+      [
+        0.0,
+        -0.00511997243605863
+      ]
+    ],
+    "diagnostics": {
+      "pre_clip_grad_norm": 1.0,
+      "transformed_grad_norm": 0.9999990000010001,
+      "parameter_delta_norm": 0.010440278237313343,
+      "descent_alignment": 0.4904057458698708,
+      "nonfinite_gradient": false,
+      "amp_overflow_detected": false,
+      "optimizer_step_applied": true
+    }
+  },
+  "training_log_audit": {
+    "scope_forward_checks": [
+      {
+        "actual_soft": [
+          37.25416946411133,
+          35.343685150146484,
+          21.569168090820312,
+          25.83297348022461
+        ],
+        "logged_soft": [
+          37.25416946411133,
+          35.343685150146484,
+          21.569168090820312,
+          25.83297348022461
+        ]
+      },
+      {
+        "actual_soft": [
+          37.23933029174805,
+          35.344635009765625,
+          21.57588005065918,
+          25.84015464782715
+        ],
+        "logged_soft": [
+          37.25416946411133,
+          35.343685150146484,
+          21.569168090820312,
+          25.83297348022461
+        ]
+      },
+      {
+        "actual_soft": [
+          37.19596862792969,
+          35.34452819824219,
+          21.59880828857422,
+          25.860698699951172
+        ],
+        "logged_soft": [
+          37.19596862792969,
+          35.34452819824219,
+          21.59880828857422,
+          25.860698699951172
+        ]
+      },
+      {
+        "actual_soft": [
+          37.18259048461914,
+          35.34580612182617,
+          21.604787826538086,
+          25.866817474365234
+        ],
+        "logged_soft": [
+          37.19596862792969,
+          35.34452819824219,
+          21.59880828857422,
+          25.860698699951172
+        ]
+      }
+    ],
+    "loss_reconstruction": [
+      {
+        "epoch": 1,
+        "reconstructed": 0.03453510224819184,
+        "logged": 0.03453510161489248,
+        "absolute_error": 6.332993573998635e-10
+      },
+      {
+        "epoch": 2,
+        "reconstructed": 0.034535908699035646,
+        "logged": 0.034535907208919525,
+        "absolute_error": 1.4901161207725444e-09
+      }
+    ],
+    "event_count": 2,
+    "steps_applied": 2,
+    "note": "Synthetic fixture only; no real warmup or quality inference."
+  },
+  "source_unchanged_during_probe": true
+}

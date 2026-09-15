@@ -1,0 +1,170 @@
+[
+  {
+    "dataset": "iwildcam",
+    "path": "/home/dsi/michaer8/optloss-audit/data/iwildcam/oodslice",
+    "splits": {
+      "train": {
+        "rows": 20000,
+        "image_shape": [
+          20000,
+          224,
+          224,
+          3
+        ],
+        "image_dtype": "uint8",
+        "labels_aligned": true,
+        "rows_aligned": true,
+        "groups": 143,
+        "class_counts": {
+          "0": 2500,
+          "1": 2500,
+          "2": 2500,
+          "3": 2500,
+          "4": 2500,
+          "5": 2500,
+          "6": 2500,
+          "7": 2500
+        },
+        "meta_sha256": "b872dc8f5ed90a979ff3945e55affd484d9a6eb9edb8150234dbfa4d426ee825"
+      },
+      "test": {
+        "rows": 2943,
+        "image_shape": [
+          2943,
+          224,
+          224,
+          3
+        ],
+        "image_dtype": "uint8",
+        "labels_aligned": true,
+        "rows_aligned": true,
+        "groups": 7,
+        "class_counts": {
+          "0": 720,
+          "1": 480,
+          "2": 370,
+          "3": 180,
+          "4": 210,
+          "5": 367,
+          "6": 160,
+          "7": 456
+        },
+        "meta_sha256": "e0e99336dd2958c39d491d44be54af3c14fea5aad071160e713d78dd21cc5ccc"
+      }
+    },
+    "overlapping_groups": [],
+    "overlapping_filenames": []
+  },
+  {
+    "dataset": "bcn",
+    "path": "/home/dsi/michaer8/optloss-audit/data/bcn/oodslice",
+    "splits": {
+      "train": {
+        "rows": 8270,
+        "image_shape": [
+          8270,
+          224,
+          224,
+          3
+        ],
+        "image_dtype": "uint8",
+        "labels_aligned": true,
+        "rows_aligned": true,
+        "groups": 33,
+        "class_counts": {
+          "0": 2843,
+          "1": 1909,
+          "2": 1878,
+          "3": 765,
+          "4": 463,
+          "5": 281,
+          "6": 72,
+          "7": 59
+        },
+        "meta_sha256": "d496bc57eb8a6ee4d0c5448a9e19b636996af1d3f497f82af988fc51a9bac0a1"
+      },
+      "test": {
+        "rows": 3900,
+        "image_shape": [
+          3900,
+          224,
+          224,
+          3
+        ],
+        "image_dtype": "uint8",
+        "labels_aligned": true,
+        "rows_aligned": true,
+        "groups": 8,
+        "class_counts": {
+          "0": 1274,
+          "1": 915,
+          "2": 869,
+          "3": 344,
+          "4": 253,
+          "5": 144,
+          "6": 49,
+          "7": 52
+        },
+        "meta_sha256": "2dccae2cf43e905bad240f388f1e14947be2f4ca0bb07b58f58724c139dc61fe"
+      }
+    },
+    "overlapping_groups": [],
+    "overlapping_filenames": []
+  },
+  {
+    "dataset": "fmow",
+    "path": "/home/dsi/michaer8/optloss-audit/data/fmow/oodslice",
+    "splits": {
+      "train": {
+        "rows": 15386,
+        "image_shape": [
+          15386,
+          224,
+          224,
+          3
+        ],
+        "image_dtype": "uint8",
+        "labels_aligned": true,
+        "rows_aligned": true,
+        "groups": 136,
+        "class_counts": {
+          "0": 3512,
+          "1": 3183,
+          "2": 2332,
+          "3": 1460,
+          "4": 1526,
+          "5": 1043,
+          "6": 1279,
+          "7": 1051
+        },
+        "meta_sha256": "1abca5f78a0e9d41832893fd050998a5e5010ea77513ffd1f8e09942a1278119"
+      },
+      "test": {
+        "rows": 4168,
+        "image_shape": [
+          4168,
+          224,
+          224,
+          3
+        ],
+        "image_dtype": "uint8",
+        "labels_aligned": true,
+        "rows_aligned": true,
+        "groups": 13,
+        "class_counts": {
+          "0": 719,
+          "1": 424,
+          "2": 581,
+          "3": 501,
+          "4": 424,
+          "5": 625,
+          "6": 410,
+          "7": 484
+        },
+        "meta_sha256": "ee609266dea2f817e7753708a7709b4ee0a8f578e80d823a618e4468cdeba8fb"
+      }
+    },
+    "overlapping_groups": [],
+    "overlapping_filenames": []
+  }
+]

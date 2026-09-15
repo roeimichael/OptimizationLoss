@@ -1,5 +1,13 @@
 # TraLO loss research
 
+> **ARCHIVED -- NOT CURRENT EVIDENCE.** This file is historical. It does not
+> establish a result, a winner, a rejection, or a protocol, and it may be
+> contaminated with retired datasets (dermMNIST leaked, BCN blocked, iwildcam
+> retired). The evidence was reset on 2026-09-14. Do not cite, quote or reason
+> from it. The live record is `RULESET.md`, `docs/MISSION.md`, `docs/LEDGER.md`
+> and `docs/FRAMEWORK.md`. See `docs/archive/README.md`.
+
+
 ## Recommendation
 
 The next useful experiment is a **mechanism audit of the constraint update at a fixed model state**, followed, only if that audit supports it, by a task-protected constraint step. Retain TraLO's global and local count constraints, bounded penalty, supervised training, and deployment allocator. Test whether an update that actually reduces the constraint objective while limiting damage to a fixed training anchor improves the deployed constrained-class F1. Do not start another penalty-shape or multiplier-size sweep.

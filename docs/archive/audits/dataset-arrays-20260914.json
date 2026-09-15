@@ -1,0 +1,259 @@
+{
+  "iwildcam": {
+    "root": "/home/dsi/michaer8/optloss-audit/data/iwildcam/oodslice",
+    "splits": {
+      "train": {
+        "rows": 20000,
+        "image_shape": [
+          20000,
+          224,
+          224,
+          3
+        ],
+        "image_dtype": "uint8",
+        "labels_shape": [
+          20000
+        ],
+        "labels_dtype": "int64",
+        "lengths_agree": true,
+        "metadata_labels_agree": true,
+        "label_support": {
+          "3": 2500,
+          "4": 2500,
+          "0": 2500,
+          "6": 2500,
+          "5": 2500,
+          "1": 2500,
+          "7": 2500,
+          "2": 2500
+        },
+        "groups": 143,
+        "null_groups": 0,
+        "duplicate_filenames": 0,
+        "duplicate_image_rows": 5,
+        "sha256": {
+          "meta.csv": "b872dc8f5ed90a979ff3945e55affd484d9a6eb9edb8150234dbfa4d426ee825",
+          "labels.npy": "21e0c345346331e8e4a3fdcd0176fee39dfb040f51517613552cd57b5516a905",
+          "images.npy": "5562f23cefb339b75acb4e11e6b469f53fcc77b79b78b04afea8339d23986663"
+        }
+      },
+      "test": {
+        "rows": 2943,
+        "image_shape": [
+          2943,
+          224,
+          224,
+          3
+        ],
+        "image_dtype": "uint8",
+        "labels_shape": [
+          2943
+        ],
+        "labels_dtype": "int64",
+        "lengths_agree": true,
+        "metadata_labels_agree": true,
+        "label_support": {
+          "2": 370,
+          "7": 456,
+          "5": 367,
+          "0": 720,
+          "4": 210,
+          "6": 160,
+          "1": 480,
+          "3": 180
+        },
+        "groups": 7,
+        "null_groups": 0,
+        "duplicate_filenames": 0,
+        "duplicate_image_rows": 0,
+        "sha256": {
+          "meta.csv": "e0e99336dd2958c39d491d44be54af3c14fea5aad071160e713d78dd21cc5ccc",
+          "labels.npy": "34ff427d34afd1c5b70b689070d5430e152cb123fbb6e4f6ad358999d5478524",
+          "images.npy": "a1c1f56fa50a6fdffb1cbe31a9c98a1f8bd51e64d6d34ab6954415a25478c63b"
+        }
+      }
+    },
+    "cross_split_groups": 0,
+    "cross_split_filenames": 0,
+    "cross_split_exact_image_hashes": 0,
+    "duplicate_example_rows": [],
+    "subject_or_capture_event_overlap": "unknown: identifiers not in exported metadata"
+  },
+  "bcn": {
+    "root": "/home/dsi/michaer8/optloss-audit/data/bcn/oodslice",
+    "splits": {
+      "train": {
+        "rows": 8270,
+        "image_shape": [
+          8270,
+          224,
+          224,
+          3
+        ],
+        "image_dtype": "uint8",
+        "labels_shape": [
+          8270
+        ],
+        "labels_dtype": "int64",
+        "lengths_agree": true,
+        "metadata_labels_agree": true,
+        "label_support": {
+          "1": 1909,
+          "5": 281,
+          "0": 2843,
+          "2": 1878,
+          "3": 765,
+          "4": 463,
+          "6": 72,
+          "7": 59
+        },
+        "groups": 33,
+        "null_groups": 0,
+        "duplicate_filenames": 0,
+        "duplicate_image_rows": 19,
+        "sha256": {
+          "meta.csv": "d496bc57eb8a6ee4d0c5448a9e19b636996af1d3f497f82af988fc51a9bac0a1",
+          "labels.npy": "33631cc9b596cf64d10d4a9ba09a452f35ff4db1bb7ce38c25e084c154804cea",
+          "images.npy": "ded47d2e4d472e7e945f6e565efcd8a565e2df7d05240da17d03bd725fe768bc"
+        }
+      },
+      "test": {
+        "rows": 3900,
+        "image_shape": [
+          3900,
+          224,
+          224,
+          3
+        ],
+        "image_dtype": "uint8",
+        "labels_shape": [
+          3900
+        ],
+        "labels_dtype": "int64",
+        "lengths_agree": true,
+        "metadata_labels_agree": true,
+        "label_support": {
+          "0": 1274,
+          "3": 344,
+          "1": 915,
+          "2": 869,
+          "5": 144,
+          "4": 253,
+          "6": 49,
+          "7": 52
+        },
+        "groups": 8,
+        "null_groups": 0,
+        "duplicate_filenames": 0,
+        "duplicate_image_rows": 11,
+        "sha256": {
+          "meta.csv": "2dccae2cf43e905bad240f388f1e14947be2f4ca0bb07b58f58724c139dc61fe",
+          "labels.npy": "4c200b975907060896013dd0f676dc3e7dfa7457fe250f8732f78c0eb33db9e1",
+          "images.npy": "6a7c55e1ce3218e9ea454fee377893ba2ee72c51a1abd346f55fa1b8adea7903"
+        }
+      }
+    },
+    "cross_split_groups": 0,
+    "cross_split_filenames": 0,
+    "cross_split_exact_image_hashes": 2,
+    "duplicate_example_rows": [
+      {
+        "train": [
+          7319
+        ],
+        "test": [
+          3053
+        ]
+      },
+      {
+        "train": [
+          5846
+        ],
+        "test": [
+          2836
+        ]
+      }
+    ],
+    "subject_or_capture_event_overlap": "unknown: identifiers not in exported metadata"
+  },
+  "fmow": {
+    "root": "/home/dsi/michaer8/optloss-audit/data/fmow/oodslice",
+    "splits": {
+      "train": {
+        "rows": 15386,
+        "image_shape": [
+          15386,
+          224,
+          224,
+          3
+        ],
+        "image_dtype": "uint8",
+        "labels_shape": [
+          15386
+        ],
+        "labels_dtype": "int64",
+        "lengths_agree": true,
+        "metadata_labels_agree": true,
+        "label_support": {
+          "4": 1526,
+          "6": 1279,
+          "5": 1043,
+          "3": 1460,
+          "1": 3183,
+          "7": 1051,
+          "2": 2332,
+          "0": 3512
+        },
+        "groups": 136,
+        "null_groups": 0,
+        "duplicate_filenames": 0,
+        "duplicate_image_rows": 7,
+        "sha256": {
+          "meta.csv": "1abca5f78a0e9d41832893fd050998a5e5010ea77513ffd1f8e09942a1278119",
+          "labels.npy": "b71bee107983a1d0e7ae5c7b3209defa035763671d73a70f7ffa02a7733a5117",
+          "images.npy": "1438a9d06995660d643480a397d55783936206b43294dd7f6bb953fc3b039435"
+        }
+      },
+      "test": {
+        "rows": 4168,
+        "image_shape": [
+          4168,
+          224,
+          224,
+          3
+        ],
+        "image_dtype": "uint8",
+        "labels_shape": [
+          4168
+        ],
+        "labels_dtype": "int64",
+        "lengths_agree": true,
+        "metadata_labels_agree": true,
+        "label_support": {
+          "4": 424,
+          "6": 410,
+          "3": 501,
+          "1": 424,
+          "5": 625,
+          "7": 484,
+          "2": 581,
+          "0": 719
+        },
+        "groups": 13,
+        "null_groups": 0,
+        "duplicate_filenames": 0,
+        "duplicate_image_rows": 1,
+        "sha256": {
+          "meta.csv": "ee609266dea2f817e7753708a7709b4ee0a8f578e80d823a618e4468cdeba8fb",
+          "labels.npy": "5e6d1e27cda33a2bb90513522709e9c8a1a56dc06eeda208c8714c0367461d18",
+          "images.npy": "ebbec6df55b5bdbccf57e7589d639359224fcb99ba8e51f4830dd9ac904e7270"
+        }
+      }
+    },
+    "cross_split_groups": 0,
+    "cross_split_filenames": 0,
+    "cross_split_exact_image_hashes": 0,
+    "duplicate_example_rows": [],
+    "cross_split_fmow_sites_from_filenames": 0
+  }
+}

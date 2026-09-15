@@ -1,3 +1,10 @@
+> **ARCHIVED -- NOT CURRENT EVIDENCE.** This file is historical. It does not
+> establish a result, a winner, a rejection, or a protocol, and it may be
+> contaminated with retired datasets (dermMNIST leaked, BCN blocked, iwildcam
+> retired). The evidence was reset on 2026-09-14. Do not cite, quote or reason
+> from it. The live record is `RULESET.md`, `docs/MISSION.md`, `docs/LEDGER.md`
+> and `docs/FRAMEWORK.md`. See `docs/archive/README.md`.
+
 > 🛑 **ARCHIVED -- HISTORY, NOT INSTRUCTIONS.** (banner added 2026-09-11)
 > The record of ONE cleanup pass, 2026-09-06. A finding here was true of the
 > tree on that date and says nothing about today's.

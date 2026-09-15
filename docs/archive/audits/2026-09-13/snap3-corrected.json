@@ -1,0 +1,149 @@
+[
+ {
+  "campaign": "snap3",
+  "model": "MobileNetV2",
+  "dataset": "bcn",
+  "cap": "L100_G95",
+  "capped": "0-2",
+  "seeds": 4,
+  "control": "clip",
+  "unequal_spend": [],
+  "base_items": 1530.0,
+  "rng_floor": 13.0,
+  "spread": 30.75,
+  "refused": true,
+  "jackknife": [
+   "tralo_snap"
+  ],
+  "order": [
+   {
+    "arm": "tralo_snap",
+    "d_items": 12.25,
+    "seeds_needed": 23
+   },
+   {
+    "arm": "focal_clip",
+    "d_items": 2.5,
+    "seeds_needed": 1074
+   },
+   {
+    "arm": "alm",
+    "d_items": -3.75,
+    "seeds_needed": 158
+   },
+   {
+    "arm": "tralo",
+    "d_items": -11.5,
+    "seeds_needed": 7
+   },
+   {
+    "arm": "hounie",
+    "d_items": -12.5,
+    "seeds_needed": 41
+   },
+   {
+    "arm": "fioretto",
+    "d_items": -18.5,
+    "seeds_needed": 30
+   }
+  ]
+ },
+ {
+  "campaign": "snap3",
+  "model": "MobileNetV2",
+  "dataset": "bcn",
+  "cap": "L90_G95",
+  "capped": "0-2",
+  "seeds": 4,
+  "control": "clip",
+  "unequal_spend": [],
+  "base_items": 1468.5,
+  "rng_floor": 15.0,
+  "spread": 33.25,
+  "refused": true,
+  "jackknife": [
+   "tralo_snap"
+  ],
+  "order": [
+   {
+    "arm": "tralo_snap",
+    "d_items": 10.5,
+    "seeds_needed": 23
+   },
+   {
+    "arm": "focal_clip",
+    "d_items": 0.75,
+    "seeds_needed": 12303
+   },
+   {
+    "arm": "fioretto",
+    "d_items": -2.5,
+    "seeds_needed": 460
+   },
+   {
+    "arm": "alm",
+    "d_items": -5.0,
+    "seeds_needed": 1
+   },
+   {
+    "arm": "hounie",
+    "d_items": -8.5,
+    "seeds_needed": 20
+   },
+   {
+    "arm": "tralo",
+    "d_items": -22.75,
+    "seeds_needed": 16
+   }
+  ]
+ },
+ {
+  "campaign": "snap3",
+  "model": "MobileNetV2",
+  "dataset": "bcn",
+  "cap": "L95_G95",
+  "capped": "0-2",
+  "seeds": 4,
+  "control": "clip",
+  "unequal_spend": [],
+  "base_items": 1532.25,
+  "rng_floor": 12.0,
+  "spread": 30.75,
+  "refused": true,
+  "jackknife": [
+   "tralo_snap"
+  ],
+  "order": [
+   {
+    "arm": "tralo_snap",
+    "d_items": 10.75,
+    "seeds_needed": 14
+   },
+   {
+    "arm": "focal_clip",
+    "d_items": 0.25,
+    "seeds_needed": 95320
+   },
+   {
+    "arm": "hounie",
+    "d_items": -4.75,
+    "seeds_needed": 204
+   },
+   {
+    "arm": "alm",
+    "d_items": -5.5,
+    "seeds_needed": 84
+   },
+   {
+    "arm": "tralo",
+    "d_items": -9.0,
+    "seeds_needed": 12
+   },
+   {
+    "arm": "fioretto",
+    "d_items": -20.0,
+    "seeds_needed": 2
+   }
+  ]
+ }
+]

@@ -1,0 +1,34 @@
+\begin{table*}[t]
+\centering
+\small
+\setlength{\tabcolsep}{4.0pt}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{cllc cccccccc}
+\toprule
+& & & & \multicolumn{2}{c}{vs.\ post-hoc clipping} & \multicolumn{2}{c}{vs.\ its own $\lambda{=}0$ twin} & \multicolumn{2}{c}{vs.\ the RNG floor} & \multicolumn{2}{c}{vs.\ ALM} \\
+\cmidrule(lr){5-6} \cmidrule(lr){7-8} \cmidrule(lr){9-10} \cmidrule(lr){11-12}
+Unit & Backbone & Campaign & Cap & $\Delta$ & sign & $\Delta$ & sign & $\Delta$ & sign & $\Delta$ & sign \\
+\midrule
+A1 & MNv2 & \texttt{dom1} & \texttt{L80\_G95} & +0.006 & 3/4 & \textbf{+0.013} & 4/4 & +0.004 & 2/4 & -0.000 & 2/4 \\
+A1 & MNv2 & \texttt{dom1} & \texttt{L95\_G80} & +0.011 & 4/4 & +0.014 & 4/4 & +0.010 & 3/4 & -0.003 & 1/4 \\
+\midrule
+A2 & MNv2 & \texttt{coin2} & \texttt{L70\_G95} & -0.003 & 1/4 & -0.005 & 0/4 & -0.001 & 1/4 & -- & -- \\
+A2 & MNv2 & \texttt{equaldose1} & \texttt{L80\_G95} & +0.003 & 3/4 & +0.002 & 2/4 & +0.008 & 3/4 & +0.000 & 3/4 \\
+A2 & MNv2 & \texttt{equaldose1} & \texttt{L95\_G80} & +0.006 & 2/4 & \textbf{+0.008} & 4/4 & \textbf{+0.016} & 4/4 & +0.005 & 3/4 \\
+\midrule
+B1 & RegNetY & \texttt{coin1} & \texttt{L70\_G95} & +0.004 & 2/4 & +0.006 & 2/4 & +0.002 & 2/4 & -- & -- \\
+B1 & RegNetY & \texttt{dom1b} & \texttt{L80\_G95} & +0.004 & 2/4 & +0.002 & 2/4 & +0.002 & 1/4 & +0.003 & 3/4 \\
+B1 & RegNetY & \texttt{dom1b} & \texttt{L95\_G80} & +0.005 & 3/4 & +0.004 & 1/4 & +0.002 & 3/4 & -0.007 & 1/4 \\
+\midrule
+D1 & MNv3 & \texttt{bcn1mn3} & \texttt{L80\_G95} & +0.014 & 4/4 & +0.001 & 1/4 & +0.002 & 2/4 & +0.007 & 2/4 \\
+D1 & MNv3 & \texttt{bcn1mn3} & \texttt{L90\_G95} & +0.003 & 3/4 & -0.000 & 2/4 & -0.005 & 1/4 & -0.003 & 1/4 \\
+\midrule
+E1 & MNv3 & \texttt{fmow1} & \texttt{L30\_G95} & -0.010 & 1/4 & -0.008 & 2/4 & -0.014 & 1/4 & -0.004 & 1/4 \\
+\midrule
+E2 & ViT-B/16 & \texttt{fmow1} & \texttt{L20\_G95} & \textbf{-0.013} & 0/4 & +0.003 & 2/4 & -0.009 & 0/4 & -0.011 & 1/4 \\
+E2 & ViT-B/16 & \texttt{fmow1} & \texttt{L30\_G95} & -0.007 & 2/4 & +0.005 & 3/4 & -0.006 & 2/4 & -0.005 & 2/4 \\
+\bottomrule
+\end{tabular}}
+\caption{\textbf{Paired contrasts in cc-F1, over the seeds each pair shares.} $\Delta$ is the mean paired difference and \emph{sign} counts the seeds in which \textsc{TraLO} leads. \textbf{Bold} marks the entries whose $|\Delta|$ exceeds twice its own paired standard deviation -- the only differences this design resolves at 4 seeds. \textbf{4 of 50 contrasts resolve}, of which 3 are against a $\lambda{=}0$ control and 1 against a rival constrained method.}
+\label{tab:taskcell-contrast}
+\end{table*}

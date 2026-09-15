@@ -1,0 +1,337 @@
+{
+  "pairs": [
+    {
+      "decoded_equal": true,
+      "jpeg_equal": true,
+      "names": [
+        "ISIC_0071017.jpg",
+        "ISIC_0069013.jpg"
+      ]
+    },
+    {
+      "decoded_equal": true,
+      "jpeg_equal": true,
+      "names": [
+        "ISIC_0067502.jpg",
+        "ISIC_0067980.jpg"
+      ]
+    }
+  ],
+  "public_csv": [
+    {
+      "bytes": 1291479,
+      "matches_cached_bytes": true,
+      "selected_rows": [
+        {
+          "AK": "0.0",
+          "BCC": "0.0",
+          "BKL": "0.0",
+          "DF": "0.0",
+          "MEL": "1.0",
+          "NV": "0.0",
+          "SCC": "0.0",
+          "UNK": "0.0",
+          "VASC": "0.0",
+          "image": "ISIC_0071017"
+        },
+        {
+          "AK": "0.0",
+          "BCC": "0.0",
+          "BKL": "0.0",
+          "DF": "0.0",
+          "MEL": "0.0",
+          "NV": "1.0",
+          "SCC": "0.0",
+          "UNK": "0.0",
+          "VASC": "0.0",
+          "image": "ISIC_0069013"
+        },
+        {
+          "AK": "0.0",
+          "BCC": "0.0",
+          "BKL": "0.0",
+          "DF": "0.0",
+          "MEL": "1.0",
+          "NV": "0.0",
+          "SCC": "0.0",
+          "UNK": "0.0",
+          "VASC": "0.0",
+          "image": "ISIC_0067502"
+        },
+        {
+          "AK": "0.0",
+          "BCC": "0.0",
+          "BKL": "0.0",
+          "DF": "0.0",
+          "MEL": "0.0",
+          "NV": "1.0",
+          "SCC": "0.0",
+          "UNK": "0.0",
+          "VASC": "0.0",
+          "image": "ISIC_0067980"
+        }
+      ],
+      "sha256": "aa88e9638fe4df9ef330dc4ba22fa4bd475c44af692fffb870c73091ab25cdcd",
+      "url": "https://isic-archive.s3.amazonaws.com/challenges/2019/ISIC_2019_Training_GroundTruth.csv"
+    },
+    {
+      "bytes": 1214351,
+      "matches_cached_bytes": true,
+      "selected_rows": [
+        {
+          "age_approx": "20",
+          "anatom_site_general": "anterior torso",
+          "image": "ISIC_0071017",
+          "lesion_id": "BCN_0003560",
+          "sex": "female"
+        },
+        {
+          "age_approx": "40",
+          "anatom_site_general": "anterior torso",
+          "image": "ISIC_0069013",
+          "lesion_id": "BCN_0000237",
+          "sex": "male"
+        },
+        {
+          "age_approx": "20",
+          "anatom_site_general": "anterior torso",
+          "image": "ISIC_0067502",
+          "lesion_id": "BCN_0003560",
+          "sex": "female"
+        },
+        {
+          "age_approx": "40",
+          "anatom_site_general": "anterior torso",
+          "image": "ISIC_0067980",
+          "lesion_id": "BCN_0000237",
+          "sex": "male"
+        }
+      ],
+      "sha256": "d93994a8ed201d474de9a7af7e17ec30929cbc4a5220659ecbde17cbe83e9316",
+      "url": "https://isic-archive.s3.amazonaws.com/challenges/2019/ISIC_2019_Training_Metadata.csv"
+    }
+  ],
+  "rows": [
+    {
+      "challenge_gt": {
+        "AK": "0.0",
+        "BCC": "0.0",
+        "BKL": "0.0",
+        "DF": "0.0",
+        "MEL": "1.0",
+        "NV": "0.0",
+        "SCC": "0.0",
+        "UNK": "0.0",
+        "VASC": "0.0",
+        "image": "ISIC_0071017"
+      },
+      "challenge_metadata": {
+        "age_approx": "20",
+        "anatom_site_general": "anterior torso",
+        "image": "ISIC_0071017",
+        "lesion_id": "BCN_0003560",
+        "sex": "female"
+      },
+      "decoded_sha256": "469bce630ff333742779cdf29447eda9153a5897659638ec064d7395cd6b0f7d",
+      "decoded_shape": [
+        1024,
+        1024,
+        3
+      ],
+      "index": 7319,
+      "jpeg_sha256": "d541d12ddc9cc7783ecf20e0c565e811e682634be5d8be9decca0032039f8ff8",
+      "jpeg_size": 523816,
+      "label_npy": 1,
+      "metadata": {
+        "class_name": "c1",
+        "filename": "ISIC_0071017.jpg",
+        "label": "1",
+        "location": "anterior torso|<30"
+      },
+      "public": {
+        "headers": {
+          "content_range": "bytes 9042511198-9042511227/9771618190",
+          "etag": "\"e21c03a0f30ee058d95e02b486c1141c-187\"",
+          "last_modified": "Fri, 19 Sep 2025 22:09:51 GMT"
+        },
+        "jpeg_sha256": "d541d12ddc9cc7783ecf20e0c565e811e682634be5d8be9decca0032039f8ff8",
+        "matches_cached_jpeg": true,
+        "url": "https://isic-archive.s3.amazonaws.com/challenges/2019/ISIC_2019_Training_Input.zip"
+      },
+      "resized_matches_stored": true,
+      "resized_sha256": "eb41d317b8b76103c33b203f9e7f56a64ea417966127d18399596a806da05306",
+      "split": "train",
+      "stored_sha256": "eb41d317b8b76103c33b203f9e7f56a64ea417966127d18399596a806da05306",
+      "zip_crc": 461083919,
+      "zip_member": "ISIC_2019_Training_Input/ISIC_0071017.jpg"
+    },
+    {
+      "challenge_gt": {
+        "AK": "0.0",
+        "BCC": "0.0",
+        "BKL": "0.0",
+        "DF": "0.0",
+        "MEL": "0.0",
+        "NV": "1.0",
+        "SCC": "0.0",
+        "UNK": "0.0",
+        "VASC": "0.0",
+        "image": "ISIC_0069013"
+      },
+      "challenge_metadata": {
+        "age_approx": "40",
+        "anatom_site_general": "anterior torso",
+        "image": "ISIC_0069013",
+        "lesion_id": "BCN_0000237",
+        "sex": "male"
+      },
+      "decoded_sha256": "469bce630ff333742779cdf29447eda9153a5897659638ec064d7395cd6b0f7d",
+      "decoded_shape": [
+        1024,
+        1024,
+        3
+      ],
+      "index": 3053,
+      "jpeg_sha256": "d541d12ddc9cc7783ecf20e0c565e811e682634be5d8be9decca0032039f8ff8",
+      "jpeg_size": 523816,
+      "label_npy": 0,
+      "metadata": {
+        "class_name": "c0",
+        "filename": "ISIC_0069013.jpg",
+        "label": "0",
+        "location": "anterior torso|40s"
+      },
+      "public": {
+        "headers": {
+          "content_range": "bytes 8396346217-8396346246/9771618190",
+          "etag": "\"e21c03a0f30ee058d95e02b486c1141c-187\"",
+          "last_modified": "Fri, 19 Sep 2025 22:09:51 GMT"
+        },
+        "jpeg_sha256": "d541d12ddc9cc7783ecf20e0c565e811e682634be5d8be9decca0032039f8ff8",
+        "matches_cached_jpeg": true,
+        "url": "https://isic-archive.s3.amazonaws.com/challenges/2019/ISIC_2019_Training_Input.zip"
+      },
+      "resized_matches_stored": true,
+      "resized_sha256": "eb41d317b8b76103c33b203f9e7f56a64ea417966127d18399596a806da05306",
+      "split": "test",
+      "stored_sha256": "eb41d317b8b76103c33b203f9e7f56a64ea417966127d18399596a806da05306",
+      "zip_crc": 461083919,
+      "zip_member": "ISIC_2019_Training_Input/ISIC_0069013.jpg"
+    },
+    {
+      "challenge_gt": {
+        "AK": "0.0",
+        "BCC": "0.0",
+        "BKL": "0.0",
+        "DF": "0.0",
+        "MEL": "1.0",
+        "NV": "0.0",
+        "SCC": "0.0",
+        "UNK": "0.0",
+        "VASC": "0.0",
+        "image": "ISIC_0067502"
+      },
+      "challenge_metadata": {
+        "age_approx": "20",
+        "anatom_site_general": "anterior torso",
+        "image": "ISIC_0067502",
+        "lesion_id": "BCN_0003560",
+        "sex": "female"
+      },
+      "decoded_sha256": "1794b7a323e3d1ee0b88fcf5ad53069ba59b80d5895fd0025c03b7802567c1ed",
+      "decoded_shape": [
+        1024,
+        1024,
+        3
+      ],
+      "index": 5846,
+      "jpeg_sha256": "33d39335eecc56d338aafb996cddadfacc26cd92384f2c4a36212e47ab8659c6",
+      "jpeg_size": 593611,
+      "label_npy": 1,
+      "metadata": {
+        "class_name": "c1",
+        "filename": "ISIC_0067502.jpg",
+        "label": "1",
+        "location": "anterior torso|<30"
+      },
+      "public": {
+        "headers": {
+          "content_range": "bytes 7900833366-7900833395/9771618190",
+          "etag": "\"e21c03a0f30ee058d95e02b486c1141c-187\"",
+          "last_modified": "Fri, 19 Sep 2025 22:09:51 GMT"
+        },
+        "jpeg_sha256": "33d39335eecc56d338aafb996cddadfacc26cd92384f2c4a36212e47ab8659c6",
+        "matches_cached_jpeg": true,
+        "url": "https://isic-archive.s3.amazonaws.com/challenges/2019/ISIC_2019_Training_Input.zip"
+      },
+      "resized_matches_stored": true,
+      "resized_sha256": "faeb7b009d69e80d0aeb8d5e569ae1364bf2d67c4c9927debded597e6f5e75e1",
+      "split": "train",
+      "stored_sha256": "faeb7b009d69e80d0aeb8d5e569ae1364bf2d67c4c9927debded597e6f5e75e1",
+      "zip_crc": 2675229936,
+      "zip_member": "ISIC_2019_Training_Input/ISIC_0067502.jpg"
+    },
+    {
+      "challenge_gt": {
+        "AK": "0.0",
+        "BCC": "0.0",
+        "BKL": "0.0",
+        "DF": "0.0",
+        "MEL": "0.0",
+        "NV": "1.0",
+        "SCC": "0.0",
+        "UNK": "0.0",
+        "VASC": "0.0",
+        "image": "ISIC_0067980"
+      },
+      "challenge_metadata": {
+        "age_approx": "40",
+        "anatom_site_general": "anterior torso",
+        "image": "ISIC_0067980",
+        "lesion_id": "BCN_0000237",
+        "sex": "male"
+      },
+      "decoded_sha256": "1794b7a323e3d1ee0b88fcf5ad53069ba59b80d5895fd0025c03b7802567c1ed",
+      "decoded_shape": [
+        1024,
+        1024,
+        3
+      ],
+      "index": 2836,
+      "jpeg_sha256": "33d39335eecc56d338aafb996cddadfacc26cd92384f2c4a36212e47ab8659c6",
+      "jpeg_size": 593611,
+      "label_npy": 0,
+      "metadata": {
+        "class_name": "c0",
+        "filename": "ISIC_0067980.jpg",
+        "label": "0",
+        "location": "anterior torso|40s"
+      },
+      "public": {
+        "headers": {
+          "content_range": "bytes 8055312474-8055312503/9771618190",
+          "etag": "\"e21c03a0f30ee058d95e02b486c1141c-187\"",
+          "last_modified": "Fri, 19 Sep 2025 22:09:51 GMT"
+        },
+        "jpeg_sha256": "33d39335eecc56d338aafb996cddadfacc26cd92384f2c4a36212e47ab8659c6",
+        "matches_cached_jpeg": true,
+        "url": "https://isic-archive.s3.amazonaws.com/challenges/2019/ISIC_2019_Training_Input.zip"
+      },
+      "resized_matches_stored": true,
+      "resized_sha256": "faeb7b009d69e80d0aeb8d5e569ae1364bf2d67c4c9927debded597e6f5e75e1",
+      "split": "test",
+      "stored_sha256": "faeb7b009d69e80d0aeb8d5e569ae1364bf2d67c4c9927debded597e6f5e75e1",
+      "zip_crc": 2675229936,
+      "zip_member": "ISIC_2019_Training_Input/ISIC_0067980.jpg"
+    }
+  ],
+  "runtime": {
+    "numpy": "2.2.6",
+    "pillow": "12.0.0",
+    "python": "3.10.19"
+  },
+  "source_zip": "/home/dsi/michaer8/isic_cache/ISIC_2019_Training_Input.zip",
+  "zip_mtime_ns": 1788859029804223000,
+  "zip_size": 9771618190,
+  "zip_whole_file_hash": null
+}

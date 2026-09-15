@@ -55,17 +55,26 @@ blocks:
   # is a property of the recipe (~3 epochs plain), so shrinking the budget
   # raises the live fraction from 10% at 30 epochs to 75% at 5.
   #
+  # The grid is placed where the effect CHANGES SIGN, not spread evenly. The
+  # between-campaign evidence flips between 30% (live11, -0.0089) and 60%
+  # (live6b, +0.0079), so b6 (60%) and b7 (50%) bracket it and b5 (75%) anchors
+  # the live end. A first attempt used b5/b8/b12/b20/b30 and put FOUR of five
+  # points in the frozen regime with none between 43% and 75% -- the firstrun
+  # saturation gate caught it at 6 of 384 runs.
+  #
   # Budget 30 is deliberately ABSENT: it is the protocol default, so the plain
   # `tralo`/`tralo_null`/`clip` arms already are the 30-epoch level and adding a
   # b30 block would generate a second copy of them under a different name.
   b5:
     total_epochs: 5
+  b6:
+    total_epochs: 6
+  b7:
+    total_epochs: 7
   b8:
     total_epochs: 8
   b12:
     total_epochs: 12
-  b20:
-    total_epochs: 20
 arms:
   tralo:
     methodology: tralo
@@ -165,6 +174,44 @@ arms:
     phase: posthoc
     blocks:
     - b5
+  tralo_b6:
+    methodology: tralo
+    phase: trained
+    blocks:
+    - constraint_phase
+    - tralo
+    - b6
+  tralo_null_b6:
+    methodology: tralo
+    phase: trained
+    blocks:
+    - constraint_phase
+    - tralo_null
+    - b6
+  clip_b6:
+    methodology: heuristic
+    phase: posthoc
+    blocks:
+    - b6
+  tralo_b7:
+    methodology: tralo
+    phase: trained
+    blocks:
+    - constraint_phase
+    - tralo
+    - b7
+  tralo_null_b7:
+    methodology: tralo
+    phase: trained
+    blocks:
+    - constraint_phase
+    - tralo_null
+    - b7
+  clip_b7:
+    methodology: heuristic
+    phase: posthoc
+    blocks:
+    - b7
   tralo_b8:
     methodology: tralo
     phase: trained
@@ -203,25 +250,6 @@ arms:
     phase: posthoc
     blocks:
     - b12
-  tralo_b20:
-    methodology: tralo
-    phase: trained
-    blocks:
-    - constraint_phase
-    - tralo
-    - b20
-  tralo_null_b20:
-    methodology: tralo
-    phase: trained
-    blocks:
-    - constraint_phase
-    - tralo_null
-    - b20
-  clip_b20:
-    methodology: heuristic
-    phase: posthoc
-    blocks:
-    - b20
   fioretto:
     methodology: fioretto_ldf
     phase: trained

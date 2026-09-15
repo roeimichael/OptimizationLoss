@@ -45,6 +45,13 @@ def live_window(path, saturated=SATURATED_ACC):
     return live, rows
 
 
+def _live_ok(per, key):
+    """Is this (backbone, dataset, constraint-epochs) cell still live at its cut?"""
+    con = key[2]
+    live = st.mean([w for w, _r, _c in per[key]])
+    return live >= max(1, con // 2)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -122,6 +129,37 @@ def main(argv=None):
         print("%d cell(s) SATURATE before half the constraint phase. The constraint" % bad)
         print("steps there act on a frozen boundary: CE is ~0, so under `normalize`")
         print("the step is full-size and opposed by nothing.")
+
+    # PROTOCOL AMENDMENT 2026-09-15, explicit and matched.
+    #
+    # This gate exists to stop a campaign that CANNOT ANSWER ITS QUESTION,
+    # because every cell memorised before the constraint did anything. For a
+    # single-budget campaign that is the same thing as "a cell saturated", and
+    # the rule is unchanged.
+    #
+    # A campaign that deliberately SWEEPS the budget is different: the long
+    # budgets are the frozen END OF THE DOSE AXIS, included on purpose as the
+    # reference condition. Killing such a campaign because its reference arm is
+    # frozen would delete the control, not protect the experiment. What would
+    # make a swept campaign vacuous is having NO live budget at all -- then the
+    # sweep has no contrast and measures the frozen regime five times over.
+    #
+    # So: sweeps require at least one live budget and report every verdict; a
+    # single-budget campaign must itself be live. This LOOSENS nothing for the
+    # campaigns the gate was written against -- `fm2_mn3`, `fm2_vit` and `gx2`
+    # carry one budget each and still fail.
+    live_budgets = sorted({k[2] for k in per if _live_ok(per, k)})
+    if len(budgets) > 1:
+        print("")
+        print("swept campaign: %d of %d budgets are live (%s of %s constraint epochs)."
+              % (len(live_budgets), len(budgets), live_budgets or "none", budgets))
+        if not live_budgets:
+            print("NO budget is live. The sweep has no contrast -- every arm would")
+            print("measure the frozen regime, which is the one thing already settled.")
+        else:
+            print("The frozen budgets are the reference end of the dose axis, not")
+            print("failures. Read each budget against its own threshold.")
+        return 1 if (not live_budgets and args.strict) else 0
     return 1 if (bad and args.strict) else 0
 
 
