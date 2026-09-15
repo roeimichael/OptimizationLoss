@@ -12,14 +12,22 @@ evidence audit live here; historical experiments are not a second active archite
 
 ## Read this first
 
-> **[`docs/FRAMEWORK.md`](docs/FRAMEWORK.md) is the only operational document.**
+> **[`docs/FRAMEWORK.md`](docs/FRAMEWORK.md) is the protocol, and it wins every
+> conflict.** It defines the evidence boundary, metrics, validation gates and
+> comparison protocol.
 
-It defines the evidence boundary, metrics, validation gates and comparison protocol.
-Read [`docs/MISSION.md`](docs/MISSION.md) for actual progress and
-[`docs/REJECTED.md`](docs/REJECTED.md) for qualified historical hypotheses.
+Three files carry the rest, and between them they are the whole live record:
+
+| File | Answers |
+|---|---|
+| [`RULESET.md`](RULESET.md) | How to work. Rules, gates, re-entry checklist. |
+| [`docs/MISSION.md`](docs/MISSION.md) | Where the project stands, what is running, what is next. |
+| [`docs/LEDGER.md`](docs/LEDGER.md) | What is proved, what is measured, what is closed. |
+
 The user requested an evidence reset on 2026-09-14: old tables and folder names
-are not validation. Historical narratives are preserved in `docs/archive/`.
-If other material disagrees with the framework, the framework wins.
+are not validation. Superseded documents are preserved in `docs/archive/` and
+recoverable in full from git history. If other material disagrees with the
+framework, the framework wins.
 
 Git tracks source, tests, split metadata and curated notes. Results, checkpoints,
 compiled papers and local audit dumps stay outside GitHub. See

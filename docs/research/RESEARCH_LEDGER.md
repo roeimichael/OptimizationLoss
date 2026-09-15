@@ -5,7 +5,7 @@
 Research task: `01a09ed4-aa90-7971-b431-a47ee02a1cd3` (Research Trello loss improvements).
 Cleanup, core validation, release and dispatch: `01a09b18-ed8e-7452-8b07-a7ed5f858696` (Check project SSH access).
 
-Both tasks confirmed this division on 2026-09-14. Research owns this directory and isolated CPU diagnostics. The cleanup task owns live source edits, tests, server sync, and launch. No algorithm candidate has been implemented in production; no new GPU job was dispatched here. Keep current state here short. The [report](TRALO_LOSS_RESEARCH.md) contains derivations, literature and experiment specifications. FRAMEWORK/MISSION/REJECTED retain protocol authority.
+Both tasks confirmed this division on 2026-09-14. Research owns this directory and isolated CPU diagnostics. The cleanup task owns live source edits, tests, server sync, and launch. No algorithm candidate has been implemented in production; no new GPU job was dispatched here. Keep current state here short. The [report](../archive/TRALO_LOSS_RESEARCH_2026-09-14.md) contains derivations, literature and experiment specifications. FRAMEWORK/MISSION/REJECTED retain protocol authority.
 
 ## Search and promotion rules
 

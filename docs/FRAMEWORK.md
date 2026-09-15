@@ -124,7 +124,8 @@ python -m scripts.pred_integrity <campaign>
 
 ## Research changes and historical findings
 
-Read [REJECTED.md](REJECTED.md) for evidence-qualified historical hypotheses.
+Read [LEDGER.md](LEDGER.md) for what is proved, what is measured, and the
+evidence-qualified disposition of every historical hypothesis.
 An aggregate-count gradient **can** change rankings through shared model
 parameters; there is no general impossibility proof here. Nor does improving
 constraint satisfaction imply improving cc-F1. Price and test that link.

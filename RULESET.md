@@ -4,9 +4,15 @@
 It is an INDEX plus the rules that exist only as spoken instructions. It does
 not restate `docs/FRAMEWORK.md`; that file is the law and wins every conflict.
 
-**Order of authority.** `docs/FRAMEWORK.md` > `AGENTS.md` > this file > memory >
-my own recollection. If this file disagrees with FRAMEWORK, FRAMEWORK is right
-and this file is the bug -- fix it here, do not work around it.
+**Order of authority.** The user's spoken instruction > `docs/FRAMEWORK.md` >
+this file > memory > my own recollection. If this file disagrees with FRAMEWORK,
+FRAMEWORK is right and this file is the bug -- fix it here, do not work around
+it. When the user overrides FRAMEWORK, record the override here WITH ITS DATE so
+it is neither mistaken for an invention nor silently re-tightened later.
+
+**The three files.** `RULESET.md` is how to work. `docs/MISSION.md` is where we
+are now. `docs/LEDGER.md` is what is proved, measured and closed.
+`docs/FRAMEWORK.md` is the protocol and outranks all three.
 
 ---
 
@@ -16,7 +22,8 @@ Run this, in order, when the user says I am out of context:
 
 1. Read `docs/FRAMEWORK.md` **in full**. Not a summary of it. The five
    validation gates are the part I skip under pressure.
-2. Read `AGENTS.md`, then `docs/MISSION.md` section "THE COURSE".
+2. Read `docs/MISSION.md` section "THE COURSE", then `docs/LEDGER.md` -- the
+   ledger is what stops a direction being tried twice.
 3. SSH `dsisco01` and `dsisco02` -- what is actually running, on BOTH hosts, by
    reading `/proc/<pid>/environ` for `EXPERIMENT_DIR`. Never assume.
 4. State plainly: what is **verified**, what is **unverified**, what is **next**.
@@ -101,7 +108,9 @@ campaign is read as evidence:
   the user overrode this on 2026-09-15. Ceiling is three TOTAL, not per host.)
 - **Never share a GPU with another user.** Check owners first.
 - Both hosts share NFS -- check processes on BOTH before dispatch or recovery.
-- One campaign per card: partition by `EXPERIMENT_DIR`, never by threads.
+- One campaign per card: partition by `EXPERIMENT_DIR`, never by threads. Keep
+  each campaign on **one host and one precision regime** -- dsisco01 is fp16 on
+  older cards, dsisco02 is bf16 on Blackwell.
 - Launch detached: `CUDA_VISIBLE_DEVICES=<n> EXPERIMENT_DIR=<root> setsid nohup
   python -u main.py < /dev/null > logs/<name>.log 2>&1 &`.
   **Never through a nested `bash -c`** -- it silently drops CUDA and runs on CPU
@@ -134,12 +143,18 @@ campaign is read as evidence:
 ## 7. Working style
 
 - **Never idle while a GPU is free.** Price a direction offline before spending
-  the machine on it.
+  the machine on it. But **no bypass of the staged checks to keep GPUs busy** --
+  an unvalidated campaign is worse than an idle card.
+- **Keep active instructions short.** History goes in `docs/archive/`, not into
+  repeated warnings spread across source, skills and operational documents.
+- **Verify behaviour with executable tests**, never with an assertion that some
+  document contains a particular sentence, test count, or verdict.
+- Use the `keepworking` skill for experiment design, validation and monitoring.
 - Small changes, fast iteration. Do not inflate the codebase.
 - **Ask** when a decision changes the scientific question, data access, held-out
   evaluation, or compute budget. Ordinary validated cleanup is authorised.
 - Standing approval: push and merge freely on `cleanup/consolidate-pipeline`.
-- Prefix shell commands with `rtk`.
+- Prefix shell commands with `rtk`; `rtk proxy` for unfiltered commands.
 - Date run-state when CHECKED, not when written.
 - Report **what is verified, what is unverified, what is next.**
 
