@@ -89,6 +89,23 @@ wrong published-to-ourselves conclusion at least once.
 
 ### Instruments
 
+- **An epoch chosen on the per-epoch curve is an ORACLE, not a method.**
+  `scripts/epoch_curve.py` scores stored snapshots against the TEST set, so
+  "stop at the best epoch" selects on the evaluation data and reports an
+  optimistic upper bound. Quote it only as a BOUND -- it says what any stopping
+  rule could win at most, and a small headroom over the final epoch closes the
+  direction cheaply. A deployable stopping rule needs a held-out split that is
+  not the test set, which is still an open question (see MISSION).
+- **"It only observes" is not a property a gate can check.** The first version
+  of the per-epoch trace scored inside the training loop, which put the test
+  labels in `TrainInputs`. It was observational in fact and rejected anyway, by
+  `test_no_methodology_reads_the_test_LABELS_except_to_count_them` and
+  `test_train_inputs_do_not_expose_held_out_labels`. The gates were right:
+  intent is not structure, and the only thing between an observation and a leak
+  would have been that nobody edits the file. Storing probabilities and scoring
+  offline makes the property structural. **Prefer the design that cannot leak
+  over the design that promises not to.**
+
 - **`scripts/deployed_h2h.py` is the maintained reporter.** Hand-rolled cc-F1 has
   produced three scorer bugs.
 - **Training accuracy alone cannot diagnose test-cut saturation.**

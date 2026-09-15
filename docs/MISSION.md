@@ -106,61 +106,46 @@ Full set in [`RULESET.md`](../RULESET.md). The four that bite most often:
 
 ---
 
-## Run state, checked 2026-09-15 11:35 IDT (server clock)
+## Run state, checked 2026-09-15 12:14 IDT (server clock)
 
-**THREE of four dsisco02 GPUs run the RECIPE SCREEN**, 56 runs each at budget 8,
-one backbone per card, `~/optloss-probe/results/scr_<backbone>`. All passed
-10/10 pre-launch gates. Triage with `~/triage.py` on dsisco02.
+**FOUR campaigns live, one per dsisco02 card, all confirmed on GPU
+(`AMP: bfloat16`, not the CPU-fallback signature).** Tree pinned at `fe0a4eb3`;
+**do not touch `src/`, `configs/`, `scripts/` or `main.py` on the server until
+these finish.** dsisco01's four cards are idle and deliberately unused -- the
+unit is (backbone, HOST), so a campaign must not straddle hosts.
 
-| campaign | done | live frac | test acc | certain% | viability |
-|---|---|---|---|---|---|
-| `scr_MobileNetV2` | 54/56, 2 running on GPU 1 | 72% | 0.641 | 21% | VIABLE |
-| `scr_MobileNetV3` | **56/56 COMPLETE** | 55% | 0.645 | 31% | VIABLE |
-| `scr_RegNetY400MF` | **56/56 COMPLETE** | 69% | 0.646 | 23% | VIABLE |
-| `scr_ViTB16` | 17/56 | 37% | 0.634 | 30% | **UNUSABLE -- KILLED 2026-09-15** |
+They are a ONE-AT-A-TIME ELIMINATION over the three suspects, not four guesses:
 
-🛑 **VIABLE means the cell can produce a valid measurement. It does NOT mean
-TraLO is winning -- in these cells it is not.** The column was called KEEP/KILL
-and was read as a scoreboard; see LEDGER PART 1, Instruments.
+| GPU | campaign | runs | budget | what it eliminates |
+|---|---|---|---|---|
+| 0 | `trace30` | 48 | 30, pretrained | **the measurement.** Per-epoch snapshots, so the constraint's effect becomes a curve instead of a sum |
+| 1 | `stab8` | 72 | 8, pretrained | **the loss argument.** `tralo_stab` weights the soft count by neighbourhood disagreement |
+| 2 | `scratch60` | 32 | 60, `pretrained=false` | **the model.** Is the damage caused by a backbone that memorises in 3-5 epochs? |
+| 3 | `small60` | 32 | 60, SmallCNN 100k | **the model, second axis.** Capacity rather than initialisation |
 
-`scr_ViTB16` was stopped by explicit PID (3845548) at 17/56: 2.6 live epochs of
-7 is 37%, under `gate:saturation`'s 50% floor, so it was pushing a frozen
-boundary -- the exact artifact `fm2_vit` already produced. Its partial runs are
-preserved on disk. **GPU 3 is free.**
+Pre-registered readings, fixed before any of it landed:
 
-🔴 **THE TWO COMPLETE SCREENS HAVE BEEN SCORED AND TraLO LOST.**
-`scripts/deployed_h2h.py` over all four cells: `aug_clip` is the best arm
-everywhere, TraLO ties its own phase-matched null (+0.0007 / +0.0030 / -0.0026 /
-+0.0042, every CI spanning zero), and three CIs exclude zero AGAINST it. The
-single CI in its favour is 1 of 24 unadjusted comparisons. Full table and the
-reading limits are in LEDGER PART 3, first entry.
+- `trace30`: if the per-epoch `tralo` minus `tralo_null` difference is positive
+  early and negative after train accuracy crosses 0.95, the damage is a
+  SATURATION effect and a stopping rule is worth building. If it is negative
+  from epoch 1, saturation is not the mechanism and that direction closes.
+  **The ORACLE best epoch is an upper bound chosen on the test set, not a
+  method** -- if its headroom over the final epoch is small, no stopping rule
+  can pay for itself and the idea dies cheaply, which is the point.
+- `stab8`: `tralo_stab` minus `tralo_null` is the number. Plain TraLO ties its
+  null at +0.001 to +0.004; if the weighted count does not clear that with a CI
+  excluding zero, the per-item information channel is closed too. **It must
+  first pass `gate:weight_bites` (`scripts/weight_bites.py --pair
+  tralo_stab:tralo`) or nothing from it may be read.**
+- `scratch60` / `small60`: if the constraint HELPS where the boundary never
+  freezes, the mechanism is sound and the recipe was wrong. If it damages there
+  too, the model is exonerated and the fault is in the loss argument. Neither
+  may become a paper claim -- SmallCNN is diagnostic only, and from-scratch is
+  not a modern-practice baseline.
 
-**This closes the budget direction.** A live boundary was the last untested
-precondition behind the frozen-boundary account; supplying it (55-72% live)
-changed neither the gAP damage nor the head-to-head. Whatever is wrong with
-TraLO is not the budget, and more budget variants are not worth a GPU.
-
-GPUs 0, 2, 3 on dsisco02 and all four on dsisco01 are idle. Nothing is queued,
-because the next candidate needs a decision -- see Open work.
-
-Completed and scored, fmow2 / MobileNetV3 unless noted:
-
-| Campaign | Budget | Runs | Reading |
-|---|---|---|---|
-| `fm2_mn3` | 30 | 56/56 | Frozen-boundary reference. TraLO trails all six rivals on cc-F1. |
-| `fm2_mn2` | 30 | 56/56 | Same, MobileNetV2. |
-| `fm2_vit` | 30 | 56/56 | **Failed the gate hardest** (1.6 live epochs). Archived as reference, not read as a verdict. |
-| `gx2` | 30 | 56/56 | Adds the augment and focal columns. **Its overlap with `fm2_mn3` is byte-identical -- a re-run, not a replication.** |
-| `live11` | 11 | 72/72 | First campaign with per-column nulls. Carries the pre-registered 2x2. |
-| `live6b` | 6 | 56/56 | First campaign to PASS `gate:saturation`. Ranking damage stops. |
-
-**Abandoned before it produced evidence:** `sweep1` / `sweep1_mn2`, a within-
-campaign budget sweep, stopped at 6 of 384 runs. The firstrun saturation gate
-showed the budget grid was badly placed -- four of five points sat deep in the
-frozen regime with nothing between 43% and 75% live fraction, which is where the
-sign flip is. The `b5`/`b6`/`b7`/`b8`/`b12` machinery that made per-arm budgets
-expressible is committed and tested but **is not currently authorised for use**;
-the user has not approved the budget-sweep design.
+🔴 **Already settled and not to be re-run:** the budget direction is closed. A
+live boundary (55-72%) changed neither the gAP damage nor the head-to-head, and
+`aug_clip` beat TraLO in all four scored cells. See LEDGER PART 3.
 
 ---
 
