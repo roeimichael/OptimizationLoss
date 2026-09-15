@@ -13,6 +13,7 @@ from src.methodologies.dual_common import read_step_config
 from src.pipeline.contracts import TrainInputs, TrainOutputs, _required
 from src.pipeline.setup import setup_runtime
 from src.pipeline.warmup import make_ce_criterion, make_dataloader, make_optimizer
+from src.training import epoch_trace
 from src.training.item_weights import (
     apply as apply_weights,
     features_and_preds,
@@ -76,6 +77,12 @@ def train(inputs: TrainInputs) -> TrainOutputs:
     hp = inputs.hyperparams
     step_cfg = read_step_config(hp)
     weight_cfg = read_weight_config(hp)
+    # Per-epoch probability snapshots, scored offline by scripts/epoch_curve.py.
+    # No labels reach this module: see src/training/epoch_trace.py for why that
+    # is structural rather than a promise. The inline default MATCHES the
+    # protocol, which gate:baseline_fidelity enforces.
+    trace = (epoch_trace.writer(str(inputs.experiment_path))
+             if hp.get("epoch_trace", True) else None)
     device = inputs.device
     num_classes = inputs.num_classes
     model = inputs.model
@@ -435,6 +442,10 @@ def train(inputs: TrainInputs) -> TrainOutputs:
             local_constraints=local_con,
         )
         model.train()
+        epoch_trace.record(
+            trace, epoch_1based=epoch + 1, phase="constraint",
+            train_acc=train_acc, model=model, X_test=X_test,
+            chunk=chunk_size)
     elapsed = time.time() - training_start
     log.info(
         "Training complete: %.1fs, satisfaction epoch: %s",

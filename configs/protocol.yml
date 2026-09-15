@@ -24,12 +24,49 @@ blocks:
     lambda_local: 0.01
     initial_rho: 0.5
     rho_target: 100.0
+    # Per-epoch probability snapshots, scored offline. Declared HERE and not in
+    # `core` because `audit_config` refuses any config key without a live
+    # runtime reader, and only tralo/train.py reads it -- in core it landed in
+    # clip, fioretto, hounie and alm configs, where nothing would ever have read
+    # it. Every tralo-methodology arm carries exactly one of the three dual
+    # blocks, so declaring it on each of them covers the family and nothing else.
+    epoch_trace: true
   tralo_null:
     lambda_step: 0.0
     lambda_global: 0.0
     lambda_local: 0.0
     initial_rho: 0.5
     rho_target: 100.0
+    # Per-epoch probability snapshots, scored offline. Declared HERE and not in
+    # `core` because `audit_config` refuses any config key without a live
+    # runtime reader, and only tralo/train.py reads it -- in core it landed in
+    # clip, fioretto, hounie and alm configs, where nothing would ever have read
+    # it. Every tralo-methodology arm carries exactly one of the three dual
+    # blocks, so declaring it on each of them covers the family and nothing else.
+    epoch_trace: true
+  # Same duals as `tralo`; the ONLY difference is that the soft count is
+  # weighted per item. The reference count is an unweighted sum, so
+  # dL/dp_i(c) = psi'(S_c) is identical for every item and the constraint knows
+  # nothing about item i that the post-hoc allocator does not already rank by.
+  # Neighbourhood disagreement is label-free and DOES carry information p lacks:
+  # among items placed in a capped class at p >= 0.99 it predicts WRONG at AUC
+  # 0.87, against 0.68 for a margin control that is a pure function of p.
+  tralo_stab:
+    lambda_step: 0.05
+    lambda_global: 0.01
+    lambda_local: 0.01
+    initial_rho: 0.5
+    rho_target: 100.0
+    constraint_weight: knn_disagree
+    constraint_weight_k: 20
+    constraint_weight_floor: 0.05
+    # Per-epoch probability snapshots, scored offline. Declared HERE and not in
+    # `core` because `audit_config` refuses any config key without a live
+    # runtime reader, and only tralo/train.py reads it -- in core it landed in
+    # clip, fioretto, hounie and alm configs, where nothing would ever have read
+    # it. Every tralo-methodology arm carries exactly one of the three dual
+    # blocks, so declaring it on each of them covers the family and nothing else.
+    epoch_trace: true
   fioretto:
     fioretto_step_size: 0.005
     fioretto_lambda_init: 0.0
@@ -88,6 +125,24 @@ arms:
     blocks:
     - constraint_phase
     - tralo_null
+  # `tralo` is this arm's own control: same duals, same schedule, same budget,
+  # differing ONLY in whether the soft count is weighted. `tralo_null` remains
+  # the zero-constraint floor both must clear. Pre-registered reading: plain
+  # TraLO ties its null at +0.001 to +0.004, so tralo_stab minus tralo_null is
+  # the number that decides whether a per-item channel exists at all.
+  tralo_stab:
+    methodology: tralo
+    phase: trained
+    blocks:
+    - constraint_phase
+    - tralo_stab
+  aug_tralo_stab:
+    methodology: tralo
+    phase: trained
+    blocks:
+    - constraint_phase
+    - tralo_stab
+    - augment
   # The constraint reaches the weights only through d(soft count)/d(theta),
   # whose per-item weight is p(1-p). Measured on fm2_mn3: mean 0.007-0.023
   # against a 0.25 maximum, with the top 1% of items carrying 34% of the total
@@ -309,6 +364,12 @@ datasets:
     - 2
     disjoint_groups: true
 models:
+# SmallCNN is DIAGNOSTIC ONLY (restored 2026-09-15). It exists to separate "the
+# constraint damages the boundary" from "the constraint always arrives after the
+# boundary has stopped moving", which no pretrained backbone here can do because
+# all of them memorise in 3-5 epochs. It is not a claimed backbone: FRAMEWORK
+# section 1 still fixes the paper's set at the four below.
+- SmallCNN
 - MobileNetV3
 - MobileNetV2
 - RegNetY400MF

@@ -32,8 +32,17 @@ STEP = {
     "constraint_chunk_size",
 }
 TRALO = {"lambda_step", "lambda_global", "lambda_local", "initial_rho", "rho_target"}
+# Per-item weighting of the transductive soft count. tralo only -- no other
+# methodology builds a soft count we control.
+WEIGHT = {"constraint_weight", "constraint_weight_k", "constraint_weight_floor"}
+# Observation only, and deliberately NOT a warm-up identity key: it changes what
+# is recorded, never what is trained, so it must not invalidate a cached warm-up
+# or split code_version from an otherwise identical run. tralo ONLY -- no other
+# methodology reads it, and `audit_config` rejects a config key that no runtime
+# reads, which is the guard that caught it sitting in `core`.
+DIAG = {"epoch_trace"}
 METHOD_KEYS = {
-    "tralo": CORE | STEP | TRALO | FOCAL,
+    "tralo": CORE | STEP | TRALO | FOCAL | WEIGHT | DIAG,
     "fioretto_ldf": CORE | STEP | FOCAL | {"fioretto_step_size", "fioretto_lambda_init"},
     "hounie_rcl": CORE | STEP | FOCAL | {"hounie_eta_lambda", "hounie_eta_u", "hounie_alpha"},
     "fioretto_alm": CORE
@@ -55,7 +64,7 @@ def validate_hyperparams(methodology, hp):
         )
     if hp.get("warmup_loss", "ce") not in ("ce", "focal"):
         raise ValueError("warmup_loss must be ce or focal")
-    for key in ("constraint_fp32", "pretrained"):
+    for key in ("constraint_fp32", "pretrained", "epoch_trace"):
         if key in hp and not isinstance(hp[key], bool):
             raise ValueError("%s must be a bool" % key)
     if "constraint_grad_mode" in hp and hp["constraint_grad_mode"] not in (

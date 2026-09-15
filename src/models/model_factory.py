@@ -12,6 +12,7 @@ from .imagery import (
     MobileNetV3Classifier,
     MobileNetV2Classifier,
     RegNetY400MFClassifier,
+    SmallCNNClassifier,
     ViTB16Classifier,
 )
 
@@ -23,6 +24,12 @@ MODEL_REGISTRY = {
     'MobileNetV2': MobileNetV2Classifier,
     'RegNetY400MF': RegNetY400MFClassifier,
     'ViTB16': ViTB16Classifier,                # THE HEADLINE
+    # DIAGNOSTIC ONLY, restored 2026-09-15. Small enough to still be learning
+    # after the pretrained backbones have memorised, which is the only way to
+    # separate "the constraint damages the boundary" from "the constraint always
+    # arrives after the boundary has stopped moving". Never a paper claim: see
+    # src/models/imagery/smallcnn.py and FRAMEWORK section 1.
+    'SmallCNN': SmallCNNClassifier,
 }
 
 
