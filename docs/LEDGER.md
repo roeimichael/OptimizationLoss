@@ -547,6 +547,37 @@ campaign's success or failure.
 
 ## PART 5 -- Open, and not yet tested
 
+- 🟢 **A GROUP-DISJOINT VALIDATION SPLIT IS CONSTRUCTIBLE, AND IT IS THE ONLY
+  THING STANDING BETWEEN `epoch_curve` AND A REPORTABLE STOPPING RULE.**
+  Measured 2026-09-15 (`scripts/val_split.py`). `data/fmow2/oodslice/` ships
+  train and test only -- there is no validation split anywhere on this dataset,
+  so every curve this project has ever looked at was read against the test set.
+  Train and test are group-disjoint by construction (139 countries vs 10, zero
+  overlap), which means a row-shuffled val split would be the WRONG instrument:
+  it would leave the same countries on both sides and measure an easier problem
+  than deployment poses.
+
+  35 train countries carry >= 80 items, enough to carve a group-disjoint split
+  that imitates the test profile -- ARG, BRA, CHE, CHL, DEU, KEN, KOR, PER, SVN,
+  SYR gives 2920 items in 10 groups against test's 3442 in 10, constrained-class
+  shares matching to a total mismatch of 0.021, leaving 83% of train.
+
+  **Why this is worth the compute.** `epoch_curve.py` already carries the
+  warning that its best epoch is an oracle. If the constraint's contribution
+  really does flip sign at CE saturation, a val-selected stopping epoch is a
+  legitimate, deployable method -- and it is the first candidate in this project
+  that would produce a POSITIVE reportable result rather than another null. It
+  costs a retrain of every arm on 83% of the data, so it is a compute-budget
+  decision and needs to be asked, not taken.
+
+  🛑 The val split must be carved from TRAIN countries only, and its labels must
+  never reach a gradient -- it selects an epoch, nothing else. FRAMEWORK forbids
+  individual evaluation labels entering gradients, checkpoint selection or
+  hyperparameter search, and a val split does not become exempt by being called
+  validation: it is legitimate for CHOOSING among already-trained checkpoints
+  only because it is disjoint from the test set, not because it is unlabelled.
+
+
 - **`tralo_stab` -- the weighted soft count -- is BUILT, GATED, and NOT RUN.**
   `constraint_weight: knn_disagree` replaces `S_c = sum_i p_i(c)` with
   `S_c = sum_i w_i p_i(c)`, w = label-free neighbourhood disagreement, mean 1

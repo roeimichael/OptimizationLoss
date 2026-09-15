@@ -244,11 +244,36 @@ update ordering and training behaviour do not change during structural cleanup.
 
 ---
 
-## Open user question
+## Open user question -- ANSWERED 2026-09-15
 
 **Are there untouched evaluation groups or splits on the current datasets?**
-Until this is answered, do not describe rerunning the inspected splits as fresh
-confirmatory evidence. Code cleanup and data-integrity checks can proceed.
+
+**No untouched split exists, and one IS constructible.** Measured on
+`data/fmow2/oodslice/` (`scripts/val_split.py`):
+
+- The slice ships **train and test only**. There is no validation split, so
+  every epoch, checkpoint or hyperparameter ever chosen by looking at a curve
+  was chosen against the test set.
+- Train and test are **group-disjoint by construction**: 139 countries vs 10,
+  **zero overlap** (test is CAN, DZA, EGY, IND, IRQ, JPN, MEX, NLD, PHL, TUR).
+  The deployment shift this dataset poses is a GROUP shift, so a validation
+  split drawn by shuffling rows would leave the same countries on both sides and
+  measure a strictly easier problem.
+- 35 train countries carry >= 80 items, which is enough to carve a
+  **group-disjoint** val split that imitates the test profile: e.g. ARG, BRA,
+  CHE, CHL, DEU, KEN, KOR, PER, SVN, SYR -- 2920 items in 10 groups against the
+  test set's 3442 in 10, constrained-class shares matching to a total mismatch of
+  0.021, leaving 83% of the training data behind.
+
+**Consequence.** This is the missing piece under `scripts/epoch_curve.py`, whose
+best epoch is currently an ORACLE chosen on the test set and therefore not
+reportable. With a group-disjoint val split, "stop at the epoch the constraint
+stops helping" becomes a deployable rule measured off held-out data. It costs a
+retrain of every arm, so it is a compute-budget decision and is NOT being taken
+unilaterally -- see LEDGER PART 5.
+
+Standing caution still applies: do not describe rerunning the inspected test
+split as fresh confirmatory evidence.
 
 ---
 
