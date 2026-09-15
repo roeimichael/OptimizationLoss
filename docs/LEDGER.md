@@ -64,6 +64,16 @@ wrong published-to-ourselves conclusion at least once.
   interval and not proof of equivalence.
 - **Do not choose the inferential method after seeing which one declares a win.**
 
+### Prizes
+
+- **A nominal prize is not a reachable prize.** Counting wasted allocation slots
+  and excluded true positives gives the headroom a PERFECT re-ranking would win.
+  It is an upper bound, not a target: a slot held by an item the model scores at
+  p(c) >= 0.99 and gets wrong cannot be evicted by any realistic training-time
+  nudge. **Measured 2026-09-15: 39-46% of wasted slots at budget 30 are exactly
+  that.** Always discount a headroom figure by the certain-wrong share before
+  treating it as a target.
+
 ### Metrics
 
 - **`items = d(F1) * (K+n) / 2` is exact PER CLASS only.** cc-F1 is macro over
@@ -163,6 +173,30 @@ of REACHABLE RANKINGS, an optimisation-geometry object, not an information one.
   marginal probability sits in [0.05, 0.95] goes 36-43% at budget 30 to 44-50% at
   budgets 6-11. Half of all cuts sit where the model has collapsed and no
   re-ranking can move them.
+- **Between a third and a half of the prize is unreachable, and the share falls
+  with the budget.** At the real cut, the proportion of wasted slots held by
+  items the model scores p(c) >= 0.99 AND gets wrong:
+
+  | campaign | budget | L80_G95 | L90_G95 |
+  |---|---|---|---|
+  | `fm2_mn3` | 30 | 46% of 208 | 39% of 262 |
+  | `live6b` | 6 | 33% of 212 | 28% of 265 |
+
+  So LEDGER fact 7's 20-25% nominal prize is really ~12-15% reachable at budget
+  30 and ~15-18% at budget 6. Shorter training leaves the model less certain and
+  more of the headroom in play -- a THIRD independent measurement pointing the
+  same way as the gAP effect and the deployed-selection sign flip, and it is a
+  unit-free proportion rather than a metric delta. **4-seed pilot; no interval
+  quoted.** `~/reachable.py` on dsisco02.
+
+  ⚠️ The same probe's `gap1` (probability distance from the weakest selected
+  error to the strongest excluded true positive) is 0.013-0.014 at budget 30 and
+  0.024-0.050 at budget 6. **Do not read that as the short budget being harder.**
+  Raw probability gaps are not comparable across regimes when calibration itself
+  differs -- an overconfident model compresses every gap toward zero while its
+  ordering is more entrenched, not less. The certain-wrong SHARE is the
+  scale-free quantity; the gap is not.
+
 - **cc-F1 still goes the wrong way.** In `live11`, where the per-column nulls
   exist, `aug_tralo_null` (0.6411) beats `aug_tralo` (0.6285). The augmentation
   does the work, not the constraint.

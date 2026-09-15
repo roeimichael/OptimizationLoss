@@ -75,7 +75,9 @@ re-litigated:
    the loss shape.
 3. The exact allocator makes real results worse in 14/14 cells. Cancelled.
 4. The cap IS binding and there IS headroom: every slot is filled, ~1,000 of
-   ~4,400 hold wrong items, ~1,500 true positives sit outside the cut.
+   ~4,400 hold wrong items, ~1,500 true positives sit outside the cut. **But
+   39-46% of those wasted slots are held by items the model is certain about and
+   wrong, so the reachable prize is ~12-15% of the budget, not 20-25%.**
 
 ### Standing decision rules
 
@@ -92,9 +94,11 @@ Full set in [`RULESET.md`](../RULESET.md). The four that bite most often:
 
 ---
 
-## Run state, checked 2026-09-15 09:30
+## Run state, checked 2026-09-15 13:10
 
-**Nothing is running. All four GPUs on both hosts are idle.**
+**Nothing is running. All eight GPUs across both hosts are idle**, because every
+remaining direction needs a launch decision the user has not made. This is a
+deliberate hold, not a stall.
 
 Completed and scored, fmow2 / MobileNetV3 unless noted:
 
