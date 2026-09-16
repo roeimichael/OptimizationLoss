@@ -94,43 +94,48 @@ trade as a trade, and retract in place.**
 
 ---
 
-## RUN STATE -- checked 2026-09-16 21:28 IDT (server clock)
+## RUN STATE -- checked 2026-09-16 22:57 IDT (server clock)
 
-**Five campaigns live across both hosts. dsisco01 GPUs 1-3 and dsisco02 GPUs 0-1
-are ours; dsisco01 GPU 0 is `dvorata1`.**
+🛑 **ALL SEVEN PREVIOUS CAMPAIGNS WERE STOPPED 2026-09-16 22:30** by explicit PID
+(runners first, then INT on each trainer), on the user's instruction. Every one
+of them ran the PREVALENCE cap (`L80_G95` / `L90_G95`), which LEDGER 2.9 shows
+makes the local ceiling an affine image of the per-group label histogram. **They
+were measuring the wrong constraint**, so completing them had no value.
 
-| campaign | host | GPU | backbone | seeds | runs | progress |
+**Results moved, not deleted**, to `~/quarantine_2026-09-16/<tree>__results`
+(29G, five trees). `/home` is at 93% and a copy was impossible -- 16G free
+against a 16G tree -- so the move is a same-filesystem rename. ⚠️ **Reclaiming
+the space is BLOCKED**: the deletion was refused by the permission layer and
+needs the user. ~110G is safely removable (`optloss-history-20260914` 46G,
+`optloss-archive-stale-2026-09-02` 18G, `isic_cache` 13G, `_cct_chunks` 2.2G,
+`hp_liveness_out` 607M, plus the 29G quarantine). **No dataset is in that list.**
+
+🛑 **The only real dataset bytes live in `~/optloss-audit/data/`** (fmow2 3.1G of
+.npy). Every other tree reaches them through a symlink chain
+`optloss-rank/data/fmow2 -> optloss-probe/data/fmow2 -> optloss-audit/...`.
+Deleting `optloss-audit` destroys the data. Nothing else symlinks into the
+removable list (verified by `find -type l` + `readlink -f`).
+
+### LIVE: the first Option C campaigns
+
+| campaign | host | GPU | backbone | caps | seeds | runs |
 |---|---|---|---|---|---|---|
-| `bud_mn3` | dsisco01 | 1 | MobileNetV3 | 1-6 | 300 | 96/300 at 18:37 |
-| `bud_mn2` | dsisco01 | 2 | MobileNetV2 | 1-6 | 300 | 77/300 at 18:37 |
-| `bud_rgn` | dsisco01 | 3 | RegNetY400MF | 1-6 | 300 | 100/300 at 18:37 |
-| `vit_a` | dsisco02 | 0 | ViTB16 | 1-6 | 84 | 27/84 |
-| `vit_b` | dsisco02 | 1 | ViTB16 | 7-12 | 84 | 27/84 |
-| `cap_a` (runner `capa2`) | dsisco02 | 0 | ViTB16 | 1-6 | 90 | queued behind `vit_a` |
-| `cap_b` (runner `capb2`) | dsisco02 | 1 | ViTB16 | 7-12 | 90 | queued behind `vit_b` |
+| `polc_a` (runner `polca`) | dsisco02 | 0 | MobileNetV3 | L25_G25 L50_G50 L75_G75 | 1-3 | 63 |
+| `polc_b` (runner `polcb`) | dsisco02 | 1 | MobileNetV3 | L25_G25 L50_G50 L75_G75 | 4-6 | 63 |
 
-🛑 **Do not touch `src/`, `configs/`, `scripts/`, `main.py` on the server while
-these run** -- they are hashed into `source_inventory()` and editing them splits
-`code_version`. The ViT/cap campaigns are frozen against dsisco02/bf16 under a
-single stamp `55c1be530de9`; `validate_campaign` refuses a cross-host release, so
-**a dsisco01 relaunch would be a new experiment, not a recovery.**
+Seven arms each (`tralo tralo_null clip focal_clip fioretto hounie alm`). Frozen
+on dsisco02 under stamp `10e4391d8335`, bf16, no scaler. Launched 22:55 IDT.
+dsisco02 GPUs 2-3 are `liverty`; dsisco01 is idle except `dvorata1` on GPU 0.
 
-**dsisco02 wedged ~18:15-21:28 and recovered on its own** (no reboot, uptime 108
-days -- a transient I/O hang). The original trainers were never killed and simply
-resumed; `vit_a`/`vit_b` went 21/84 -> 27/84. **No data was corrupted:** every
-completed run has predictions and metrics carrying `cc_f1`. Four runs lack a
-`training_log.csv` -- `L90_G95` x {`clip`, `focal_clip`} -- which is EXPECTED and
-predates the hang: a post-hoc clipper has no constraint phase and at L90 reuses
-the cached warm-up, so there are zero epochs to log. The queued `cap_a`/`cap_b`
-runners were parked in `wait_for_gpu` and did NOT survive; re-queued 21:29 under
-new labels `capa2`/`capb2` (never reuse a label -- see RULESET 5), verified by
-enumerating `/proc/<pid>/cmdline` that exactly one runner exists per campaign.
+**These are the first runs in the project's history where the global constraint
+can bind**: `sum(Phi) == Psi` exactly at every cap level and every capped class,
+verified in the frozen manifest, not just offline.
 
-🛑 **`bud_mn3b` and `bud_mn2b` were STOPPED on dsisco02 at 14:28 to free the cards
-for ViT.** 247 completed runs are preserved on disk (134 + 113); nothing was
-deleted. **The cost is the CONFIRMATION half of the budget sweep.** Those 247 runs
-are a truncated, non-random PREFIX of the grid (the runner walks it in order), so
-they are NOT a 45% sample and must never be scored as one.
+⚠️ **The pilot is deliberately small and under-powered at 3 seeds per campaign
+(6 pooled).** It exists to check that the constraint is applied correctly and
+that the loss responds, NOT to settle the head-to-head. Per
+`project_every_campaign_is_underpowered`, 6 seeds against a seed sd of ~0.011
+detects roughly 0.013. Read direction and mechanism, not significance.
 
 ---
 
