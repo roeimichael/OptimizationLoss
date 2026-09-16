@@ -258,6 +258,8 @@ run with `constraint_epochs = 0` and reported "no training_log.csv matched".
 | `bud_rgn` | dsisco01 | 3 | RegNetY400MF | 1-6 | 300 |
 | `vit_a` | dsisco02 | 0 | ViTB16 | 1-6 | 84 |
 | `vit_b` | dsisco02 | 1 | ViTB16 | 7-12 | 84 |
+| `cap_a` | dsisco02 | 0 | ViTB16 | 1-6 | 90 (queued behind `vit_a`) |
+| `cap_b` | dsisco02 | 1 | ViTB16 | 7-12 | 90 (queued behind `vit_b`) |
 
 **`bud_mn3b` and `bud_mn2b` were STOPPED on dsisco02 on 2026-09-16, immediately before the ViT launch at 14:28:34**, by
 explicit PID, runners first so neither could dispatch a replacement, then the
@@ -390,6 +392,67 @@ confirmation set, never as a headline from discovery alone.
 **Power.** 6 seeds per cell per host, 12 across hosts but NOT poolable. Prior
 seed sd on cc-F1 is ~0.011, so a 6-seed cell resolves ~0.013 at t=2. Effects
 below that are not measurable here and must not be reported as findings.
+
+## CAP SWEEP -- PRE-REGISTERED READING (written 2026-09-16 16:05, at 0/180 runs)
+
+**The question.** `tralo` - `tralo_null` on ViTB16 is the only contrast in the
+entire 1,364-run fmow2 corpus that survives its own control (LEDGER PART 3). It
+is n=4 and rests on two adjacent LOOSE caps. This sweep asks whether it holds
+across constraint strength.
+
+**The dose axis, verified 2026-09-16 with the pipeline's own
+`compute_local_constraints` on `data/fmow2/oodslice/test_meta.csv`** (not with a
+hand-rolled approximation -- `_round_to_K` rounds where an earlier check
+floored, and the numbers differ):
+
+| cap | binding ceilings (evict >= 10) | items evicted | share of test |
+|---|---|---|---|
+| `L40_G95` | 18 / 30 | 740 | **21.5%** |
+| `L55_G95` | 15 / 30 | 553 | 16.1% |
+| `L70_G95` | 12 / 30 | 370 | 10.7% |
+| `L80_G95` | 9 / 30 | 247 | 7.2% |
+| `L90_G95` | 5 / 30 | 123 | **3.6%** |
+
+Zero K=0 ceilings where the class is present. The three K=0 warnings
+(NLD/c7, IND/c2, EGY/c7) are groups with no true instance of that class and are
+correct. **This is a 6x dose range, and the two caps this project has always
+used are the two WEAKEST rungs.**
+
+**Units and pooling.** `vit_a`, `vit_b`, `cap_a`, `cap_b` are all ViTB16 x fmow2
+on **dsisco02, bf16 no-scaler, single code_version `55c1be530de9`**, differing
+only in seed and cap. They therefore pool into ONE 5-cap x 12-seed ladder. This
+is the same narrow licence recorded for `vit_a`/`vit_b`: same host, same
+precision, same stamp. 🛑 Nothing from dsisco01 joins it.
+
+**Primary endpoint `cc_f1`, then `F1 (Macro)`. Averaged over SEED only.**
+
+**Pre-registered outcomes, in order of strength:**
+
+1. 🟢 **DOSE-RESPONSE (the strong result).** If the constraint does real work,
+   `tralo` - `tralo_null` should GROW as the cap tightens, because a tighter cap
+   evicts more items and leaves more for the constraint to influence. Registered
+   as: a positive Spearman correlation between the per-cap mean difference and
+   the eviction share above, with the effect at `L40_G95` exceeding the effect at
+   `L90_G95`. **This is the outcome that would make TraLO relevant**, and it is a
+   much harder target than a flat effect because it must order five rungs.
+2. 🟡 **FLAT BUT PRESENT.** Positive at >= 4 of 5 caps with the pooled n=12 but
+   no ordering. Real, weaker, and consistent with a constant offset rather than
+   a constraint that responds to its own budget.
+3. 🔴 **REFUTED.** The mean crosses zero, or the sign flips at the tighter caps.
+   This closes ViTB16, which closes the last open cell on fmow2 -- at which point
+   the honest conclusion is that TraLO does not beat its own null anywhere we
+   have looked.
+
+**The rival bar, reported alongside and NOT as the headline.** `focal_clip`
+currently beats `tralo` on ViT at both loose caps (-0.0221 / -0.0202 cc_f1).
+`tralo` - `focal_clip` is registered as exploratory at each cap. If TraLO
+overtakes `focal_clip` at the tight end that is the strongest available result,
+but it must be reported with the dose curve, not as a single winning cell.
+
+🛑 **Reading rules.** Every `tralo` - clipper number is reported with its
+matching `tralo_null` - clipper number on the same line; the first pass of the
+corpus scoring produced 8 false hits out of 12 for want of exactly that. Do not
+reinterpret any outcome after seeing it.
 
 ## RUN STATE -- rank3 (superseded, kept for provenance)
 
