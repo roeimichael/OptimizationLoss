@@ -372,6 +372,41 @@ arms:
     blocks:
     - constraint_phase
     - alm
+  # THE RIVALS AT THE LIVE BUDGETS. The budget sweep above is TraLO-only, so it
+  # can show TraLO beating its own null and its own clipper but cannot say
+  # whether the FAMILY beats ALM. The between-campaign evidence flips sign
+  # between 30% live (`live11`, -0.0089) and 60% (`live6b`, +0.0079), so b6 and
+  # b7 bracket it; adding the rivals only there keeps the grid from doubling
+  # while making the head-to-head available exactly where the flip is expected.
+  # The plain `alm`/`fioretto` arms remain the 30-epoch (frozen-regime) level.
+  alm_b6:
+    methodology: fioretto_alm
+    phase: trained
+    blocks:
+    - constraint_phase
+    - alm
+    - b6
+  alm_b7:
+    methodology: fioretto_alm
+    phase: trained
+    blocks:
+    - constraint_phase
+    - alm
+    - b7
+  fioretto_b6:
+    methodology: fioretto_ldf
+    phase: trained
+    blocks:
+    - constraint_phase
+    - fioretto
+    - b6
+  fioretto_b7:
+    methodology: fioretto_ldf
+    phase: trained
+    blocks:
+    - constraint_phase
+    - fioretto
+    - b7
 mandatory_arms:
 - clip
 - focal_clip
