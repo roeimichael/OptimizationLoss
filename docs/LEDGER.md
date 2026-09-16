@@ -481,6 +481,72 @@ them, and that link is now priced at zero.
 
 ---
 
+### 2.9 The local cap was a PREVALENCE, never a POLICY -- fixed 2026-09-16
+
+Read from source, then fixed and gated. Shifman et al. Eq. (2) takes
+`Phi[lambda][i]` as a GIVEN integer bound; the deleted
+`danits_lp/constraints_builder.py` (recovered from `.codex/git-clean-checkout`,
+removed at `cb516cb3`) derived it as `round(feature_pct * count of class i IN
+GROUP lambda)`, and `compute_local_constraints` did the same. **A ceiling
+proportional to a group's own positives is proportional to the answer**: a group
+holding twice the positives is handed twice the budget, so no cap in this
+project could ever express a policy that favours a small group. That is the
+entire point of a local feature, and it was inexpressible.
+
+`compute_local_constraints` now takes `group_budget_shares`: the class's pooled
+budget apportioned by externally given shares, by LARGEST REMAINDER so the parts
+reconstruct the total exactly (independent rounding does not -- three groups at
+1/3 of 100 round to 33 each and lose an item no log shows). **The default path is
+unchanged and asserted byte-identical**, so every completed run stays comparable.
+
+Validated on the paper's own worked example (`scripts/hospital_smoke.py`, 1000
+patients, 3 tiers sized 334/333/333, shares 10/30/60 deliberately
+anti-correlated with demand). At `L50_G50`:
+
+| class | Psi | policy split | prevalence split |
+|---|---|---|---|
+| normal_bed | 100 | 10 / 30 / 60 | 60 / 25 / 15 |
+| special_bed | 200 | 20 / 60 / 120 | 100 / 60 / 40 |
+
+Same totals, near-reversed order. The allocator saturates all six policy
+ceilings exactly with no violations. PDF at
+`docs/validation/hospital_constraints.pdf` (gitignored; regenerate with
+`hospital_smoke.py --json` then `hospital_report.py`).
+
+⚠️ **Two consequences that are NOT bugs but change what the loss means.**
+
+1. **With `L == G` the global term becomes a strictly redundant CONSTRAINT**, not
+   merely redundant after allocation (2.7): `sum_lambda Phi = Psi` exactly, so
+   local feasibility implies global feasibility. Measured: locals exactly at
+   ceiling gives both terms 0.000000; +1 item over in the smallest-budget group
+   gives local 0.0959 and global 0.0100. The global term fires on the same
+   violation while adding no constraint, and by M1 its gradient is identical for
+   every item in the pool.
+2. **The K-normalised penalty now weights groups by BUDGET, not by size.**
+   `d(penalty)/d(count)` at one item over: 0.0924 at K=10, 0.0323 at K=30,
+   0.0164 at K=60 -- pressure scales like 1/K. Under the prevalence derivation K
+   tracked group size, so this was a per-capita normalisation; under a policy it
+   is not, and the smallest-budget tier exerts 5.6x the gradient of the largest
+   regardless of how many candidates it holds. **Left as-is deliberately**: the
+   relative form is what every completed run and every rival dual used, and
+   changing it would break comparability. Recorded as an ablation, not a defect.
+
+🛑 **The ranking term is REFUSED alongside a policy** (`check_rank_budget_agreement`,
+`warmup.py:126`). `budgeted_rank_loss` cuts each TRAIN (group, class) at that
+group's own prevalence; under a policy the allocator cuts at share x pooled
+budget, differing by up to 6x per tier, and train/test groups are disjoint so the
+shares cannot be carried across by group identity. Currently latent --
+`rank_weight` is 0 in every live config -- so the guard stops it arriving the
+first time someone turns it on.
+
+19 tests, 7 of them negative controls; four mutations (round() for largest
+remainder, dropped sum check, dropped group check, disabled rank guard) each fail
+the suite.
+
+⛔ `danits_lp` is ABSENT from the live tree (deleted at `d4aea81c` / `cb516cb3`,
+recoverable from git). **The LP rival cannot currently be run at all**, so no
+comparison against it is available until it is restored.
+
 ## PART 3 -- What is measured
 
 ### The settled table -- do not re-open without new evidence
@@ -1066,6 +1132,23 @@ tests; they cannot establish the new campaign's success or failure.
 ---
 
 ## PART 5 -- Live candidates, not yet tested
+
+- 🟢 **THE EQUAL-PERCENTAGE POLICY CAP (`L50_G50` + `group_budget_shares`).**
+  The code exists and is gated (2.9); nothing has run on it. It is the first
+  configuration in which **both constraints bind** (2.7 says none so far did) and
+  the first in which the local cap carries information the prevalence cannot
+  reproduce. Two open design questions it would settle, which no existing cell
+  can: whether a cap decoupled from group size changes the deployed outcome at
+  all, and whether the 1/K gradient asymmetry (2.9) helps or hurts. **Blocked on
+  a decision, not on code:** choosing the shares for fmow2's 10 `location`
+  groups is choosing the scientific question, so it needs the user. Deriving
+  them from the data would reinstate exactly the prevalence coupling the change
+  removes.
+- ⛔ **RESTORE `danits_lp` BEFORE CLAIMING ANYTHING AGAINST THE LP.** Absent from
+  the live tree; `lp_solver.py`, `heuristic.py`, `cost_matrices.py`,
+  `constraints_builder.py` and `train.py` all recoverable from `cb516cb3^`.
+  Needs OR-Tools. Until then the manuscript's second post-hoc clipper has no
+  implementation in this repo.
 
 - 🟢 **COMPUTE THE CONSTRAINT ON A HELD-OUT FOLD OF THE TRAIN GROUPS.** The
   direction PART 2.3 opens, and the first candidate motivated by a measured zero
