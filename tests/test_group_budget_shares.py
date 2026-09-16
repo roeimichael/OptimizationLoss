@@ -119,3 +119,56 @@ def test_default_path_is_untouched():
     """No shares -> the historical derivation, so every completed run stays comparable."""
     frame = hospital()
     assert local(frame, 0.50) == local(frame, 0.50, group_budget_shares=None)
+
+
+def test_ranking_term_is_refused_when_it_would_simulate_the_wrong_cut():
+    """budgeted_rank_loss cuts at train prevalence; a policy cuts at share x budget."""
+    from src.pipeline.warmup import check_rank_budget_agreement
+    with pytest.raises(ValueError, match="different cuts"):
+        check_rank_budget_agreement(0.5, {"group_budget_shares": SHARES})
+
+
+@pytest.mark.parametrize("weight, dc", [
+    (0.0, {"group_budget_shares": SHARES}),   # ranking off: nothing to disagree
+    (0.5, {}),                                # prevalence caps: the cuts agree
+    (0.0, {}),
+])
+def test_negative_control_the_guard_stays_out_of_the_way(weight, dc):
+    from src.pipeline.warmup import check_rank_budget_agreement
+    check_rank_budget_agreement(weight, dc)
+
+
+def test_the_allocator_delivers_the_policy_end_to_end():
+    """The ceilings are worth nothing unless the deployed decision honours them."""
+    import numpy as np
+    from src.methodologies.heuristic.train import (
+        _build_hierarchy, apply_allocation_heuristic, verify_allocation)
+
+    frame = hospital()
+    groups = frame["tier"].to_numpy()
+    psi = compute_global_constraints(frame, "label", 0.50,
+                                     constrained_class=CAPPED, num_classes=NUM_CLASSES)
+    phi = local(frame, 0.50, group_budget_shares=SHARES)
+    probs = np.random.default_rng(0).dirichlet(np.ones(NUM_CLASSES), size=len(frame))
+    hier = _build_hierarchy(NUM_CLASSES, psi, CAPPED)
+    y, _ = apply_allocation_heuristic(probs, groups, hier, psi, phi, NUM_CLASSES)
+
+    assert verify_allocation(y, groups, psi, phi, NUM_CLASSES) == []
+    # demand exceeds every ceiling, so every ceiling should be saturated
+    for c in CAPPED:
+        for g in (0, 1, 2):
+            assert int((y[groups == g] == c).sum()) == phi[g][c], (c, g)
+        assert int((y == c).sum()) == psi[c]
+
+
+def test_the_loss_registers_every_group_class_cell_of_the_policy():
+    from src.losses.transductive_loss import MulticlassTransductiveLoss
+
+    frame = hospital()
+    psi = compute_global_constraints(frame, "label", 0.50,
+                                     constrained_class=CAPPED, num_classes=NUM_CLASSES)
+    phi = local(frame, 0.50, group_budget_shares=SHARES)
+    crit = MulticlassTransductiveLoss(psi, phi, NUM_CLASSES)
+    assert set(crit.local_groups) == set(phi)
+    for g, name in crit.local_groups.items():
+        assert getattr(crit, name).tolist()[1:] == [phi[g][c] for c in CAPPED]

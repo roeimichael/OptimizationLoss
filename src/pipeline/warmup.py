@@ -123,6 +123,29 @@ def make_dataloader(X, y, batch_size, augment=False, groups=None):
     )
 
 
+def check_rank_budget_agreement(rank_weight, dataset_config):
+    """Refuse a ranking term that simulates a cut the allocator will not make.
+
+    `budgeted_rank_loss` cuts each TRAIN (group, class) at round(fraction x that
+    group's own positives), which mirrors the deployment cap only while the cap
+    is itself prevalence-derived. With `group_budget_shares` the deployed
+    ceiling is share x the class's pooled budget, decoupled from group size, so
+    the two cuts disagree by the ratio of share to prevalence -- 6x across tiers
+    in the hospital example. Train and test groups are disjoint by construction,
+    so the shares cannot be carried over by group identity either.
+
+    This is the same failure the `rank_cap_fraction` guard catches one level up:
+    a ranking term trained against the wrong cut looks normal in every log.
+    """
+    if rank_weight and dataset_config.get("group_budget_shares"):
+        raise ValueError(
+            "rank_weight=%r with group_budget_shares set: the ranking term cuts "
+            "each train group at its own prevalence, but the allocator cuts at "
+            "the group's externally given share of the class budget. Those are "
+            "different cuts. Set rank_weight to 0, or drop group_budget_shares."
+            % rank_weight)
+
+
 def run_warmup(config, num_classes, X_train, y_train, device,
                *, csv_log_path=None, groups_train=None):
     """CE-only warmup phase. Loads from cache if available, else trains and saves.
@@ -169,6 +192,7 @@ def run_warmup(config, num_classes, X_train, y_train, device,
     # be reused for a cut it was not trained at -- which is exactly the bug this
     # key was added to close, reappearing through the back door. Refuse rather
     # than train something the digest does not describe.
+    check_rank_budget_agreement(rank_cfg["weight"], config.get("dataset_config") or {})
     if rank_cfg["weight"] > 0 and "rank_cap_fraction" in hp:
         stamped = float(hp["rank_cap_fraction"])
         if abs(stamped - rank_frac) > 1e-12:
