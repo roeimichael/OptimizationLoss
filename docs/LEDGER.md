@@ -944,6 +944,62 @@ is principled -- not because it was the largest number in the panel.
 host. **Pre-registered here: it counts only if `aug_tralo` - `aug_tralo_null` on
 Precision (Macro) is positive in the confirmation set too.**
 
+### IS A SHORT BUDGET "UNDERTRAINED"? Only without augmentation. (2026-09-16)
+
+**The question.** If the constraint only works in the live regime, and the live
+regime means stopping at ~6 epochs, are we winning by crippling training? A
+method that beats a 6-epoch baseline while a 30-epoch baseline beats them both
+is worth nothing.
+
+**Measured on stored artifacts. MobileNetV3 x fmow2, same allocator, 4 seeds.**
+`live6b` trains the post-hoc arms for 6 CE epochs, `rank3` for 30 (both
+`constraint_epochs = 0`, verified from config, not assumed).
+
+| arm | budget | cc-F1 L80 | cc-F1 L90 | F1 Macro L80 | F1 Macro L90 |
+|---|---|---|---|---|---|
+| `clip` | 6 | 0.6927 | 0.7154 | 0.6310 | 0.6422 |
+| `clip` | 30 | **0.7101** | **0.7301** | **0.6443** | **0.6551** |
+| `aug_clip` | 6 | **0.7172** | **0.7378** | **0.6510** | **0.6625** |
+| `aug_clip` | 30 | 0.7107 | 0.7332 | 0.6438 | 0.6558 |
+
+**Two facts, opposite signs:**
+
+1. **Without augmentation the short budget IS undertraining.** `clip` loses
+   -0.0174 (L80) and -0.0147 (L90) cc-F1 by stopping at 6. The fear is real.
+2. **With augmentation it is NOT.** `aug_clip` at 6 epochs BEATS itself at 30
+   (+0.0065, +0.0046) and is the **best arm in the table on every metric**. The
+   30-epoch augmented model is OVER-trained, not better-trained.
+
+**So "stop while still live" is ordinary early stopping, and it is correct** --
+provided the model is regularised enough to still be learning when you stop.
+Budget and augmentation are not two levers, they are one: augmentation buys the
+live epochs, the short budget stops before they run out.
+
+⚠️ **AND THE CONSTRAINT LOSES IN EVERY CELL.** `tralo` at budget 6 is 0.6862 /
+0.7131, BELOW `clip` at the same budget in both caps. `aug_tralo` is 0.7113 /
+0.7338, below `aug_clip` in both caps. **The best configuration measured
+anywhere in this corpus is `aug_clip` at budget 6 -- a post-hoc clipper with
+flip-and-crop and early stopping, carrying no constraint at all.** This is
+consistent with `stab8`, where `aug_tralo` beat its own null but not `aug_clip`.
+
+**Cross-campaign, not paired** (different code versions), so treat the sizes as
+indicative. The direction is consistent across 2 caps and 4 metrics.
+
+🛑 **THIS EXPOSES A DESIGN GAP IN THE RUNNING `bud_*` SWEEP: it has NO augmented
+arms.** The strongest known configuration is invisible to it. The sweep still
+answers its pre-registered question (does the constraint become non-null at high
+live fraction, and does it beat ALM), but an augmented budget sweep is required
+before any budget recommendation can be made.
+
+**The one lever the theory endorses and we have NOT tried: capacity
+restriction.** Woodworth et al. (COLT 2017) justify in-processing *only* through
+hypothesis-class restriction. A pretrained backbone that reaches train accuracy
+0.9999 is effectively unrestricted on the training distribution, which is
+precisely why post-hoc keeps winning. `pretrained: false` is a supported flag and
+`SmallCNN` exists (diagnostic-only per FRAMEWORK 1, never a paper claim). Also
+untested: the `lr1e-5` / `lr2e-5` / `lr5e-5` campaigns were GENERATED and never
+run (0/10 each), so "slow the boundary down" is unmeasured.
+
 ## PART 4 -- Closed and rejected
 
 - **Early stopping / per-epoch boundary selection -- CLOSED 2026-09-15.** The
