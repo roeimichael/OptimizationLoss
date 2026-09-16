@@ -70,6 +70,8 @@ def main(argv=None):
     args = ap.parse_args(argv)
 
     per = collections.defaultdict(list)
+    skipped_reason = {}
+    no_active_phase = 0
     for g in args.glob:
         for f in glob.glob(os.path.join(g, "training_log.csv")):
             # A post-hoc arm has NO constraint phase, so its live window says
@@ -78,13 +80,30 @@ def main(argv=None):
             # campaigns as saturated on the strength of runs the gate does not
             # apply to.
             con = args.constraint_epochs
+            hp = {}
             if con is None:
                 cj = os.path.join(os.path.dirname(f), "config.json")
                 try:
-                    con = int(json.load(open(cj))["hyperparams"]["constraint_epochs"])
+                    hp = json.load(open(cj))["hyperparams"]
+                    con = int(hp["constraint_epochs"])
                 except (OSError, KeyError, ValueError):
                     continue
+                # A campaign can carry its objective in the WARM-UP instead of a
+                # constraint phase -- the budgeted ranking loss does exactly
+                # that, and those runs set constraint_epochs = 0. Skipping them
+                # let rank1/rank2/rank3 (360 runs) past this gate entirely while
+                # printing "no training_log.csv matched", which reads like a bad
+                # glob rather than a verdict. Judged against the phase where
+                # their loss was actually live they are SATURATED at 8-10%.
+                # The gated phase is whichever one the objective is active in.
+                if con <= 0 and float(hp.get("rank_weight", 0.0)) > 0:
+                    try:
+                        con = int(hp["warmup_epochs"])
+                        skipped_reason[f] = "warmup"
+                    except (KeyError, ValueError):
+                        pass
             if con <= 0:
+                no_active_phase += 1
                 continue
             got = live_window(f, args.saturated_acc)
             if got:
@@ -101,8 +120,19 @@ def main(argv=None):
                 # long arms to the short arm's bar and passes them wrongly.
                 per[(p[-6], p[-5], con)].append(got)
     if not per:
-        print("no training_log.csv matched")
+        # Distinguish "the glob found nothing" from "every run was skipped".
+        # Conflating them is what hid the ranking campaigns.
+        if no_active_phase:
+            print("%d run(s) matched but NONE has a gateable phase: "
+                  "constraint_epochs = 0 and no warm-up-borne objective. "
+                  "Nothing was checked." % no_active_phase)
+        else:
+            print("no training_log.csv matched")
         return 1
+    if skipped_reason:
+        print("NOTE: %d run(s) gated on WARM-UP epochs -- their objective "
+              "(rank_weight > 0) lives in the warm-up, not a constraint phase."
+              % len(skipped_reason))
     budgets = sorted({k[2] for k in per})
     bad = 0
     print("live window = epochs before train accuracy reaches %.2f" % args.saturated_acc)

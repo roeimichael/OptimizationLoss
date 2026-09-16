@@ -215,6 +215,58 @@ wrong published-to-ourselves conclusion at least once.
 
 ---
 
+## PART 2.1b -- THE GATE THAT WAS BLIND TO THE CAMPAIGN IT GATED (2026-09-16)
+
+**`scripts/saturation_gate.py` skipped all 360 ranking runs and said nothing.**
+
+The gate exists to catch exactly one condition: the boundary has frozen, so
+whatever is pushing on it cannot reshape anything. It keyed off
+`hyperparams.constraint_epochs` and contained `if con <= 0: continue`.
+
+The ranking campaigns carry their objective in the **warm-up**, not in a
+constraint phase, so every one of them sets `constraint_epochs = 0`. The gate
+therefore skipped 100% of rank1/rank2/rank3 and printed **`no training_log.csv
+matched`** -- which reads like a bad glob, not a verdict. It exited 0 through a
+pipe. The campaign series was reported as gates-GREEN on a check that never ran.
+
+Judged against the phase where the ranking loss was actually active (30 warm-up
+epochs), all three backbones FAIL:
+
+| cell | live window | live fraction | verdict |
+|---|---|---|---|
+| MobileNetV2/fmow2 | 3.0 of 30 | 10% | SATURATED |
+| MobileNetV3/fmow2 | 2.5 of 30 | 8% | SATURATED |
+| RegNetY400MF/fmow2 | 2.7 of 30 | 9% | SATURATED |
+
+The gate requires >= 50%. **rank1, rank2 and rank3 -- 360 runs -- were run in the
+dead regime**, the one this project established in August 2026 as where nothing
+can happen ([[feedback-warmup1-is-the-only-regime]]: the regime is worth ~8 pp,
+the method choice ~0.1 pp).
+
+**This is the upstream cause of PARTS 2.2, 2.3 and 2.4.** The gradient being
+uncertainty-weighted, the cap being destroyed by batch-level `round()`, and the
+inversion set being identically empty on train are all downstream of a model that
+has memorised the training set by epoch 6 of 30. **No reshaping of the loss could
+have fixed any of it.**
+
+**FIXED** (this commit), with four controls: the gate now falls back to
+`warmup_epochs` when `constraint_epochs = 0` **and** `rank_weight > 0`; it
+distinguishes "the glob matched nothing" from "every run was skipped, nothing was
+checked"; and it names the runs it gated on the warm-up. Controls: (1) rank3 now
+exits 1 SATURATED; (2) clipper-only arms correctly report no gateable phase --
+a post-hoc arm has no in-training objective to gate; (3) the
+`--constraint-epochs` override path is byte-identical to before; (4) rank2
+reproduces independently.
+
+**Augmentation is NOT the lever.** Measured per arm on the stored logs: augmented
+arms reach a 3.00-epoch live window against 2.17 for plain `clip` -- 10% vs 7% of
+a 30-epoch budget. It buys 0.8 epochs where 12 are needed.
+
+**The generalisable trap.** A gate keyed on the name of a phase rather than on
+*where the objective is active* will silently exempt any campaign that moves the
+objective. Gate on the active phase, and never let "nothing matched" and "nothing
+was checked" print the same message.
+
 ## PART 2.2 -- WHY THE RANKING LOSS FAILED: the gradient is UNCERTAINTY-weighted, not CUT-anchored
 
 **The result first.** `rank3_*`, 120 runs, 3 backbones x 2 caps x 4 seeds, all
