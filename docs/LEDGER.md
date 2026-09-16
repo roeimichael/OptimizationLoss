@@ -1000,6 +1000,63 @@ precisely why post-hoc keeps winning. `pretrained: false` is a supported flag an
 untested: the `lr1e-5` / `lr2e-5` / `lr5e-5` campaigns were GENERATED and never
 run (0/10 each), so "slow the boundary down" is unmeasured.
 
+### ⛔ CAPACITY RESTRICTION IS CLOSED -- and with it, LIVENESS as the explanation (2026-09-16)
+
+**I recommended this lever this morning as "the one the theory endorses and we
+have not tried". It had been tried. Both campaigns were complete on disk and
+unscored.** Woodworth et al. (COLT 2017) justify in-processing only through
+hypothesis-class restriction, so a model that cannot memorise should be where the
+constraint finally wins. Two complete campaigns test exactly that:
+
+| campaign | model | live window | live fraction |
+|---|---|---|---|
+| reference (`scr_MobileNetV3`) | pretrained MobileNetV3 | 3.8 / 7 | 54% |
+| `scratch60` | MobileNetV3, **`pretrained: False`** | 19.6 / 59 | 33% |
+| `small60` | **SmallCNN** | 60.0 / 59 | **102% -- never saturates** |
+
+`small60` never reaches 0.95 train accuracy at all (0.491 by epoch 7). The
+boundary is live for the ENTIRE constraint phase. This is the cleanest possible
+test of the liveness account.
+
+**The constraint is NEGATIVE there, on every primary endpoint** (4 seeds, paired):
+
+| campaign | cap | contrast | cc-F1 | F1 (Macro) | Accuracy |
+|---|---|---|---|---|---|
+| `small60` | L80 | `tralo` - `tralo_null` | **-0.0096** (t -2.23) | **-0.0108** (t -2.10) | **-0.0109** (t -2.55) |
+| `small60` | L90 | `tralo` - `tralo_null` | -0.0092 | -0.0096 | -0.0091 |
+| `scratch60` | L90 | `tralo` - `clip` | **-0.0258** [-0.0431, -0.0085] | -0.0180 | -0.0164 |
+| `scratch60` | L90 | `tralo` - `clip` (P Macro) | **-0.0180** [-0.0308, -0.0051] | | |
+
+Two `scratch60` L90 contrasts have 95% CIs excluding zero **on the negative
+side**. `small60` is negative in 6 of 6 primary cells against its own null.
+
+**WHAT THIS CLOSES.**
+
+1. **Capacity restriction as a lever: REJECTED.** The theory's own precondition
+   was created and the constraint got worse, not better.
+2. **Liveness is NOT the barrier.** The standing account was "the constraint does
+   nothing because it arrives after the boundary froze". At ~100% live it arrives
+   on time, to a permanently-moving boundary, and *damages* it. This strengthens
+   the existing PART 3 note ("at 55-72% live the damage persists, so a frozen
+   boundary is at most a PART of the mechanism") to its limiting case.
+   **A short budget and a live window explain why the constraint is INERT; they
+   do not explain, and do not repair, the fact that it is HARMFUL when active.**
+3. The `stab8` Precision (Macro) effect (+0.0118 vs its null at 43% live) is now
+   the ONLY positive constraint effect in the corpus, and it is contradicted by
+   `small60` at higher liveness. Treat it as more likely a multiplicity artifact
+   than previously stated, pending the `bud_*` confirmation set.
+
+⚠️ `SmallCNN` is diagnostic-only under FRAMEWORK 1 and can never carry a paper
+claim. That restriction governs claiming a WIN; a negative result from it is a
+legitimate mechanism refutation. `scratch60` is a real backbone and its negative
+result stands on its own.
+
+**Process note.** This is the SECOND stale "not run" in one day (`tralo_stab` was
+the first). A campaign inventory across all worktrees now exists; `live11`,
+`gx2`, `trace30`, `sat_fmow2`, `scr_MobileNetV2/V3/RegNetY400MF` are also
+COMPLETE and may be unscored. **Check the inventory before proposing any
+"untested" direction.**
+
 ## PART 4 -- Closed and rejected
 
 - **Early stopping / per-epoch boundary selection -- CLOSED 2026-09-15.** The
