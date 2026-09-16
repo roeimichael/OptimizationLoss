@@ -1,7 +1,7 @@
 # OptimizationLoss (TraLO)
 
 Thesis project. Train neural networks to satisfy **transductive prediction-count
-constraints** — "within group *G*, predict class *C* at most *K* times" — via soft
+constraints** -- "within group *G*, predict class *C* at most *K* times" -- via soft
 constraint optimization during training, and test whether that beats simply clipping the
 predictions after the fact.
 
@@ -59,8 +59,7 @@ correction is still in progress; see MISSION before generating a new comparison.
 | `scripts/` | dataset preparation, operational validation and `deployed_h2h.py` reporting |
 | `evidence/` | historical provenance/prediction tarballs; not the fresh corpus |
 | `results/` | fresh run outputs only after reset validation |
-| `docs/archive/` | superseded material; preserve as evidence, not instructions |
-| `docs/archive/` | **quarantined.** Superseded documents, the paper tree, audit receipts. Not current evidence -- see `docs/archive/README.md` |
+| `docs/archive/` | **quarantined.** Superseded documents, the paper tree, audit receipts. Preserve as evidence, never as instructions -- see `docs/archive/README.md` |
 | `.github/workflows/preflight.yml` | CI preflight |
 
 ## Verify before running
