@@ -1,5 +1,11 @@
 protocol:
-  total_epochs: 30
+  # 7 = 2 x live + 1, derived 2026-09-16 from THIS dataset's own measured live
+  # window rather than assumed. The saturation gate on the first 14 polc_a runs
+  # put MobileNetV3/fmow2 at train acc 0.962 by epoch 4: live window 3 epochs,
+  # 10% of a 29-epoch constraint phase. The other 90% of those steps pushed on a
+  # frozen boundary with CE ~0 and nothing opposing them. 30 was never measured;
+  # it was inherited.
+  total_epochs: 7
   trained_warmup: 1
   seeds:
   - 1
@@ -110,9 +116,9 @@ blocks:
   # points in the frozen regime with none between 43% and 75% -- the firstrun
   # saturation gate caught it at 6 of 384 runs.
   #
-  # Budget 30 is deliberately ABSENT: it is the protocol default, so the plain
-  # `tralo`/`tralo_null`/`clip` arms already are the 30-epoch level and adding a
-  # b30 block would generate a second copy of them under a different name.
+  # These blocks PIN a budget regardless of the protocol default. The default
+  # itself moved 30 -> 7 on 2026-09-16 (see above), so the plain arms are now
+  # the 7-epoch level; a b7 block would duplicate them.
   b5:
     total_epochs: 5
   b6:
