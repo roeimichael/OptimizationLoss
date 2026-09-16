@@ -141,6 +141,41 @@ detects roughly 0.013. Read direction and mechanism, not significance.
 
 ## PRE-REGISTERED READINGS -- fixed before the numbers, do not reinterpret
 
+### Option C on ViTB16 (`polcv_a` + `polcv_b`, written 2026-09-17 02:10, BEFORE launch)
+
+**Why this exists.** Option C is REFUTED on MobileNetV3 (LEDGER PART 4). ViTB16
+was the only backbone in the old corpus where `tralo - tralo_null` was positive
+on both caps and both endpoints, so it is the one place the refutation could
+fail to generalise. This is a REPLICATION of a closed result on a new backbone,
+not a new question.
+
+**Design.** ViTB16 x fmow2 x {`L25_G25`, `L75_G75`} x 7 arms x 12 seeds
+(`polcv_a` seeds 1-6, `polcv_b` 7-12; same host, precision and stamp, so they
+pool). Only the two EXTREME caps, so 12 seeds buys real power on the cap
+contrast rather than 6 seeds spread over three levels. Same budget (7 epochs),
+same share rule (`proportional_to_group_size`).
+
+**Endpoints and contrasts.** Identical to the MobileNetV3 pre-registration
+above: primary `cc_f1` then `F1 (Macro)`; the only attributable contrast is
+`tralo - tralo_null`; every `tralo - rival` printed beside `tralo_null - rival`;
+average over SEED only; de-duplicate by prediction hash.
+
+**Outcomes, fixed now:**
+
+1. **REFUTATION GENERALISES** -- pooled mean inside the seed sd on both
+   endpoints, as on MobileNetV3. Option C closes across backbones.
+2. **BACKBONE-SPECIFIC** -- `tralo - tralo_null` positive at BOTH caps on cc_f1
+   with a pooled mean exceeding the seed sd. Then the MobileNetV3 refutation is
+   real but does not generalise, and ViTB16 becomes the claim's only support --
+   which must then be stated as a single-backbone result.
+3. **AMBIGUOUS** -- anything else, including a sign split across caps. Reported
+   as ambiguous; no direction is claimed from it.
+
+🛑 The mechanism probe (precision of the filled ceilings, evictions per arm) is
+run REGARDLESS of outcome, because on MobileNetV3 it explained the result better
+than the endpoint did.
+
+
 ### Option C (`polc2_a` + `polc2_b`, written 2026-09-17 00:30 at 130/252 runs, BEFORE any score was read)
 
 **Unit.** (MobileNetV3, dsisco02). `polc2_a` and `polc2_b` differ ONLY by seed --
