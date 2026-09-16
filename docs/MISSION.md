@@ -246,8 +246,30 @@ update ordering and training behaviour do not change during structural cleanup.
 
 ## RUN STATE -- checked 2026-09-16 18:37 IDT (server clock).
 
-🛑 **dsisco02 IS WEDGED AS OF ~18:15. `vit_a`, `vit_b`, `cap_a`, `cap_b` ARE
-BLOCKED, NOT LOST.** Diagnosed from dsisco01 over shared NFS, because ssh to
+✅ **RESOLVED 21:28. dsisco02 RECOVERED ON ITS OWN after ~3 hours wedged.**
+It did NOT reboot (uptime 108 days, same boot record), so the hang was transient
+I/O. The original trainers were never killed -- pids 4188608 and 4188619 are
+still alive at etime 06:59, i.e. continuously since the 14:28 launch -- and
+simply resumed. `vit_a` and `vit_b` went 21/84 -> 27/84.
+
+**No data was corrupted.** Every completed run has predictions and metrics
+carrying `cc_f1`. Four runs lack a `training_log.csv` -- `L90_G95` x
+{`clip`, `focal_clip`} -- but that is EXPECTED and predates the hang: a post-hoc
+clipper has no constraint phase, and at L90 it reuses the cached warm-up, so
+there are zero epochs to log. Their endpoints are intact and scoreable.
+
+**What DID die: the queued `cap_a`/`cap_b` runners.** They were parked in
+`wait_for_gpu` and did not survive. Re-queued 21:29 as `capa2`/`capb2`, with new
+labels so no live log is rewritten (RULESET 6). Verified by enumerating
+`/proc/<pid>/cmdline` -- NOT by `pgrep -f`, which matched the probing shell
+itself -- that exactly one runner now exists per cap campaign, so there is no
+double dispatch. `~/camp_status.sh` needed no edit: it resolves logs by
+`*_<campaign>.log`, which `capa2_cap_a.log` matches.
+
+**Historical note, kept because the diagnosis held up:**
+
+🛑 **dsisco02 WAS WEDGED FROM ~18:15 TO 21:28. `vit_a`, `vit_b`, `cap_a`,
+`cap_b` WERE BLOCKED, NOT LOST.** Diagnosed from dsisco01 over shared NFS, because ssh to
 dsisco02 fails at the banner exchange:
 
 * `ping` succeeds and TCP 22 is OPEN from dsisco01, so the **host is up** and
