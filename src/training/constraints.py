@@ -92,6 +92,48 @@ def _round_to_K(count, percentage, scope_label):
 SHARE_TOLERANCE = 1e-9
 
 
+SHARE_RULES = ("equal", "proportional_to_group_size")
+
+
+def resolve_group_shares(spec, data, group_col):
+    """A share mapping, or a NAMED rule that derives one without labels.
+
+    WHY A NAMED RULE AND NOT A LITERAL DICT. The hospital's shares come from a
+    policy somebody wrote down. fmow2's groups are COUNTRIES, and no external
+    policy says what fraction of the budget Japan should get, so the shares have
+    to come from a rule -- and the rule has to be stated, not hardcoded as ten
+    numbers that silently go stale when the slice is rebuilt.
+
+    🛑 BOTH RULES READ ONLY `group_col`. They never touch `target_col`. That is
+    the entire point: the derivation this replaces
+    (`Phi = round(pct * count of class c in group g)`) makes the ceiling vector
+    an affine image of the per-group label histogram, so the cap restates the
+    answer instead of constraining it. A rule that reads a label would reinstate
+    exactly that coupling, which is why `test_the_named_rules_are_label_free`
+    shuffles the labels and asserts the shares do not move.
+
+    `equal`                      every group gets the same slice of the budget.
+    `proportional_to_group_size` a group's slice is its share of the pool, i.e.
+                                 capacity tracks how much you screen, not how
+                                 many positives you happen to hold.
+    """
+    if not isinstance(spec, str):
+        return spec
+    counts = data[group_col].value_counts()
+    groups = sorted(int(g) for g in counts.index)
+    if not groups:
+        raise ValueError("no groups in %r; cannot derive budget shares" % group_col)
+    if spec == "equal":
+        return {g: 1.0 / len(groups) for g in groups}
+    if spec == "proportional_to_group_size":
+        total = float(counts.sum())
+        return {g: float(counts[g]) / total for g in groups}
+    raise ValueError(
+        "unknown group_budget_shares rule %r; expected a {group: share} mapping "
+        "or one of %s" % (spec, list(SHARE_RULES))
+    )
+
+
 def normalize_group_shares(shares, groups_present):
     """Externally given budget shares, one per group, validated against the data.
 
@@ -244,7 +286,7 @@ def _local_constraints_from_shares(
     data, target_col, percentage, group_col, classes, num_classes, shares
 ):
     groups = sorted(int(g) for g in data[group_col].unique())
-    shares = normalize_group_shares(shares, groups)
+    shares = normalize_group_shares(resolve_group_shares(shares, data, group_col), groups)
     local = {g: [UNLIMITED] * num_classes for g in groups}
     for c in classes:
         pct = cap_fraction_for(percentage, c, classes)

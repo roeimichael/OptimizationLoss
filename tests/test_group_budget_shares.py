@@ -172,3 +172,55 @@ def test_the_loss_registers_every_group_class_cell_of_the_policy():
     assert set(crit.local_groups) == set(phi)
     for g, name in crit.local_groups.items():
         assert getattr(crit, name).tolist()[1:] == [phi[g][c] for c in CAPPED]
+
+
+def test_the_named_rules_are_label_free():
+    """THE guard on Option C: shuffling every label must not move a single share.
+
+    The derivation these rules replace reads the labels, which is what made the
+    ceiling an affine image of the per-group class histogram. If a rule ever
+    starts reading a label this test fails, loudly, before a campaign runs.
+    """
+    from src.training.constraints import resolve_group_shares
+
+    frame = hospital()
+    shuffled = frame.copy()
+    shuffled["label"] = frame["label"].sample(frac=1.0, random_state=7).to_numpy()
+    assert not shuffled["label"].equals(frame["label"])  # the shuffle did something
+
+    for rule in ("equal", "proportional_to_group_size"):
+        assert (resolve_group_shares(rule, frame, "tier")
+                == resolve_group_shares(rule, shuffled, "tier")), rule
+
+    # the control: the derivation being replaced DOES move
+    before = local(frame, 0.50)
+    after = compute_local_constraints(shuffled, "label", 0.50, "tier",
+                                      constrained_class=CAPPED, num_classes=NUM_CLASSES)
+    assert before != after
+
+
+def test_size_rule_reproduces_the_pool_proportions():
+    from src.training.constraints import resolve_group_shares
+
+    frame = hospital()
+    shares = resolve_group_shares("proportional_to_group_size", frame, "tier")
+    n = float(len(frame))
+    for g in (0, 1, 2):
+        assert abs(shares[g] - int((frame["tier"] == g).sum()) / n) < 1e-12
+    assert abs(sum(shares.values()) - 1.0) < 1e-12
+
+
+def test_named_rules_flow_through_the_real_entry_point():
+    frame = hospital()
+    phi = local(frame, 0.50, group_budget_shares="equal")
+    psi = compute_global_constraints(frame, "label", 0.50,
+                                     constrained_class=CAPPED, num_classes=NUM_CLASSES)
+    for c in CAPPED:
+        assert sum(phi[g][c] for g in phi) == psi[c]
+    spread = [phi[g][CAPPED[0]] for g in (0, 1, 2)]
+    assert max(spread) - min(spread) <= 1  # equal shares, up to largest remainder
+
+
+def test_unknown_rule_is_refused():
+    with pytest.raises(ValueError, match="unknown group_budget_shares rule"):
+        local(hospital(), 0.50, group_budget_shares="proportional_to_prevalence")
