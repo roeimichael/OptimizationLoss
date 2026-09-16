@@ -139,13 +139,32 @@ def generated(tmp_path_factory):
     return (str(root), _on_disk(root), out)
 
 
-def test_warmup_1_29_trained_30_0_posthoc_and_equal_compute(
+def test_trained_and_posthoc_arms_each_split_their_own_budget(
     protocol_yml, generated, tmp_path
 ):
+    """Equal compute is a PROPERTY, not the number 30.
+
+    This pinned `(30, 1)` until 2026-09-16. 30 was never measured -- it was
+    inherited -- and pinning it here meant the one knob the saturation gate
+    tells us to move could not be moved without a red gate. `check_parity`
+    already carries the same lesson in its own header: it used to compare
+    against a hardcoded (30, 0) / (1, 29) and so "was comparing to a number,
+    not checking parity".
+
+    What must hold is that a constraint phase EXISTS and that every arm splits
+    its own budget the same way. Those are checked below and are what the
+    equal-compute guarantee actually rests on.
+    """
     (P, fails) = (protocol_yml, [])
-    got = (P["protocol"]["total_epochs"], P["protocol"]["trained_warmup"])
-    if got != (30, 1):
-        fails.append("protocol total/warm-up is %s, not (30, 1)" % (got,))
+    total = P["protocol"]["total_epochs"]
+    warm = P["protocol"]["trained_warmup"]
+    if warm < 1:
+        fails.append("trained_warmup is %s; a trained arm needs a warm-up" % warm)
+    if total <= warm:
+        fails.append(
+            "total_epochs %s <= trained_warmup %s, so the constraint phase is "
+            "empty and every trained arm silently becomes a post-hoc one"
+            % (total, warm))
     for arm, spec in sorted(P["arms"].items()):
         # An arm may override the budget with a block, which is how the budget
         # sweep varies the live fraction inside one campaign. The split is then

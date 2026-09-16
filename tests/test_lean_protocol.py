@@ -11,6 +11,18 @@ ROOT = Path(__file__).resolve().parents[1]
 ARMS = {"tralo", "tralo_null", "clip", "focal_clip", "fioretto", "hounie", "alm"}
 
 
+def protocol_budget():
+    """The budget the generator will actually use, read from the protocol.
+
+    Not a literal: `total_epochs` is derived from the measured live window and
+    moves when the saturation gate says it should. See
+    tests/gates/test_g4_grid.py::test_trained_and_posthoc_arms_each_split_their_own_budget.
+    """
+    import yaml
+    with open(ROOT / "configs" / "protocol.yml", encoding="utf-8") as fh:
+        return yaml.safe_load(fh)["protocol"]["total_epochs"]
+
+
 def generate(tmp_path, *options):
     return subprocess.run(
         [
@@ -48,7 +60,10 @@ def test_all_generates_only_seven_paired_arms_with_reference_recipe(tmp_path):
             assert set(cell) == ARMS
             for c in cell.values():
                 hp = c["hyperparams"]
-                assert hp["warmup_epochs"] + hp["constraint_epochs"] == 30
+                # the protocol's budget, not a literal -- see
+                # test_trained_and_posthoc_arms_each_split_their_own_budget
+                assert (hp["warmup_epochs"] + hp["constraint_epochs"]
+                        == protocol_budget())
                 if c["arm"] not in ("clip", "focal_clip"):
                     assert hp["constraint_fp32"] is True
                     assert hp["constraint_grad_mode"] == "normalize"
