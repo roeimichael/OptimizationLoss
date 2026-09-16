@@ -332,6 +332,59 @@ cut positions, and the two caps differ by well under one item. The slice size is
 the binding constraint, so the fix must enlarge the effective group -- a
 full-group score buffer, or group-blocked batching -- not re-parameterise it.
 
+## PART 2.4 -- THE ROOT CAUSE: the constraint is computed where its violation is EXACTLY ZERO
+
+**Measured 2026-09-16 by loading the actual rank3 warm-up checkpoint
+(`MobileNetV3_fmow2_5aa9cfb1e37a.pt`) and scoring the real train and test splits.
+This is not a simulation and not an inference from a loss curve.**
+
+Every constraint term this project has ever run -- the count penalty, all four
+duals, `budgeted_rank_loss`, and the proposed inversion loss -- is computed on
+TRAIN data. At the deployed cut (cap 0.90, classes 1/2/7):
+
+| | TRAIN (17,670 items) | TEST (3,442 items) |
+|---|---|---|
+| accuracy | **0.9999** | 0.6322 |
+| usable cells | 174 | 27 |
+| **F**, false positives inside the budget | **0** | 246 |
+| **V**, inversion set size `F*(n_pos-K+F)` | **0** | 5,507 |
+| cells where the term is SILENT (V=0) | **174 of 174 (100%)** | 1 of 27 (3.7%) |
+| F as a share of the budget | **0.0000** | 0.2220 |
+
+**Every budget slot on the training set is filled by a true positive. There is no
+violation to penalise, no inversion to swap, and nothing for a dual to
+integrate.** The count family's violation is identically 0; the pairwise family's
+gradient support is the empty set. Both are measuring a quantity that is zero
+wherever they are allowed to look.
+
+**This is not permanent, it is a decay.** The rank3 logs give train accuracy
+0.803 / 0.877 / 0.942 at epochs 1-3, 0.984 at 6, 0.996 at 12, 0.999 at 30 (both
+MobileNetV3 and MobileNetV2). Support scales with `(1 - accuracy)`, so the term
+carried real signal for roughly **epochs 1-5 of 30** and was effectively silent
+for the remaining 80% of the budget. The 719 train positives sitting outside the
+budget are the ones the cap forces out by construction (PART 2.2); they generate
+no inversions because no false positive is inside to swap with them.
+
+**This SUBSUMES 2.2 and 2.3.** The gradient being uncertainty-weighted rather
+than cut-anchored, and the cap being destroyed by batch-level `round()`, are both
+real -- but they describe the shape of a gradient that is, for 80% of training,
+multiplied by an empty support. **Fixing the loss FUNCTION cannot fix this. The
+defect is which DATA the term is computed on.**
+
+**What it reframes.** Train 0.9999 against test 0.6322 is a 37-point
+generalisation gap, and the constraint term is being asked to repair an ordering
+that is already perfect on every item it can see. This is consistent with every
+null in PART 4 and with the theory: post-processing is optimal when the score is
+Bayes on the observed data, and on TRAIN this score is effectively perfect.
+
+**The direction this opens (see PART 5).** Compute the constraint term on a
+held-out fold of the TRAIN GROUPS that cross-entropy does not fit. The model is
+not memorised there, so `V > 0` and the term is alive for all 30 epochs. This
+uses train labels only and touches no test label, so it is FRAMEWORK-legal;
+`scripts/val_split.py` already exists. **This is a data-routing change, not a
+loss-function change, and it is the first candidate in this project that is
+motivated by a measured zero rather than by a theory of the surrogate.**
+
 ## PART 2 -- What is PROVED
 
 From the adversarial-review theorem package (2026-09-02, three independent
