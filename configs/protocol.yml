@@ -451,7 +451,15 @@ datasets:
     # partition the global one exactly and both constraints bind.
     # Incompatible with rank_weight > 0; see check_rank_budget_agreement.
     #
-    # group_budget_shares: {0: 0.10, 1: 0.30, 2: 0.60}
+    # ACTIVE from 2026-09-16. fmow2's groups are COUNTRIES, so no external
+    # policy supplies the shares; `proportional_to_group_size` makes a group's
+    # ceiling its share of the POOL (label-free, reads only `location`) rather
+    # than a fraction of its own positives. Under the old derivation the
+    # ceiling vector was an affine image of the per-group label histogram, so
+    # the cap restated the answer; measured wasted capacity was exactly 0 in
+    # all three capped classes. Campaigns must now use EQUAL percentages
+    # (L25_G25, L50_G50, L75_G75) so sum(Phi) == Psi and both scopes bind.
+    group_budget_shares: proportional_to_group_size
   bcn:
     data_dir: data/bcn/oodslice
     num_classes: 8
