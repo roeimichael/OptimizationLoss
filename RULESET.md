@@ -128,6 +128,29 @@ campaign is read as evidence:
   firstrun, score. **No bypass to keep GPUs busy.**
 - **Kill a bad campaign at firstrun, not at hour 19.**
 
+- 🛑 **NEVER REWRITE A LOG FILE A RUNNING PROCESS HOLDS OPEN.** Measured
+  2026-09-16 on `vita_vit_a.log`. Removing a line with
+  `grep -v ... > tmp && mv tmp logfile` UNLINKS the inode the trainer and the
+  runner have open. On NFS the still-open inode is silly-renamed to
+  `.nfs<hex>` in the same directory, every subsequent write goes there, the
+  visible log freezes at the moment of the `mv`, and **the entire stream is
+  deleted when the process exits.** Training is unaffected and nothing raises,
+  so the only symptom is a log that stops growing while runs keep completing.
+
+  **Recovery, while the process is still alive:** the orphan is readable and
+  can be re-attached by LINK, not by copy --
+  `mv visible.log visible.log.pre_orphan && ln .nfs<hex> visible.log`.
+  The extra hard link raises the inode's link count to 2, so the data survives
+  the process exit. Verify with `stat -c %h`.
+
+  **Prevention:** to silence a known-benign line, filter it in the READER
+  (`camp_status.sh` already greps out `invalid literal for int`), never edit
+  the file. Append-only is the contract; treat a live log as read-only.
+  `>>` is safe, `>` and `mv` are not.
+
+  This also means a stale-log ALERT is load-bearing: it was the only signal
+  that the stream had been orphaned, and it fired correctly.
+
 ## 6. Evidence handling
 
 - **Preserve evidence by recoverable archival.** Never delete predictions,
