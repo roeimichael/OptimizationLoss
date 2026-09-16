@@ -244,7 +244,30 @@ update ordering and training behaviour do not change during structural cleanup.
 
 ---
 
-## RUN STATE -- checked 2026-09-16 14:39 IDT (server clock). FIVE CAMPAIGNS LIVE.
+## RUN STATE -- checked 2026-09-16 18:37 IDT (server clock).
+
+🛑 **dsisco02 IS WEDGED AS OF ~18:15. `vit_a`, `vit_b`, `cap_a`, `cap_b` ARE
+BLOCKED, NOT LOST.** Diagnosed from dsisco01 over shared NFS, because ssh to
+dsisco02 fails at the banner exchange:
+
+* `ping` succeeds and TCP 22 is OPEN from dsisco01, so the **host is up** and
+  it did not reboot. sshd accepts the connection and then never speaks.
+* `vit_a` and `vit_b` are frozen at **21/84 each**. Two samples two minutes
+  apart show identical completion counts, identical queue-log sizes and an
+  identical mtime, against a ~10.3 min/run rate. The jobs are not progressing.
+* That single cause -- an NFS/IO hang on dsisco02 -- explains all of it: sshd
+  blocks reading `/home` for auth, and the trainers block writing to `/home`.
+
+**42 completed ViT runs are safe on NFS and readable from dsisco01.** Nothing
+is deleted and nothing needs regenerating. 🛑 **Do NOT relaunch these on
+dsisco01**: they are frozen for dsisco02/bf16 and `validate_campaign` refuses a
+cross-host release, so a relaunch would be a different unit, not a recovery.
+Recovery needs console or admin access to dsisco02.
+
+**dsisco01 is unaffected** and its three campaigns are advancing normally
+(`bud_mn3` 96/300, `bud_mn2` 77/300, `bud_rgn` 100/300 at 18:37).
+
+## RUN STATE -- campaign grid (checked 2026-09-16 14:39 IDT)
 
 **The budget sweep. 1,500 runs, five GPUs, both hosts.** Launched after
 LEDGER 2.1b established that rank1/rank2/rank3 (360 runs) all ran at an 8-10%

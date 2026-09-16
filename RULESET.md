@@ -151,6 +151,29 @@ campaign is read as evidence:
   This also means a stale-log ALERT is load-bearing: it was the only signal
   that the stream had been orphaned, and it fired correctly.
 
+- 🛑 **`ConnectTimeout` DOES NOT BOUND AN SSH HANG. WRAP EVERY PEER PROBE IN
+  `timeout`.** Measured 2026-09-16, when the hourly heartbeat blew past 300s.
+  `ConnectTimeout` covers only the TCP connect. A host whose sshd ACCEPTS the
+  connection but never completes the **banner exchange** blocks forever, and
+  that is the exact signature of an NFS hang: sshd stalls reading `/home` for
+  auth. `timeout 25 ssh -o ConnectTimeout=10 ...` is the only thing that bounds
+  it. `~/camp_status.sh` now wraps all three peer probes.
+
+  Two related fixes made at the same time, both load-bearing:
+  * `peer_up=$?` had been read after a command SUBSTITUTION assignment, which
+    reports the assignment's status, not ssh's -- so the "peer unreachable" note
+    could never fire. It now runs an explicit `ssh ... true` and reads that.
+  * A campaign whose host is the unreachable peer is reported **UNKNOWN**, never
+    STALLED. ssh loss means the process state is unobservable, not that the job
+    stopped, and a false STALLED invites a relaunch that would double-run the
+    grid.
+
+  **Diagnosing a wedged host without ssh:** both hosts share NFS, so read the
+  peer's progress from the other host. `ping` + an open TCP 22 with a dead
+  banner means the box is UP and sshd is blocked, not that it rebooted. Sample
+  the run counts and log sizes TWICE, minutes apart: advancing means only
+  monitoring is lost; frozen means the jobs are blocked too.
+
 ## 6. Evidence handling
 
 - **Preserve evidence by recoverable archival.** Never delete predictions,
