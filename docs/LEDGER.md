@@ -1046,6 +1046,53 @@ comparison against it is available until it is restored.
 
 ## PART 4 -- Closed and rejected
 
+- ⛔ **OPTION C IS REFUTED ON (MobileNetV3, fmow2) -- 252 runs, 12 seeds, 2026-09-17.**
+  The pre-registered mapping (MISSION, written at 130/252 before any score was
+  read) called outcome 3 when the pooled mean sits inside the seed sd. It does,
+  on both primary endpoints.
+
+  `tralo - tralo_null`, the only attributable contrast, n=12 per cap:
+
+  | cap | cc_f1 | F1 (Macro) |
+  |---|---|---|
+  | `L25_G25` | -0.0004 (t -0.2) | -0.0047 (t -1.6) |
+  | `L50_G50` | +0.0034 (t +1.6) | -0.0022 (t -0.6) |
+  | `L75_G75` | +0.0023 (t +0.9) | +0.0003 (t +0.1) |
+
+  Pooled mean +0.0018 (cc_f1) and -0.0022 (F1 Macro) against a seed sd of ~0.011.
+  Detectable at n=12 is ~0.009. **The predicted dose-response is inverted**: the
+  effect was to be LARGEST at the tightest cap, and L25 is the only negative cell
+  on cc_f1 and the most negative on F1 Macro.
+
+  🔑 **THE MECHANISM, AND IT IS THE REAL RESULT.** Every arm saturates all
+  30 per-group ceilings (verified), so all seven spend an identical budget in
+  identical cells and can differ ONLY in which items they place. Precision of the
+  filled ceilings, n=12:
+
+  | arm | L25 | L50 | L75 |
+  |---|---|---|---|
+  | `tralo` | 0.5890 | **0.5301** | 0.4812 |
+  | `tralo_null` | 0.5888 | 0.5257 | 0.4801 |
+  | `clip` | **0.5931** | 0.5245 | **0.4834** |
+  | `alm` | 0.5909 | 0.5268 | 0.4792 |
+  | `fioretto` | 0.5907 | 0.5285 | 0.4756 |
+  | `hounie` | 0.5879 | 0.5276 | 0.4812 |
+  | `focal_clip` | 0.5904 | 0.5255 | 0.4801 |
+
+  **All seven methods land within 0.005 of each other at every cap -- a spread
+  smaller than the seed noise.** True positives evicted are ~1050 / 906 / 787 and
+  agree across arms to within 1.6 items: **the budget decides how many are
+  evicted, and the method decides almost nothing about which.** Choosing a method
+  moves roughly 5 items in 1000.
+
+  ⚠️ **What this does and does not close.** The mis-specification was real
+  (2.9) and is fixed; the global scope binds for the first time; the constraint
+  is verifiably applied. TraLO still does not win. So **"TraLO looked flat only
+  because the cap was mis-specified" is REFUTED.** Scope: one backbone, one
+  dataset, one share rule (`proportional_to_group_size`). It does not yet close
+  ViTB16, `equal` shares, or a second dataset.
+
+
 - **`tralo_stab`, the weighted soft count -- CLOSED 2026-09-15/16.** Mechanism:
   replace `S_c = sum_i p_i(c)` with `S_c = sum_i w_i * p_i(c)`, so
   `dL/dp_i(c) = psi'(S_c) * w_i` instead of `psi'(S_c)`, with `w_i` the item's
