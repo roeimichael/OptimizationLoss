@@ -281,6 +281,57 @@ deliver more of a gradient that is still uncertainty-weighted.
 **Saturation is NOT the explanation** -- 84% of the capacity sits at a decidable
 cut (PART 3), so "nothing could have worked here" is not available.
 
+## PART 2.3 -- THE CAP NEVER ENTERED THE RANKING LOSS: `round()` collapses on a batch slice
+
+**Measured 2026-09-16 on `data/fmow2/oodslice/train_meta.csv`, the real train
+split, by simulating the shuffled loader. This is mechanical, not statistical.**
+
+`budgeted_rank_loss` takes its cut INSIDE a batch: `k = round(n_pos * cap_fraction)`
+where `n_pos` is the positives of that class in that group's slice **of the
+current batch of 64** (`src/training/rank_loss.py`, the `torch.topk(scores, k)`
+line). fmow2 train has 17,670 items in 139 countries, so a group's slice is
+small. Simulating 828 batches over 3 epochs:
+
+| quantity | value |
+|---|---|
+| batches with a usable (group, class) cell | 96.5% -- **the term did fire** |
+| usable cells per batch | 2.56 |
+| mean group slice size in a usable cell | 12.4 items |
+| cells holding exactly **one** positive | **49.1%** |
+| cells where `K < n_pos` (the budget BINDS) at cap 0.90 | **16.7%** |
+| same, at cap 0.95 | **0.1%** |
+| same, at cap 0.80 | 30.7% |
+
+`round(n_pos * 0.9) = n_pos` for every `n_pos <= 4`, and 83.3% of cells are that
+small. **So in 83% of cells the budget was not binding and the loss reduced to a
+plain "rank positives above negatives" pairwise term** -- precisely the
+non-cutoff-sensitive surrogate that `rank_loss.py`'s own docstring identifies as
+the wrong tool ("a plain pairwise or AP-style surrogate is NOT cutoff-sensitive").
+
+**The decisive contrast.** How often do the two cap levels the campaign compared
+produce an IDENTICAL cut?
+
+| where the cut is taken | L90 and L95 give the same cut |
+|---|---|
+| per BATCH slice (what ran) | **83.0%** of cells |
+| per FULL GROUP (what deploys) | **33.3%** of cells |
+
+At group level the budget binds in 76.4% of cells at cap 0.90 and the two levels
+differ by a mean of 2.14 items. **The cap information exists; the batch-level
+`round()` destroys it before it reaches the gradient.**
+
+**This supersedes nothing in PART 2.2 -- it is a second, independent defect.**
+2.2 says the gradient that arrives is uncertainty-weighted rather than
+cut-anchored. 2.3 says that for 83% of cells there was no cut to anchor to in the
+first place. Either alone is sufficient to explain rank3's null on the cap axis.
+
+**Not fixable by reparameterisation.** Carrying the cap as a rate
+`q = K_full/n_full` and taking a quantile of the slice was tested and is WORSE
+(L90 and L95 identical in 87.7% of cells): a 12-item slice admits ~12 distinct
+cut positions, and the two caps differ by well under one item. The slice size is
+the binding constraint, so the fix must enlarge the effective group -- a
+full-group score buffer, or group-blocked batching -- not re-parameterise it.
+
 ## PART 2 -- What is PROVED
 
 From the adversarial-review theorem package (2026-09-02, three independent
