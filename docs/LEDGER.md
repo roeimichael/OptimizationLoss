@@ -1516,6 +1516,20 @@ where either of them works.
   has never bound" while reporting live logs showing it violated 64% of the time;
   both statements are true and they are about different stages.
 
+  🔑 **CAUSE FOUND 2026-09-16: the redundancy is OUR cap pairs, not the
+  method.** Danit's LP (Shifman et al. 2025) constrains the same two scopes --
+  Ψ(i) per class over the whole pool, Φ_λ(i) per (group, class) -- and its
+  protocol sets *the two percentages equal* ("the percentages for feature-based
+  and target-based constraints were assumed to be the same across all subsets
+  and classes", section 3.2, quoted in the deleted
+  `danits_lp/constraints_builder.py`). With one percentage p,
+  Σ_λ Φ_λ(c) = p·N_c = Ψ(c) up to rounding, so the two constraints tie exactly
+  and BOTH bind. `configs/gen_campaign.py` still defaults to `L30_G30 L50_G50`,
+  which has that property. **Every campaign this project has run overrode it with
+  `--caps L80_G95 L90_G95`**, i.e. local 80-90% against global 95%, which opens
+  the 15-301 item headroom tabulated above by construction. The global term was
+  made redundant by a flag, and an equal-percentage pair restores it.
+
 ## PART 4 -- Closed and rejected
 
 - **Early stopping / per-epoch boundary selection -- CLOSED 2026-09-15.** The
