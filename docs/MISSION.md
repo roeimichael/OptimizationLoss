@@ -141,6 +141,43 @@ detects roughly 0.013. Read direction and mechanism, not significance.
 
 ## PRE-REGISTERED READINGS -- fixed before the numbers, do not reinterpret
 
+### Option C (`polc2_a` + `polc2_b`, written 2026-09-17 00:30 at 130/252 runs, BEFORE any score was read)
+
+**Unit.** (MobileNetV3, dsisco02). `polc2_a` and `polc2_b` differ ONLY by seed --
+same backbone, host, precision and code stamp `b2051c88` -- so they POOL into one
+12-seed set. Nothing from dsisco01 may join it. Average over SEED only.
+De-duplicate by prediction hash first: training is bit-deterministic, so a re-run
+is not a seed.
+
+**Endpoints.** Primary `cc_f1`, then `F1 (Macro)`. Everything else is exploratory
+and may not be quoted as the result.
+
+**The only attributable contrast is `tralo - tralo_null`** at a fixed cap. Every
+`tralo - rival` number must be printed beside its matching `tralo_null - rival`
+on the same line; a `tralo - clip` win with an equal-or-larger `null - clip`
+beside it is a RECIPE effect and is reported as such. This rule exists because
+an earlier corpus pass produced 8 false hits out of 12 for want of it.
+
+**Cap ladder and what it means.** L25 / L50 / L75, equal percentages, so
+`sum(Phi) == Psi` and both scopes bind. Eviction pressure falls as the cap
+loosens, so a real constraint effect should be LARGEST at L25.
+
+**Outcomes, fixed now:**
+
+1. **DOSE-RESPONSE** -- `tralo - tralo_null` positive at all three caps on the
+   primary endpoint AND larger at L25 than at L75. The strong result.
+2. **FLAT BUT PRESENT** -- positive at 2 of 3 caps with a pooled mean clear of
+   the seed sd (~0.011), no ordering.
+3. **REFUTED** -- positive at 1 or 0 caps, or a pooled mean inside the seed sd.
+
+**Power.** 12 seeds against a seed sd of ~0.011 detects about 0.009. An effect
+smaller than that is NOT measurable here and "not significant" is not evidence of
+absence.
+
+🛑 **Any read before 252/252 is EXPLORATORY** and is labelled so wherever it
+appears. The verdict is taken once, at completion.
+
+
 ### The budget sweep (`bud_*`, written 2026-09-16 10:45, before any run finished)
 
 **Why first.** The panel has 50+ metrics and the grid has 25 arms x 2 caps x 6
