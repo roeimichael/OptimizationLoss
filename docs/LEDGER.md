@@ -904,6 +904,46 @@ of REACHABLE RANKINGS, an optimisation-geometry object, not an information one.
 
 ---
 
+### stab8 -- the constraint IS non-null in the live regime, and augmentation matches it (2026-09-16)
+
+**`stab8`, 72 runs, warm-up 1 + 7 constraint epochs (~43% live), MobileNetV3 x
+fmow2 x {L80_G95, L90_G95} x 4 seeds.** Completed 2026-09-15 and left unscored
+beyond cc-F1; scored across the full panel 2026-09-16.
+
+**The one real effect, in the ONLY attributable contrast** (`aug_tralo` against
+its own zero-constraint null -- same augmentation, same schedule, same budget,
+differing only in lambda):
+
+| cap | Precision (Macro) | t | Recall (Macro) | t |
+|---|---|---|---|---|
+| L80_G95 | **+0.0118** [+0.0061, +0.0174] | **+6.62** | +0.0088 | +1.93 |
+| L90_G95 | +0.0169 [-0.0113, +0.0451] | +1.91 | +0.0118 | +1.24 |
+
+**This is NOT the eviction trade.** A selection-rate constraint that merely
+evicts must raise precision and LOWER recall. Here both move up, in both caps.
+So in the live regime the constraint is doing something real to the model --
+the first time that has been shown in this corpus. `aug_tralo_stab` against the
+same null reproduces the sign at L90 (Precision Macro +0.0134, t +2.99).
+
+**And it is worth nothing against the matched rival.** `aug_tralo` - `aug_clip`:
+Precision (Macro) +0.0014 (t +0.10) at L80 and +0.0077 (t +0.79) at L90; cc-F1
+negative in both. **Plain augmentation reaches the same place for free.** The
+large wins against `clip` and `focal_clip` (cc-F1 +0.018 to +0.020, t 5.6-7.0)
+are the AUGMENTATION, not the constraint, and must not be quoted as a method
+result -- the matched control is `aug_clip`.
+
+**Multiplicity, stated honestly.** The full panel is 658 paired tests and
+produced **17 CIs excluding zero on the positive side, against ~33 expected by
+chance alone** -- fewer hits than noise. The Precision (Macro) result is singled
+out because t=6.62 is far outside what multiplicity explains, the sign
+replicates across both caps and across two constrained arms, and the mechanism
+is principled -- not because it was the largest number in the panel.
+
+**Standing.** n=4, one backbone, one dataset. A HYPOTHESIS for the running
+`bud_*` confirmation set, which carries `alm` at matched budgets and 6 seeds per
+host. **Pre-registered here: it counts only if `aug_tralo` - `aug_tralo_null` on
+Precision (Macro) is positive in the confirmation set too.**
+
 ## PART 4 -- Closed and rejected
 
 - **Early stopping / per-epoch boundary selection -- CLOSED 2026-09-15.** The
@@ -979,7 +1019,26 @@ campaign's success or failure.
   only because it is disjoint from the test set, not because it is unlabelled.
 
 
-- **`tralo_stab` -- the weighted soft count -- is BUILT, GATED, and NOT RUN.**
+- ⛔ **RETRACTED 2026-09-16: `tralo_stab` HAS RUN, and it is a null.** The entry
+  below said "NOT RUN"; that was stale. `stab8` (72 runs, MobileNetV3 x fmow2 x
+  2 caps x 4 seeds, `~/optloss-probe/results/stab8`, completed 2026-09-15)
+  executed exactly this arm at `constraint_weight: knn_disagree`, k=20,
+  floor 0.05, in the LIVE regime (warm-up 1 + 7 constraint epochs, ~43% live).
+  Paired against its own null and its own clipper:
+
+  | contrast | Precision (Macro) | cc-F1 |
+  |---|---|---|
+  | `tralo_stab` - `tralo` (L90) | -- | **-0.0095** |
+  | `aug_tralo_stab` - `aug_clip` (L80) | -0.0042 (t -0.46) | -0.0053 |
+  | `aug_tralo_stab` - `aug_clip` (L90) | +0.0042 (t +0.40) | -0.0012 |
+
+  **The knn_disagree weighting buys nothing over the unweighted arm and does
+  not beat the matched clipper.** Identifying wrong items (AUC 0.87) did not
+  translate into fixing them -- exactly the link PART 1 required to be priced
+  rather than assumed, and it is now priced at zero. The AUC finding stands as a
+  measurement; the method built on it does not.
+
+- **Original entry, kept for provenance:** `tralo_stab` -- the weighted soft count -- is BUILT, GATED, and (as of 2026-09-15) had not been run.
   `constraint_weight: knn_disagree` replaces `S_c = sum_i p_i(c)` with
   `S_c = sum_i w_i p_i(c)`, w = label-free neighbourhood disagreement, mean 1
   per local group, applied to the counting pass and the gradient pass alike.
