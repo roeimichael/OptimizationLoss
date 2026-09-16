@@ -1290,8 +1290,23 @@ where either of them works.
   hash over every shared (model, cap, arm, seed): `fm2_mn3` == `gx2` ==
   `trace30` == `sat_fmow2` (all shared cells identical), `scr_MobileNetV3` ==
   `stab8` (56/56), `rank1_*` == `rank3_*` for all three backbones (24/24 each).
-  1,364 runs carry only **822 distinct prediction hashes**. Counting campaigns,
-  or pooling them, inflates n by up to 4x.
+  Counting campaigns, or pooling them, inflates n.
+
+  ⚠️ **CORRECTED 2026-09-16, same day.** This entry first said "1,364 runs carry
+  only 822 distinct prediction hashes", inviting the reading that ~40% of the
+  corpus is redundant seeds. **That conflates two different things** and the
+  headline number is withdrawn. Over all 1,414 fmow2 prediction files (858
+  distinct hashes, 556 redundant), the split is:
+
+  | cause | files | is it n-inflation? |
+  |---|---|---|
+  | cross-campaign re-run at the SAME cap | 46 | **yes** |
+  | cross-CAP within one campaign | 231 | **no -- expected** |
+  | both campaign and cap differ | 273 | mixture |
+  | same hash across DIFFERENT arms | 6 | benign, see below |
+
+  Only the first bucket, and part of the third, are real inflation. See the
+  entry below for why the 231 is not a defect but a proof.
 
 - 🛑 **ONLY TWO CAP LEVELS HAVE EVER RUN ON fmow2: `L80_G95` and `L90_G95`,
   both LOOSE.** Across all 1,364 runs there is no third constraint pair, so
@@ -1300,6 +1315,39 @@ where either of them works.
   `configs/gen_campaign.py` (`L<pct>_G<pct>`, splitting on `_`), so additional
   levels need **no protocol.yml edit and no worktree** -- the gap is compute,
   not code.
+
+- 🟢 **ARM-IDENTITY AUDIT BY PREDICTION HASH: THE LAMBDA TOGGLE IS NOT INERT,
+  AND THE CLIPPERS REALLY ARE POST-HOC.** Measured 2026-09-16 over all 1,414
+  fmow2 prediction files. This project has found FIVE separate inert flags
+  (`class_balanced`, `logit_adjust`, `hounie_alpha`, `graph_probe --dump`, and
+  the `disable_lambda_t` toggle), so "the arm does what its name says" is not
+  something to assume. Prediction hashes settle it without running anything.
+
+  **The test.** If an arm's TRAINING does not depend on the cap, then at two
+  different caps with the same seed it must produce a byte-identical raw
+  prediction file -- training is bit-deterministic -- while its METRICS still
+  differ, because the allocator uses the cap. If training DOES depend on the
+  cap, the files must differ.
+
+  **231 cross-cap identical pairs. Every single one is a null or a clipper:**
+  `tralo_null` (39), `focal_clip` (37), `clip` (36), `aug_clip` (21),
+  `aug_tralo_null` (17), `clip_b5/b6/b7/b8/b12` (8 each),
+  `tralo_null_b5/b6/b7/b8/b12` (7 each), `focal_tralo_null` (6).
+  **Not one constraint-active arm appears in that list.** `tralo` and
+  `aug_tralo` appear only as cross-campaign re-runs (25 and 16), never as
+  cross-cap identities.
+
+  Three things follow, none of which had direct evidence before:
+  1. **`tralo_null` is a genuine null.** lambda = 0 really does remove the cap
+     from the gradient path; the arm is not quietly constrained.
+  2. **`tralo` is genuinely cap-dependent.** The constraint really does reach
+     the weights, so a null result for it is a result about the method, not
+     about an inert flag.
+  3. **The clippers are genuinely post-hoc.** The cap enters only at allocation.
+
+  The 6 same-hash-different-arm pairs are `clip` == `clip_b8` and
+  `aug_clip` == `aug_rank_clip` variants where both arms resolve to the same
+  8-epoch budget -- identical by construction, not a collision.
 
 ## PART 4 -- Closed and rejected
 
