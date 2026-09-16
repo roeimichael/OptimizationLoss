@@ -1224,6 +1224,83 @@ where either of them works.
   warmup 1 + constraint 29, so **every ViT number this project holds was measured
   in the dead regime.**
 
+- 🔴 **THE CONTROL KILLS EVERY MobileNet TraLO WIN: `tralo_null` DELIVERS THE
+  SAME MARGIN.** Measured 2026-09-16 over all **1,364** fmow2 runs with both
+  predictions and metrics, de-duplicated by prediction hash, averaged over SEED
+  only, (campaign, backbone, cap) as the unit and nothing pooled.
+
+  Several cells show `tralo` beating the clippers on both caps. In every
+  MobileNet cell the **null beats them by the same or a larger margin**:
+
+  | cell | contrast | L80 | L90 |
+  |---|---|---|---|
+  | stab8 MNv3 (live) | `tralo` - `focal_clip` cc_f1 | +0.0113 (t+2.7) | +0.0110 (t+3.2) |
+  | stab8 MNv3 (live) | **`tralo_null` - `focal_clip`** | **+0.0106 (t+5.2)** | **+0.0080 (t+2.0)** |
+  | stab8 MNv3 (live) | `tralo` - `tralo_null` | +0.0007 | +0.0030 |
+  | fm2_mn3 MNv3 (30e) | `tralo` - `focal_clip` macroF1 | +0.0136 (t+3.9) | +0.0144 (t+3.7) |
+  | fm2_mn3 MNv3 (30e) | **`tralo_null` - `focal_clip`** | **+0.0134 (t+4.0)** | **+0.0112 (t+3.8)** |
+  | fm2_mn3 MNv3 (30e) | `tralo` - `tralo_null` | +0.0003 | +0.0032 |
+  | live11 MNv3 (live) | `tralo` - `clip` cc_f1 | +0.0164 (t+4.6) | +0.0102 (t+1.2) |
+  | live11 MNv3 (live) | **`tralo_null` - `clip`** | **+0.0226 (t+5.5)** | **+0.0224 (t+15.0)** |
+  | live11 MNv3 (live) | `tralo` - `tralo_null` | **-0.0061** | **-0.0122** |
+
+  **On MobileNetV3 the constraint contributes nothing, and in `live11` it is
+  actively NEGATIVE while its own null posts the largest clipper win in the
+  corpus (t = +15.0).** Focal does not rescue it: `focal_tralo` -
+  `focal_tralo_null` is -0.0079 / -0.0005, and `focal_tralo_null` - `focal_clip`
+  (+0.0092 / +0.0069) again beats `focal_tralo` - `focal_clip` (+0.0012/+0.0063).
+
+  🛑 **Any TraLO-vs-clipper number quoted without the matching null-vs-clipper
+  number is uninterpretable.** Eight of the twelve "both caps, |t|>=2" hits in
+  the first pass of this scoring were recipe effects that the control removes.
+
+- 🟢 **ViTB16 IS THE ONLY CELL WHERE THE ATTRIBUTABLE CONTRAST SURVIVES ITS OWN
+  CONTROL -- AND IT IS A CANDIDATE, NOT A RESULT.** `fm2_vit`, n=4, both caps:
+
+  | contrast | metric | L80 | L90 |
+  |---|---|---|---|
+  | `tralo` - `tralo_null` | cc_f1 | +0.0117 (t+0.6) | +0.0141 (t+1.7) |
+  | `tralo` - `tralo_null` | F1 (Macro) | +0.0230 (t+2.5) | +0.0149 (t+1.1) |
+  | `tralo` - `clip` | cc_f1 | +0.0060 | +0.0104 (t+2.4) |
+  | **`tralo_null` - `clip`** | cc_f1 | **-0.0057** | **-0.0037** |
+  | **`tralo_null` - `clip`** | F1 (Macro) | **-0.0116** | **-0.0100** |
+
+  This is the inverse of the MobileNet pattern: the null **loses** to `clip`
+  while `tralo` **beats** it, so the margin cannot be the recipe. Positive on
+  4 of 4 (cap x metric) combinations.
+
+  🛑 **Why it is not yet a result.** n=4, and only 1 of those 4 combinations
+  reaches |t| >= 2. Per-seed, the effect is carried by 3 of 4 seeds and **seed 3
+  reverses in every metric at both caps** (cc_f1 L80: +0.0439, +0.0476, -0.0348,
+  -0.0100). No collapsed control -- `tralo_null` sits in the normal 0.59-0.71
+  range -- so this is variance, not an artefact. It is exactly the ~15% power
+  regime. **And `focal_clip` still beats `tralo` on ViT** (-0.0221 / -0.0202
+  cc_f1), so this is a live-null result, not a rival-beating one.
+
+- 🔑 **`focal_clip`'s BIG WIN IS ViT-ONLY, AND THAT IS NOW MEASURED ACROSS THE
+  WHOLE CORPUS.** `focal_clip` - `clip` on cc_f1: ViTB16 **+0.0280 / +0.0306**
+  (t+2.4/+2.1), macroF1 **+0.0337 / +0.0358**. On MobileNetV3, MobileNetV2 and
+  RegNetY400MF the same contrast is between -0.017 and +0.006 and never reaches
+  |t| >= 2 on both caps. Consistent with focal as an ANTI-SATURATION measure
+  helping exactly where saturation is worst, and it is why the ViT cell is the
+  only one where any method separates.
+
+- 🛑 **TEN fmow2 CAMPAIGNS ARE BYTE-IDENTICAL RE-RUNS OF EACH OTHER. THE CORPUS
+  HAS FAR FEWER INDEPENDENT CELLS THAN CAMPAIGN NAMES.** Verified by prediction
+  hash over every shared (model, cap, arm, seed): `fm2_mn3` == `gx2` ==
+  `trace30` == `sat_fmow2` (all shared cells identical), `scr_MobileNetV3` ==
+  `stab8` (56/56), `rank1_*` == `rank3_*` for all three backbones (24/24 each).
+  1,364 runs carry only **822 distinct prediction hashes**. Counting campaigns,
+  or pooling them, inflates n by up to 4x.
+
+- 🛑 **ONLY TWO CAP LEVELS HAVE EVER RUN ON fmow2: `L80_G95` and `L90_G95`,
+  both LOOSE.** Across all 1,364 runs there is no third constraint pair, so
+  "holds across constraint pairs" currently means "holds across two adjacent
+  loose caps". Cap tags are parsed free-form by `cap_pair()` in
+  `configs/gen_campaign.py` (`L<pct>_G<pct>`, splitting on `_`), so additional
+  levels need **no protocol.yml edit and no worktree** -- the gap is compute,
+  not code.
+
 ## PART 4 -- Closed and rejected
 
 - **Early stopping / per-epoch boundary selection -- CLOSED 2026-09-15.** The

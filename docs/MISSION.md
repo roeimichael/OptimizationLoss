@@ -305,11 +305,25 @@ seed sd of ~0.011, so that 2-point win is currently one lightly-measured number.
 - **PRIMARY: `focal_tralo` - `focal_clip`.** Can TraLO match the best known
   configuration once both carry focal? A tie is a real result; TraLO has never
   had a fair comparison against focal_clip at power.
-- **NEGATIVE CONTROL, expected null BY CONSTRUCTION:** `tralo` - `tralo_null`
-  and `focal_tralo` - `focal_tralo_null`. At 3-7% live these MUST come out
-  ~0. **A non-zero value here is evidence of a BUG, not of the constraint
-  working.** If either is significantly non-zero, stop and audit before
-  celebrating.
+- 🛑 **SECOND CORRECTION, 15:10, still before any `vit_a`/`vit_b` evaluation
+  metric has been read (only training logs were opened).** The 14:52 version of
+  this bullet called `tralo` - `tralo_null` a negative control "expected null BY
+  CONSTRUCTION" at 3-7% live. **That was wrong and is withdrawn.** `fm2_vit` ran
+  at the IDENTICAL budget (warmup 1 + constraint 29) and its `tralo` -
+  `tralo_null` is **positive on both caps and both endpoints** (+0.0117/+0.0141
+  cc_f1, +0.0230/+0.0149 macroF1), with the null LOSING to `clip` while `tralo`
+  beats it. A low live fraction evidently does not force this contrast to zero on
+  ViT, so predicting zero here would have been a prediction the existing data
+  already contradicts.
+
+- **CO-PRIMARY, and the reason this campaign matters: `tralo` - `tralo_null`.**
+  This is a straight 12-seed replication of the only cell in the entire fmow2
+  corpus where the attributable contrast survives its own control. The `fm2_vit`
+  prior is n=4, carried by 3 of 4 seeds with seed 3 reversing at both caps, and
+  only 1 of 4 (cap x metric) combinations reaches |t| >= 2.
+  **Pre-registered reading:** positive on both caps on cc_f1 at n=12 confirms it;
+  a sign flip or a collapse toward zero refutes it and closes ViT as well.
+  `focal_tralo` - `focal_tralo_null` is the same question with focal attached.
 - `alm` is the rival bar. Beating a null is not beating a rival.
 
 🛑 **This campaign is NOT evidence about TraLO in the live regime and must never
