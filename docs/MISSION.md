@@ -306,12 +306,26 @@ dsisco02/bf16 and `validate_campaign` refuses a cross-host release. A dsisco01
 run would be a different (backbone, HOST) unit that cannot pool with the 42
 completed runs, so it is a new experiment, not a recovery.
 
-**Decision if dsisco02 stays down.** Rebuilding the ViT ladder on dsisco01 means
-Turing fp16 at an estimated 15-20 min/run, so a 5-cap x 12-seed x 4-arm ladder
-is 240 runs / 60-80 GPU-hours, and dsisco01 has no free card -- it would cost
-stopping one or two `bud_*` campaigns. That is 30-80 hours to reproduce what
-dsisco02 does in ~25. **Recommendation: wait for the box and keep `bud_*`
-running.** Revisit only if dsisco02 is down for more than about a day.
+**Decision if dsisco02 stays down -- REPRICED 2026-09-16 20:4x with a measured
+host ratio, replacing a guess.** The earlier version of this paragraph estimated
+"15-20 min/run" for ViT on dsisco01. That was unfounded: **no ViTB16 run has
+ever executed on dsisco01.** The ratio is now measured from the paired
+`bud_mn3`/`bud_mn3b` and `bud_mn2`/`bud_mn2b` grids -- same grid, one per host --
+at **3.08x and 3.16x** (LEDGER PART 3). ViT costs 10.4 min/run on dsisco02, so
+dsisco01 would be **~32 min/run**.
+
+Outstanding ViT work is 126 pending (`vit_a`+`vit_b`) plus 180 (`cap_a`+`cap_b`)
+= **306 runs**:
+
+| where | rate | GPU-hours | wall time on 2 cards |
+|---|---|---|---|
+| dsisco02 (when it returns) | 10.4 min | 53 | **~27 h** |
+| dsisco01 (fallback) | ~32 min | 163 | **~82 h (3.4 days)** |
+
+and the fallback additionally costs stopping two `bud_*` campaigns, and produces
+a different (backbone, HOST) unit that cannot pool with the 42 ViT runs already
+finished. **Recommendation stands and is now stronger: wait for dsisco02.**
+Revisit only if the box is down beyond about a day.
 
 **dsisco01 is unaffected** and its three campaigns are advancing normally
 (`bud_mn3` 96/300, `bud_mn2` 77/300, `bud_rgn` 100/300 at 18:37).

@@ -1439,6 +1439,30 @@ where either of them works.
   `(tralo - clip) - (tralo_null - clip) == tralo - tralo_null`, so "constraint
   or recipe?" IS the attributable contrast.
 
+- 🔑 **dsisco01 IS 3.1x SLOWER THAN dsisco02, NOW PROPERLY MEASURED ON PAIRED
+  GRIDS.** 2026-09-16. Earlier in the same session a "~3x faster" claim was
+  WITHDRAWN because it came from a single reading of one campaign's rate. It is
+  now established from the only paired comparison the corpus contains: the
+  `bud_mn3`/`bud_mn3b` and `bud_mn2`/`bud_mn2b` pairs are the SAME grid frozen
+  for each host, so the backbone, dataset, arms and budgets are identical and
+  only the machine differs.
+
+  | grid | host | runs | median gap between completions |
+  |---|---|---|---|
+  | `bud_mn3` | dsisco01 | 114 | 3.60 min |
+  | `bud_mn3b` | dsisco02 | 134 | **1.17 min** |
+  | `bud_mn2` | dsisco01 | 100 | 4.17 min |
+  | `bud_mn2b` | dsisco02 | 113 | **1.32 min** |
+
+  **MobileNetV3 ratio 3.08x, MobileNetV2 ratio 3.16x** -- two independent
+  backbones agreeing to within 3%. Median gap is used rather than
+  span/(n-1) because the latter absorbs startup and any stall.
+
+  🛑 **There is NO ViTB16 timing on dsisco01 at all.** Every ViTB16 campaign ever
+  run in this project -- `fm2_vit`, `pilot_vit`, `scr_ViTB16`, `vit_a`, `vit_b`
+  -- ran on dsisco02. Any dsisco01 ViT estimate is the dsisco02 rate scaled by
+  the 3.1x above, not a measurement.
+
 ## PART 4 -- Closed and rejected
 
 - **Early stopping / per-epoch boundary selection -- CLOSED 2026-09-15.** The
