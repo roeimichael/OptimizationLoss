@@ -10,7 +10,12 @@ campaign = generated_campaign
 def complete_counts(campaign):
     for path in campaign.rglob("config.json"):
         cfg = json.loads(path.read_text())
-        steps = 0 if cfg["arm"] in {"tralo_null", "clip", "focal_clip"} else 29
+        # the run's OWN planned dose, not a literal. Pinning 29 here made the
+        # fixture disagree with `dose_landed`, which reads the plan, the moment
+        # the protocol budget moved -- and it also hid budget-pinned arms, which
+        # legitimately carry a different dose from the plain ones.
+        steps = (0 if cfg["arm"] in {"tralo_null", "clip", "focal_clip"}
+                 else cfg["hyperparams"]["constraint_epochs"])
         cfg.update(
             status="completed",
             results={
@@ -86,7 +91,7 @@ def test_first_completed_run_has_real_dose_shape(campaign, arm):
         if json.loads(p.read_text())["arm"] == arm
     )
     cfg = json.loads(path.read_text())
-    steps = 29 if arm == "tralo" else 0
+    steps = cfg["hyperparams"]["constraint_epochs"] if arm == "tralo" else 0
     cfg.update(
         status="completed",
         results={
