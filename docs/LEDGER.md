@@ -1110,6 +1110,52 @@ F1 Macro and Precision Macro with intervals excluding zero.
 PART 2.1b says measures little; that cuts both ways and the ViT lead is not
 exempt from it.
 
+### 🔑 FOCAL'S 2-POINT WIN IS ViT-ONLY, AND IT IS AN ANTI-SATURATION EFFECT (2026-09-16)
+
+`focal_clip` beat every arm on ViTB16 by ~2 points, which looked implausible.
+It is real, it is backbone-specific, and the mechanism is measurable.
+
+**`focal_clip` - `clip`, paired, same seeds, same allocator, ONLY the training
+loss differs:**
+
+| campaign | backbone | cc-F1 L80 | cc-F1 L90 | F1 Macro L80 | F1 Macro L90 |
+|---|---|---|---|---|---|
+| `fm2_vit` | ViTB16 | **+0.0280** (t 2.36) | **+0.0306** (t 2.10) | **+0.0337** (t 2.29) | **+0.0358** (t 2.37) |
+| `fm2_mn3` | MobileNetV3 | -0.0037 | +0.0022 | -0.0015 | +0.0010 |
+| `fm2_mn2` | MobileNetV2 | -0.0095 | -0.0074 | -0.0023 | -0.0014 |
+| `live6b` (budget 6) | MobileNetV3 | -0.0092 | **-0.0079** [-0.0153,-0.0005] | +0.0050 | +0.0058 |
+
+**Focal helps ViTB16 by ~0.03 and does NOTHING on either MobileNet -- and at
+budget 6 it is significantly NEGATIVE on MobileNetV3.**
+
+**The mechanism: focal is a saturation counter-measure, so it pays off exactly
+where saturation is worst.** Live window (epochs before train accuracy 0.95),
+measured per arm:
+
+| backbone | `clip` | `focal_clip` |
+|---|---|---|
+| ViTB16 | **1.0** | **1.5** |
+| MobileNetV3 | 2.0 | 2.0 |
+| MobileNetV2 | 2.8 | 2.8 |
+
+ViT memorises in ONE epoch -- the fastest of the three -- and focal is the only
+arm that extends its window. Focal down-weights easy examples; that is worth
+something only when nearly everything becomes easy almost immediately. On the
+MobileNets, which take 2-3 epochs, it buys nothing.
+
+**CONSEQUENCE -- the backbone x loss interaction is LARGER than any method effect
+we have chased.** +0.03 for focal on ViT dwarfs the +0.016 TraLO-vs-ALM lead and
+every constraint effect in PART 3. **A result quoted without its backbone is not
+a result.**
+
+🛑 **THE OBVIOUS EXPERIMENT HAS NEVER BEEN RUN: `focal_tralo` on ViTB16.**
+`fm2_vit` carries `focal_clip` but no `focal_tralo`. `live6b` carries
+`focal_tralo` but on MobileNetV3, where focal does nothing -- and there
+`focal_tralo` - `focal_clip` is -0.0074 / -0.0009, i.e. nothing, which says
+nothing about ViT. The two ingredients that each work on ViTB16 (focal, +0.03;
+TraLO over all four duals, +0.016) have never been combined on the backbone
+where either of them works.
+
 ## PART 4 -- Closed and rejected
 
 - **Early stopping / per-epoch boundary selection -- CLOSED 2026-09-15.** The
