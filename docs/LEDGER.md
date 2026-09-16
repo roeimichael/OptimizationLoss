@@ -1203,6 +1203,27 @@ nothing about ViT. The two ingredients that each work on ViTB16 (focal, +0.03;
 TraLO over all four duals, +0.016) have never been combined on the backbone
 where either of them works.
 
+- 🔑 **ViTB16 SATURATES FASTER THAN EVERY OTHER BACKBONE: train acc >= 0.95 at
+  EPOCH 1.** Measured 2026-09-16 from the first four `vit_a`/`vit_b` training
+  logs on fmow2. `alm` goes 0.906 (e0) -> **0.956 (e1)**; `clip` goes 0.917 (e1)
+  -> **0.951 (e2)**. The three small backbones in the running budget sweep reach
+  the same line at epoch 3 (MobileNetV3) or 4 (MobileNetV2, RegNetY400MF).
+
+  **The consequence is a budget rule, not a curiosity.** The live window is
+  measured in EPOCHS, so a backbone that memorises twice as fast needs a
+  constraint phase half as long to reach the same live fraction. At the default
+  warmup 1 + constraint 29 the live fraction is **3-7% for ViTB16** against
+  10-14% for the small backbones -- ViT is the DEADEST cell in the corpus at the
+  standard budget, not a better one. Any ViT campaign meant to probe the live
+  regime needs constraint_epochs ~2-3 (live >= 50%), i.e. a `b3`/`b4`-class
+  budget, which is SHORTER than the `b5` floor the budget sweep currently sweeps.
+
+  This sharpens [saturation is the recipe, not the dataset]: the recipe is
+  per-BACKBONE, and a single budget applied across backbones does not hold the
+  live fraction fixed. `fm2_vit`, `fm2_mn2` and the new `vit_a`/`vit_b` all use
+  warmup 1 + constraint 29, so **every ViT number this project holds was measured
+  in the dead regime.**
+
 ## PART 4 -- Closed and rejected
 
 - **Early stopping / per-epoch boundary selection -- CLOSED 2026-09-15.** The

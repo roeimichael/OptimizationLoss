@@ -281,20 +281,44 @@ same precision, same stamp. They POOL to one 12-seed campaign.** This is the one
 legal pooling in the project and it is legal for exactly those reasons; it is
 not a licence to pool anything else.
 
-**PRE-REGISTERED READING for the ViT campaign (written 2026-09-16 14:40, before
-any run finished).** Primary endpoints `cc_f1` then `F1 (Macro)`, as for the
-budget sweep. The question is whether `focal` -- an anti-saturation measure whose
-2-point win was ViT-ONLY -- unlocks the constraint or merely lifts every arm.
+**PRE-REGISTERED READING for the ViT campaign (rewritten 2026-09-16 14:52, after
+the first 4 runs' TRAINING LOGS but before any evaluation metric was read).**
 
-- **The decisive contrast is `focal_tralo` - `focal_tralo_null`.** Both carry
-  focal and the identical schedule; only lambda differs. If focal unlocks the
-  constraint, this is positive and larger than `tralo` - `tralo_null`.
-- If `focal_tralo` - `focal_tralo_null` ~ `tralo` - `tralo_null` ~ 0 while both
-  focal arms beat both non-focal arms, **focal is a recipe effect and the
-  constraint is still inert**. That is the null and it closes the direction.
-- If `focal_tralo` - `focal_tralo_null` is NEGATIVE, focal makes the constraint
-  worse and the anti-saturation story is refuted outright.
-- `focal_clip` and `alm` are the rival bar. Beating a null is not beating a rival.
+🛑 **CORRECTION, MADE IN PLACE.** The first version of this block, written at
+14:40, named `focal_tralo` - `focal_tralo_null` as the decisive test of whether
+focal "unlocks the constraint". **That question cannot be asked by this
+campaign** and the claim is withdrawn here. Measured from the first four
+training logs: ViTB16 reaches train accuracy >= 0.95 at **epoch 1** (`alm`,
+0.906 -> 0.956) and **epoch 2** (`clip`, 0.917 -> 0.951), against a **29-epoch
+constraint phase**. Live fraction is **3-7%** -- the DEAD regime, the same
+condition LEDGER 2.1b showed had invalidated rank1/rank2/rank3. The constraint
+steps here act on a frozen boundary.
+
+**What this campaign CAN answer, and why it is still worth its 14 hours.** It is
+a like-for-like 12-seed replication of `fm2_vit`, which used the identical
+budget (warmup 1 + constraint 29) at only **4 seeds** and is where `focal_clip`'s
+2-point cc-F1 win was observed. At 4 seeds this project has ~15% power against a
+seed sd of ~0.011, so that 2-point win is currently one lightly-measured number.
+
+- **PRIMARY: `focal_clip` - `clip` on cc_f1, then F1 (Macro).** Does the 2-point
+  win replicate at n=12? This is the pre-registered headline.
+- **PRIMARY: `focal_tralo` - `focal_clip`.** Can TraLO match the best known
+  configuration once both carry focal? A tie is a real result; TraLO has never
+  had a fair comparison against focal_clip at power.
+- **NEGATIVE CONTROL, expected null BY CONSTRUCTION:** `tralo` - `tralo_null`
+  and `focal_tralo` - `focal_tralo_null`. At 3-7% live these MUST come out
+  ~0. **A non-zero value here is evidence of a BUG, not of the constraint
+  working.** If either is significantly non-zero, stop and audit before
+  celebrating.
+- `alm` is the rival bar. Beating a null is not beating a rival.
+
+🛑 **This campaign is NOT evidence about TraLO in the live regime and must never
+be cited as such.** The live-regime ViT question needs a short budget
+(constraint ~2-3 epochs, so live >= 50%), which requires `focal_tralo_bN` arms
+that do not exist in `configs/protocol.yml`. Adding them means editing a file
+inside `source_inventory()` while five campaigns run, which would invalidate
+every frozen release, so it must be done in a SEPARATE WORKTREE and is a
+compute-budget decision to be ASKED, not taken.
 
 Do not reinterpret any of these after seeing the numbers.
 
