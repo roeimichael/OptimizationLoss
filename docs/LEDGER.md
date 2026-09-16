@@ -215,6 +215,53 @@ wrong published-to-ourselves conclusion at least once.
 
 ---
 
+## PART 1.9 -- `candidate_gate` IS LABELS-ONLY, AND PERFECT KEY UNIQUENESS IS THE FINGERPRINT OF A LOSSY JOIN (2026-09-16)
+
+Measured 2026-09-16, hunting a second dataset. Four image corpora are physically
+on these servers: `iwildcam`, `fmow2`, `fmow`, `bcn`. Run through
+`scripts.candidate_gate`, exactly one passes all eight conditions -- and it is
+`fmow`, **the slice MISSION already records as WITHDRAWN** for joining metadata
+to images on `os.path.basename`.
+
+| corpus | gate | note |
+|---|---|---|
+| `fmow2` | **8/8** | the slice in use |
+| `fmow` | **8/8** | WITHDRAWN -- basename join, see below |
+| `bcn` | 7/8 | fails C8 balance 0.04 |
+| `iwildcam` | 2/8 | 72% dead items, retired |
+
+**Two traps, both new.**
+
+1. 🛑 **The gate reads labels and group ids only. It never opens an image, so it
+   cannot see a broken image-to-label join.** A slice whose every label and group
+   is perfect, but whose pixels are attached to the wrong rows, passes 8 of 8.
+   `candidate_gate`'s own docstring says INTEGRITY "needs the source archive" and
+   is not measured -- that caveat is the whole result here. A gate pass is a
+   NECESSARY condition, never a sufficient one.
+
+2. 🛑 **The inverted signature. Perfect uniqueness of a join key is EVIDENCE THE
+   JOIN WAS LOSSY, not evidence it was clean.**
+
+   | slice | split | rows | distinct basenames | ambiguous rows |
+   |---|---|---|---|---|
+   | `fmow` | train | 15386 | 15386 | **0 (0.0%)** |
+   | `fmow` | test | 4168 | 4168 | **0 (0.0%)** |
+   | `fmow2` | train | 17670 | 16409 | 1261 (7.1%) |
+   | `fmow2` | test | 3442 | 3145 | 297 (8.6%) |
+
+   The fMoW archive is laid out `split/class/class_seq/aoi/file` and the filename
+   does not encode the AOI, so 7-9% of basenames genuinely collide. `fmow2`,
+   keyed correctly on `class_seq/aoi/file`, shows those collisions. `fmow` shows
+   **zero** -- which is only possible because the basename join silently dropped
+   or mis-assigned every colliding record. The cleaner-looking table is the
+   broken one.
+
+An integrity audit that checks row counts, duplicate filenames and cross-split
+image hashes passes `fmow` GREEN on all of them. A mis-join produces unique
+filenames and zero leakage by construction; it just hangs the wrong picture on
+the right label. **None of those checks can detect it.** Only re-deriving the
+join from the source archive can.
+
 ## PART 2.1b -- THE GATE THAT WAS BLIND TO THE CAMPAIGN IT GATED (2026-09-16)
 
 **`scripts/saturation_gate.py` skipped all 360 ranking runs and said nothing.**
@@ -1197,6 +1244,32 @@ campaign's success or failure.
 | Weight decay, label smoothing | -- | **Rejected by the user as cheating.** Not to be used. |
 
 ---
+
+- ⛔ **THE ON-DISK SECOND-DATASET HUNT IS CLOSED: there is no second corpus on
+  these servers.** Measured 2026-09-16, labels-only, no GPU. Of the four corpora
+  with images on disk, `iwildcam` is retired (2/8), `bcn` is blocked on integrity
+  and fails C8 (7/8), and the only 8/8 pass is `fmow`, the withdrawn
+  basename-join slice -- see PART 1.9 for why its clean bill of health is the
+  defect's signature rather than its absence.
+
+  `fmow` is ALSO not independent of `fmow2`, which rules it out a second time on
+  grounds that have nothing to do with the join bug. Compared on basename, the
+  only key the two share:
+
+  - `fmow2` test n `fmow` test = **2242 (53.8% of fmow test)**
+  - `fmow2` TRAIN n `fmow` test = **1926 (46.2% of fmow test)**
+  - `fmow2` test n `fmow` train = 903
+
+  A "second dataset" result on `fmow` would re-measure half the same items, and
+  46% of its test set sits in `fmow2`'s training data. **An earlier reading in
+  this session that the two slices were item-disjoint was WRONG** -- it compared
+  `fmow`'s bare basenames against `fmow2`'s full `class_seq/aoi/file` paths,
+  which never match, and read the incomparability as disjointness. Retracted
+  here rather than left standing.
+
+  **A genuine second corpus therefore requires a download and a fresh
+  `prep_*`, keyed on a provably unique join.** That is a data-access and
+  compute-budget decision and must be asked, not taken.
 
 ## PART 5 -- Open, and not yet tested
 

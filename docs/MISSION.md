@@ -244,7 +244,7 @@ update ordering and training behaviour do not change during structural cleanup.
 
 ---
 
-## RUN STATE -- checked 2026-09-16 10:41 IDT (server clock). FIVE CAMPAIGNS LIVE.
+## RUN STATE -- checked 2026-09-16 14:39 IDT (server clock). FIVE CAMPAIGNS LIVE.
 
 **The budget sweep. 1,500 runs, five GPUs, both hosts.** Launched after
 LEDGER 2.1b established that rank1/rank2/rank3 (360 runs) all ran at an 8-10%
@@ -256,8 +256,47 @@ run with `constraint_epochs = 0` and reported "no training_log.csv matched".
 | `bud_mn3` | dsisco01 | 1 | MobileNetV3 | 1-6 | 300 |
 | `bud_mn2` | dsisco01 | 2 | MobileNetV2 | 1-6 | 300 |
 | `bud_rgn` | dsisco01 | 3 | RegNetY400MF | 1-6 | 300 |
-| `bud_mn3b` | dsisco02 | 0 | MobileNetV3 | 7-12 | 300 |
-| `bud_mn2b` | dsisco02 | 1 | MobileNetV2 | 7-12 | 300 |
+| `vit_a` | dsisco02 | 0 | ViTB16 | 1-6 | 84 |
+| `vit_b` | dsisco02 | 1 | ViTB16 | 7-12 | 84 |
+
+**`bud_mn3b` and `bud_mn2b` were STOPPED on dsisco02 on 2026-09-16, immediately before the ViT launch at 14:28:34**, by
+explicit PID, runners first so neither could dispatch a replacement, then the
+trainers (`kill -INT`, no escalation needed). **247 completed runs are preserved
+on disk** -- `bud_mn3b` 134, `bud_mn2b` 113 -- nothing was deleted. The cost of
+the stop is the CONFIRMATION half of the budget sweep: the dsisco01 discovery
+set still runs to completion, but its pre-registered confirmation on a second
+precision regime no longer exists and must not be silently substituted for by
+the partial 247. **Those 247 runs are a truncated, non-random prefix of the
+grid** (the runner walks the grid in order), so they are NOT a 45% sample of the
+sweep and must not be scored as one.
+
+The two freed Blackwell cards carry the ViT campaign instead. **Grid:** ViTB16 x
+fmow2 x {L80_G95, L90_G95} x 12 seeds x 7 arms = {`clip`, `focal_clip`, `tralo`,
+`tralo_null`, `focal_tralo`, `focal_tralo_null`, `alm`}, 168 runs, ~14h.
+Generated AND frozen on dsisco02 (bf16, no scaler); single `code_version` stamp
+`55c1be530de9` on all 168 configs, the same pinned tree the `bud_*` runs use.
+
+🛑 **`vit_a` and `vit_b` differ ONLY in seed (1-6 vs 7-12) and are the same host,
+same precision, same stamp. They POOL to one 12-seed campaign.** This is the one
+legal pooling in the project and it is legal for exactly those reasons; it is
+not a licence to pool anything else.
+
+**PRE-REGISTERED READING for the ViT campaign (written 2026-09-16 14:40, before
+any run finished).** Primary endpoints `cc_f1` then `F1 (Macro)`, as for the
+budget sweep. The question is whether `focal` -- an anti-saturation measure whose
+2-point win was ViT-ONLY -- unlocks the constraint or merely lifts every arm.
+
+- **The decisive contrast is `focal_tralo` - `focal_tralo_null`.** Both carry
+  focal and the identical schedule; only lambda differs. If focal unlocks the
+  constraint, this is positive and larger than `tralo` - `tralo_null`.
+- If `focal_tralo` - `focal_tralo_null` ~ `tralo` - `tralo_null` ~ 0 while both
+  focal arms beat both non-focal arms, **focal is a recipe effect and the
+  constraint is still inert**. That is the null and it closes the direction.
+- If `focal_tralo` - `focal_tralo_null` is NEGATIVE, focal makes the constraint
+  worse and the anti-saturation story is refuted outright.
+- `focal_clip` and `alm` are the rival bar. Beating a null is not beating a rival.
+
+Do not reinterpret any of these after seeing the numbers.
 
 Grid: fmow2, caps L80_G95 + L90_G95, 25 arms = {tralo, tralo_null, clip} x
 {30, b12, b8, b7, b6, b5} + {alm, fioretto} x {30, b7, b6} + focal_clip.
