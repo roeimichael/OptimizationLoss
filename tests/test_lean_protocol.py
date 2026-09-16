@@ -182,3 +182,30 @@ def test_dataset_runtime_loads_supported_tiny_slices(tmp_path, dataset):
     # encoded independently of the test groups, which are disjoint from them by
     # construction, so nothing about the evaluation groups leaks through.
     assert groups_train is None or len(groups_train) == len(y_train)
+
+
+def test_total_epochs_override_moves_every_arm_together(tmp_path):
+    """A per-campaign budget must keep equal dose WITHIN the campaign.
+
+    The live window is a property of (backbone, dataset) -- MobileNetV3/fmow2
+    stays live 3 epochs, ViTB16/fmow2 only 2 -- so one global budget cannot
+    satisfy the saturation gate for both. The override exists for that, and the
+    thing it must never do is move some arms and not others.
+    """
+    result = generate(tmp_path, "--arms", "all", "--total-epochs", "5")
+    assert result.returncode == 0, result.stdout + result.stderr
+    configs = [json.loads(p.read_text()) for p in tmp_path.rglob("config.json")]
+    assert configs
+    for c in configs:
+        hp = c["hyperparams"]
+        assert hp["warmup_epochs"] + hp["constraint_epochs"] == 5, c["arm"]
+        if c["arm"] in ("clip", "focal_clip"):
+            assert (hp["warmup_epochs"], hp["constraint_epochs"]) == (5, 0)
+        else:
+            assert (hp["warmup_epochs"], hp["constraint_epochs"]) == (1, 4)
+
+
+def test_total_epochs_override_refuses_an_empty_constraint_phase(tmp_path):
+    result = generate(tmp_path, "--arms", "all", "--total-epochs", "1")
+    assert result.returncode != 0
+    assert "empty" in (result.stdout + result.stderr)

@@ -221,9 +221,24 @@ def main():
     parser.add_argument("--pretrained", choices=["true", "false"], default=None)
     parser.add_argument("--constrained-class", nargs="+", type=int)
     parser.add_argument("--seeds", nargs="+", type=int)
+    # The live window is a property of (backbone, dataset), measured by the
+    # saturation gate, so the budget cannot be one global number: MobileNetV3
+    # on fmow2 stays live for 3 epochs and ViTB16 for 2. Overriding here keeps
+    # every arm in the campaign on the SAME budget -- equal dose is preserved
+    # within a campaign, which is what the comparison needs -- while letting a
+    # different backbone run at its own measured budget.
+    parser.add_argument("--total-epochs", type=int, default=None,
+                        help="override protocol.total_epochs for this campaign")
     args = parser.parse_args()
     if args.seeds is not None:
         P["protocol"]["seeds"] = args.seeds
+    if args.total_epochs is not None:
+        if args.total_epochs <= P["protocol"]["trained_warmup"]:
+            raise SystemExit(
+                "REFUSED: --total-epochs %d <= trained_warmup %d leaves an empty "
+                "constraint phase, so every trained arm silently becomes post-hoc"
+                % (args.total_epochs, P["protocol"]["trained_warmup"]))
+        P["protocol"]["total_epochs"] = args.total_epochs
     requested = set(PUBLIC_ARMS) if "all" in args.arms else set(args.arms)
     arms = sorted(requested | set(P["mandatory_arms"]))
     if any(P["arms"][arm]["phase"] == "trained" for arm in arms):
