@@ -1463,6 +1463,59 @@ where either of them works.
   -- ran on dsisco02. Any dsisco01 ViT estimate is the dsisco02 rate scaled by
   the 3.1x above, not a measurement.
 
+- 🔑 **BOTH SCOPES ARE REAL, BUT THE GLOBAL CAP IS REDUNDANT ON fmow2 AT EVERY
+  CAP LEVEL. EVERY fmow2 RESULT IS A LOCAL-CAP RESULT.** Verified 2026-09-16
+  from the code and from live training logs, prompted by the right question:
+  are we actually measuring both constraints?
+
+  **Both are genuinely implemented.** `cap_pair()` splits `L<pct>_G<pct>`;
+  `compute_local_constraints` gives K per **(group, class)** = round(count of
+  class c *in that group* x local pct), and `compute_global_constraints` gives K
+  per **class over the whole pool** = round(total count x global pct). Both enter
+  the objective (`chunk_loss + lg + ll`, `tralo/train.py:290`) with SEPARATE
+  multipliers -- one per class globally, one per (group, class) locally -- and
+  both are logged (`Global_Satisfied`, `Local_Satisfied`, plus per-group
+  `Group<g>_{Hard,Soft,Limit}_Class<c>`).
+
+  **Both are violated during training.** Over 116 real constraint epochs of the
+  `vit_a` `tralo` arm: both violated in 115, local-only in 1, global-only in 0,
+  satisfied in 0. Global 64% over cap (median slack -33, n=348); local 64% over
+  cap (median slack -4, n=3480).
+
+  🛑 **But the global cap cannot bind AFTER allocation.** The allocator enforces
+  the per-group ceilings, so the most the deployed model can emit for a class is
+  the SUM of its local ceilings. On fmow2 that sum is below the global ceiling at
+  **all 15 (cap level x capped class) combinations**:
+
+  | cap | class 1 | class 2 | class 7 |
+  |---|---|---|---|
+  | `L40_G95` | 145 vs 347 | 218 vs 519 | 128 vs 304 |
+  | `L55_G95` | 202 vs 347 | 300 vs 519 | 176 vs 304 |
+  | `L70_G95` | 256 vs 347 | 381 vs 519 | 224 vs 304 |
+  | `L80_G95` | 291 vs 347 | 437 vs 519 | 256 vs 304 |
+  | `L90_G95` | 328 vs 347 | 491 vs 519 | 289 vs 304 |
+
+  (sum of local K vs global K; headroom 15 to 301 items.)
+
+  **So the global term optimises a constraint the allocator already guarantees.**
+  It is not inert -- it contributes real gradient on raw predicted counts during
+  training -- but it cannot change the deployed outcome except through side
+  effects on the score. And it is the LEAST item-selective part of the objective:
+  a single sum over the entire pool, so by PART 2.1 its gradient is identical for
+  every item in the dataset, not merely within a group.
+
+  **Consequence for the write-up:** every fmow2 number this project holds is a
+  local-cap result, and should be described as such. **Consequence for the loss:**
+  dropping the global term is a clean simplification that loses nothing at
+  deployment and removes the most uniform pressure in the objective.
+
+  This CONFIRMS on fmow2 what was measured on the retired medical slices in
+  August (global redundant whenever sum of local ceilings <= global ceiling), and
+  the two facts must not be confused: **redundant after allocation** is not the
+  same as **inactive during training**. Earlier today I repeated "the global cap
+  has never bound" while reporting live logs showing it violated 64% of the time;
+  both statements are true and they are about different stages.
+
 ## PART 4 -- Closed and rejected
 
 - **Early stopping / per-epoch boundary selection -- CLOSED 2026-09-15.** The
