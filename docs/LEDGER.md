@@ -1396,6 +1396,49 @@ where either of them works.
   this one is a fabricated OUTPUT, which is worse, because nothing downstream
   can tell it from a measurement.
 
+- 🟡 **INTERIM, NOT A VERDICT: at 1/3 completion the budget sweep shows NO
+  signal, and the effect sizes are an order of magnitude below seed noise.**
+  Read 2026-09-16 19:50 at 302 of 900 runs, n=1-2 seeds per cell. The campaign
+  continues; this is recorded so the direction is on paper, and it must not be
+  quoted as the sweep's result.
+
+  🛑 **Per-cell t-statistics are currently meaningless.** At n=2 a t has ONE
+  degree of freedom, and the sweep is emitting values like t=+29.3, t=+24.3,
+  t=+23.0 that are two seeds landing near each other, not effects. Anyone
+  reading the per-cell table without this warning would find a "breakthrough"
+  in it.
+
+  What IS readable at this n is the SIGN across cells, since each is a coin flip
+  under the null. Over all 36 (backbone x cap x budget) cells, for the only
+  attributable contrast `tralo - tralo_null`:
+
+  | slice | cc_f1 | F1 (Macro) |
+  |---|---|---|
+  | ALL CELLS | 20/36 (56%), mean **+0.0009**, p=0.62 | 23/36 (64%), mean **+0.0015**, p=0.13 |
+  | LIVE budgets b5-b8 | 13/24 (54%), +0.0008, p=0.84 | 16/24 (67%), +0.0025, p=0.15 |
+  | SATURATED b12/30ep | 7/12 (58%), +0.0012, p=0.77 | 7/12 (58%), -0.0006, p=0.77 |
+  | MobileNetV2 | 6/12 (50%), -0.0017 | 8/12 (67%), +0.0008 |
+  | MobileNetV3 | 8/12 (67%), +0.0031 | 7/12 (58%), +0.0026 |
+  | RegNetY400MF | 6/12 (50%), +0.0015 | 8/12 (67%), +0.0010 |
+
+  **cc_f1, the primary endpoint, is a coin flip.** macro-F1 leans positive in
+  the live budgets, consistent with the live-regime hypothesis, but at p=0.15
+  with a mean of +0.0025 against a seed sd of **~0.011** -- four times below the
+  noise floor.
+
+  **The power arithmetic says the remaining two thirds cannot rescue it.** At
+  the planned n=6 the smallest detectable paired difference is roughly
+  2 x 0.011/sqrt(6) ~ **0.009**. Every slice above is between +0.0008 and
+  +0.0031. For the sweep to return a positive primary result, the effect would
+  have to be 3-10x larger than anything visible so far.
+
+  This CONFIRMS rather than extends the completed-corpus finding recorded above:
+  on MobileNetV2, MobileNetV3 and RegNetY400MF the constraint is inert and every
+  apparent win belongs to `tralo_null`. **The budget axis is not the missing
+  ingredient.** Note the algebra that makes this the only number worth watching:
+  `(tralo - clip) - (tralo_null - clip) == tralo - tralo_null`, so "constraint
+  or recipe?" IS the attributable contrast.
+
 ## PART 4 -- Closed and rejected
 
 - **Early stopping / per-epoch boundary selection -- CLOSED 2026-09-15.** The
