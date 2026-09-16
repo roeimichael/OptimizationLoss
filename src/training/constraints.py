@@ -120,7 +120,14 @@ def resolve_group_shares(spec, data, group_col):
     if not isinstance(spec, str):
         return spec
     counts = data[group_col].value_counts()
-    groups = sorted(int(g) for g in counts.index)
+    try:
+        groups = sorted(int(g) for g in counts.index)
+    except (TypeError, ValueError):
+        raise ValueError(
+            "group column %r holds non-integer ids %s; budget shares are keyed on "
+            "ENCODED group ids, so the caller must run _encode_groups first (see "
+            "src/pipeline/campaign.py)." % (group_col, list(counts.index[:4]))
+        )
     if not groups:
         raise ValueError("no groups in %r; cannot derive budget shares" % group_col)
     if spec == "equal":

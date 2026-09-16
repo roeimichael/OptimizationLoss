@@ -152,6 +152,7 @@ def validate(P, args, resolved, arms):
                     compute_global_constraints,
                     compute_local_constraints,
                 )
+                from src.utils.data_loader import _encode_groups
 
                 frame = pd.read_csv(meta)
                 required = {"label", dc["group_column"]}
@@ -174,6 +175,14 @@ def validate(P, args, resolved, arms):
                     constrained_class=classes,
                     num_classes=dc["num_classes"],
                 )
+                # Encode exactly as `campaign.py` does before freezing, and pass
+                # the SAME share rule. A pre-flight that validates a different
+                # derivation than production is worse than no pre-flight: it
+                # passes configs production will reject, and the warnings it
+                # prints describe budgets no run will ever use.
+                frame[dc["group_column"]] = _encode_groups(
+                    frame[dc["group_column"]], dc["group_column"]
+                )
                 compute_local_constraints(
                     frame,
                     "label",
@@ -181,6 +190,7 @@ def validate(P, args, resolved, arms):
                     dc["group_column"],
                     constrained_class=classes,
                     num_classes=dc["num_classes"],
+                    group_budget_shares=dc.get("group_budget_shares"),
                 )
     for arm in arms:
         build_hyperparams(P, P["arms"][arm], seeds[0])
