@@ -1133,6 +1133,26 @@ tests; they cannot establish the new campaign's success or failure.
 
 ## PART 5 -- Live candidates, not yet tested
 
+- 🔑 **THE BUDGET IS NOW 7, DERIVED, NOT INHERITED (2026-09-16).** The first
+  Option C pilot ran at the protocol default of 30 and FAILED the saturation
+  gate at 14 runs: MobileNetV3/fmow2 reaches train acc 0.962 by epoch 4, so the
+  live window is 3 epochs and only **10%** of a 29-epoch constraint phase. The
+  other 90% of the steps push a frozen boundary with CE ~0 opposing them.
+  Killed early per the standing rule rather than run to completion; 18 completed
+  runs preserved in `~/quarantine_2026-09-16/polc_*__29ep_saturated`.
+
+  `total_epochs` moved 30 -> 7 (`2 x live + 1`) on the protocol DEFAULT, so every
+  arm in the seven-arm comparison moves together and the dose stays equal. 30 was
+  never measured; it was inherited.
+
+  ⚠️ **Two tests were pinning 30 and went red**: `tests/gates/test_g4_grid.py`
+  asserted `(total, warm) == (30, 1)`, and `test_lean_protocol` asserted
+  `warmup + constraint == 30`. Both now check the PROPERTY -- a warm-up exists,
+  the constraint phase is non-empty, every arm splits its own budget -- which is
+  the same correction `scripts/check_parity.py` already carries in its header
+  ("it was comparing to a number, not checking parity"). **A gate that pins the
+  one knob the diagnostics tell you to move is a gate that blocks the fix.**
+
 - 🟢 **THE EQUAL-PERCENTAGE POLICY CAP (`L50_G50` + `group_budget_shares`).**
   The code exists and is gated (2.9); nothing has run on it. It is the first
   configuration in which **both constraints bind** (2.7 says none so far did) and
