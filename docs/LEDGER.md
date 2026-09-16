@@ -1139,11 +1139,36 @@ tests; they cannot establish the new campaign's success or failure.
   the first in which the local cap carries information the prevalence cannot
   reproduce. Two open design questions it would settle, which no existing cell
   can: whether a cap decoupled from group size changes the deployed outcome at
-  all, and whether the 1/K gradient asymmetry (2.9) helps or hurts. **Blocked on
-  a decision, not on code:** choosing the shares for fmow2's 10 `location`
-  groups is choosing the scientific question, so it needs the user. Deriving
-  them from the data would reinstate exactly the prevalence coupling the change
-  removes.
+  all, and whether the 1/K gradient asymmetry (2.9) helps or hurts.
+
+  🔑 **Measured 2026-09-16 on the real fmow2 test pool** (3442 items, 10
+  countries, `L50_G50`). Forced-out / wasted items, summed over groups, where
+  forced-out = `sum max(0, n - Phi)` and wasted = `sum max(0, Phi - n)`:
+
+  | share rule | crop_field (Psi=182) | place_of_worship (Psi=273) | ground_transport (Psi=160) |
+  |---|---|---|---|
+  | A prevalence (current) | 185 / **0** | 273 / **0** | 161 / **0** |
+  | B equal shares | 211 / 28 | 385 / 112 | 207 / 47 |
+  | C share ~ group SIZE | 212 / 29 | 381 / 108 | 195 / 35 |
+
+  ⚠️ **Under A the wasted capacity is exactly zero in all three classes, because
+  `Phi_lambda(c) = round(pct * n_{lambda,c})` makes the ceiling vector an affine
+  image of the per-group label histogram.** The cap is then a restatement of the
+  per-group class counts, and a model given it has been handed the aggregate
+  test-label distribution rather than an external budget. B and C decorrelate
+  the ceiling from prevalence: 15-40% more items are forced out AND 28-112 slots
+  are allocated where the group has nothing to fill them with. **That residual
+  is the information the constraint would carry that the data does not.**
+
+  B and C are also label-free at the group level -- equal shares need nothing,
+  size shares need only `location` counts -- so they use strictly less label
+  information than A, which needs the per-group class counts. Psi still needs
+  the class totals under all three.
+
+  **Blocked on a decision, not on code.** fmow2's local feature is a COUNTRY,
+  not an entitlement tier, so no external policy supplies the shares the way a
+  hospital's membership rules would. Picking the rule is picking the scientific
+  question and needs the user.
 - ⛔ **RESTORE `danits_lp` BEFORE CLAIMING ANYTHING AGAINST THE LP.** Absent from
   the live tree; `lp_solver.py`, `heuristic.py`, `cost_matrices.py`,
   `constraints_builder.py` and `train.py` all recoverable from `cb516cb3^`.
