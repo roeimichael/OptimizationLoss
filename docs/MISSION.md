@@ -244,56 +244,46 @@ update ordering and training behaviour do not change during structural cleanup.
 
 ---
 
-## RUN STATE -- checked 2026-09-15 22:16 IDT
+## RUN STATE -- checked 2026-09-16 (post-completion)
 
-**`rank1_*` is DEAD. All three campaigns finished 24 usable / 16 FAILED.** Every
-`rank_clip` and `aug_rank_clip` run died in its first logged epoch on
-`ValueError: too many values to unpack (expected 2)` -- see LEDGER PART 1. The
-24 control runs per campaign (`clip`, `focal_clip`, `aug_clip`) are valid and
-retained; the Stage 1 gate was unanswerable from them.
+**NOTHING IS RUNNING. dsisco01 GPUs 1, 2, 3 are free by decision, not by
+accident** -- Stage 1 is answered and Stage 2 is a compute-budget question for
+the user. GPU 0 is `dvorata1`; dsisco02 GPUs 1-3 are `liverty`.
 
-**`rank2_*` is DEAD -- stopped by explicit PID at 2/40 on the warm-up cache defect (LEDGER PART 1). `rank3_*` is LIVE on dsisco01 GPUs 1/2/3**, claimed 2026-09-15 23:35:35 IDT, generated and frozen at 323edf44:
-`rank3_MobileNetV3`, `rank3_MobileNetV2`, `rank3_RegNetY400MF`, 40 runs each,
-same design as rank1
-(fmow2, L80_G95 + L90_G95, arms `clip` `focal_clip` `rank_clip` `aug_clip`
-`aug_rank_clip`, seeds 1-4, pretrained, warm-up 30).
+- `rank1_*` -- DEAD. 24 usable / 16 failed per campaign on the unpack defect.
+  Its 72 CONTROL runs are valid and were used to measure the gAP noise envelope.
+- `rank2_*` -- DEAD. Stopped by explicit PID at 2/40 on the warm-up cache
+  defect, before it could write wrong numbers.
+- `rank3_*` -- **COMPLETE. 120/120 runs, zero failures, score gates GREEN on all
+  three.** 84 distinct models, 36 shared hashes all of which are cap-invariant
+  controls, zero rank-arm collisions. Answer in LEDGER PART 2.2.
 
-Why a NEW campaign rather than re-dispatching rank1's 16 pending runs: the
-campaign freeze refused it, correctly -- `validate_campaign` raised `source
-bytes differ from frozen release` because the fix changed `src/` under a frozen
-inventory. That guard is doing its job and was not overridden.
+🛑 The tree stays pinned at **323edf44**. `rank_min_group` is declared an
+identity key in git but deliberately NOT deployed there: changing
+`configs/protocol.yml` would break `rank3`'s frozen `source_inventory` and cost
+the ability to re-score it with the maintained reporter. It applies when the
+next campaign is generated.
 
-**The mixed-`code_version` question was settled by execution, not argument.**
-The fix touches a function called INSIDE the warm-up loop, and iterating a
-`shuffle=True` loader draws from the global RNG, so a changed number of draws
-would have silently altered training. Measured pre-fix vs post-fix on a 2-tuple
-loader: identical accuracy, **identical RNG state**, identical parameters,
-identical mode. The fix is a true no-op for every historical arm, so rank1's
-controls remain byte-comparable with anything produced at bfb33a97.
+**Stage 1 verdict: the budgeted ranking loss does not supply the "which".**
+`rank_clip` - `clip` is 4 of 18 cells positive at cell-mean gAP -0.0090;
+`aug_rank_clip` - `aug_clip` is 7 of 18 at -0.0039; on cc-F1 the ranking arm
+trails its control in 11 of 12 cells. Diagnosis in LEDGER PART 2.2: the gradient
+is uncertainty-weighted, not cut-anchored -- partial correlation with distance
+from the cut is -0.145 once the softmax Jacobian is held fixed, against +0.604
+the other way.
 
-**The decisive check arrives early.** Rank arms are runs 2 and 5 of every
-campaign, not last -- so each campaign's own second run is the smoke test, about
-10 minutes in. A separate smoke campaign was started and then stopped as
-redundant once the interleaving was confirmed. Watch for the unpack signature;
-`scripts/rank_status.sh` now surfaces distinct error strings.
+**The decision now open, and it is the user's** (changes the compute budget):
 
-**Cost so far: 2h21m x 3 cards spent on rank1, recovered as control arms only.**
+| option | what it tests | rough cost |
+|---|---|---|
+| **Stage 2: differentiable top-K** (Petersen / Xie / Berthet) | differentiate the SELECTION itself, so the gradient stays rank-dependent through the backward pass -- the specific defect PART 2.2 identifies | build + 1 campaign, ~5.5h on 3 cards |
+| **Fix the dose first** (group-batched sampler) | whether the 8-of-139-groups deficit was the binding constraint after all | sampler change + 1 campaign, ~5.5h |
+| **Val-split stopping rule** (LEDGER PART 5) | the only candidate so far that could produce a POSITIVE reportable result | retrain on 83% of train, ~5.5h |
+| **Stop and write the negative result** | PART 2.1 + PART 2.2 are a coherent, well-evidenced story | 0 |
 
-**FIRST RESULTS IN, checked 2026-09-15 22:40 IDT -- two checks discharged:**
-
-1. **The ranking loss is NOT inert.** `aug_rank_clip` seed 1 differs from
-   `aug_clip` seed 1 on both backbones that have reached run 2
-   (MobileNetV3 `6daea2293b08` vs `8c7a9316fa59`; RegNetY400MF `e560332f9134`
-   vs `fa08e8cc461c`). The loss reached the model. This is the failure mode
-   five earlier flags died of, and it is now excluded. The formal
-   pre-registered version of this check -- `rank_paired` marking `rank_clip`
-   `(cap-inert)` -- still runs at scoring.
-
-2. **The metrics.py fix is confirmed a no-op ON REAL DATA, not just in
-   miniature.** Every control run present in BOTH rank1 (338110cc) and rank2
-   (bfb33a97) reproduces byte-identically: **3 of 3 pairs so far**, and the set
-   grows as rank2 advances. This is the corpus-level evidence behind the
-   mixed-`code_version` argument; re-check it when rank2 completes.
+My reading: the dose fix is the weakest of the three, because PART 2.2's
+diagnosis points at the surrogate rather than the dose -- more gradient of a
+still-uncertainty-weighted term.
 
 ---
 
