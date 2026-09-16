@@ -195,7 +195,9 @@ def _data_record(config, source_root, frozen_files=None):
     lp, gp = config['constraint']
     kwargs = dict(constrained_class=dc['constrained_class'], num_classes=dc['num_classes'])
     global_con = compute_global_constraints(frame, 'label', gp, **kwargs)
-    local_con = compute_local_constraints(frame, 'label', lp, dc['group_column'], **kwargs)
+    local_con = compute_local_constraints(frame, 'label', lp, dc['group_column'],
+                                          group_budget_shares=dc.get('group_budget_shares'),
+                                          **kwargs)
     quotas = {'global': [int(v) for v in global_con],
               'local': {str(k): [int(v) for v in values] for k, values in local_con.items()}}
     return dict(files=files, quotas=quotas, classes=list(range(dc['num_classes'])),

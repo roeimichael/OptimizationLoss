@@ -311,6 +311,7 @@ def _load_imagery_data(config):
         group_col,
         constrained_class=constrained_class,
         num_classes=num_classes,
+        group_budget_shares=ds.get("group_budget_shares"),
     )
     log.info(
         "mode=%s classes=%d constrained=%s global=%s local_groups=%d test=%d train=%d",
