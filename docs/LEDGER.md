@@ -215,6 +215,72 @@ wrong published-to-ourselves conclusion at least once.
 
 ---
 
+## PART 2.2 -- WHY THE RANKING LOSS FAILED: the gradient is UNCERTAINTY-weighted, not CUT-anchored
+
+**The result first.** `rank3_*`, 120 runs, 3 backbones x 2 caps x 4 seeds, all
+gates GREEN, 84 distinct models, zero cap collisions, measured 2026-09-16.
+
+| contrast | cells positive | cell-mean gAP |
+|---|---|---|
+| `rank_clip` - `clip` | 4 of 18 | **-0.0090** |
+| `aug_rank_clip` - `aug_clip` | 7 of 18 | **-0.0039** |
+
+On the primary endpoint the ranking arm trails its control in **11 of 12
+(backbone x cap x augmentation) cells**, mean cc-F1 delta about **-0.005**.
+Against the measured null envelope (`focal_clip` -0.0048, `aug_clip` +0.0017)
+`rank_clip` is MORE negative than either known null. **The budgeted ranking loss
+does not supply the "which". It costs a little.**
+
+**WHY, measured rather than argued** (`scripts/why_rank_failed.py`, 27 cells,
+9794 items, within-cell standardised, gradients taken through the real loss on
+real score distributions):
+
+| | correlation with log per-item gradient |
+|---|---|
+| distance from the allocator's cut | -0.244 |
+| softmax Jacobian p(1-p) | **+0.624** |
+| **partial**, distance given Jacobian | **-0.145** |
+| **partial**, Jacobian given distance | **+0.604** |
+
+🔑 **Holding uncertainty fixed, distance from the cut explains almost nothing.
+Holding distance fixed, uncertainty explains most of it.** The hinge is anchored
+at the K-th order statistic in PROBABILITY space, but the gradient that reaches
+the weights passes through the softmax Jacobian, and `p(1-p)` is a function of
+the probability VALUE, not of its RANK. So the term the model actually receives
+is an uncertainty weighting -- "push on the items you are unsure about" -- which
+is close to entropy regularisation and is NOT the allocator's "which".
+
+🛑 **THIS IS PART 2.1 IN A NEW COSTUME, AND THAT IS THE LESSON.** PART 2.1 proves
+a count penalty fails because it reads the MULTISET of probabilities while the
+allocator reads the RANKS. The budgeted ranking loss was designed to read ranks.
+It does, in its forward pass. But **backward**, through the softmax, what lands
+on the parameters is again a function of values. Anchoring a loss at an order
+statistic is not sufficient; the GRADIENT has to stay rank-dependent too, and
+here the Jacobian launders it back into a value-dependent quantity.
+
+Two further mechanical defects, both exact rather than suggestive:
+
+- **An irreducible floor.** `softplus(margin + t - s)` on probabilities bounded
+  in [0,1] means the argument lies in [margin-1, margin+1], so softplus never
+  reaches zero: best case 0.327 per term, worst 1.350. At most 76% of the loss
+  is movable; the rest is a constant the optimiser carries. This is why rank
+  arms log a total loss near 1.0 while controls log 0.009.
+- **Built-in unsatisfiability.** `K = round(n_pos * cap_fraction)` with
+  cap_fraction 0.9 forces **10.0% of true positives (123 of 1231) below the cut
+  by construction**. They are penalised at every step and cannot be fixed -- and
+  because the cut is deliberately NOT detached, lifting any positive raises `t`
+  for all the others. The term grinds against itself.
+
+**What this does NOT license.** The dose deficit recorded in PART 3 is real and
+unfixed (fires on 8 of 139 train groups; trains a 2.3rd-of-12 order statistic to
+serve a 41st-of-363 decision), so this is not a clean refutation of the ranking
+CHANNEL. But it IS a specific, measured refutation of THIS loss, and the
+diagnosis points at the surrogate rather than the dose: fixing the dose would
+deliver more of a gradient that is still uncertainty-weighted.
+
+**Saturation is NOT the explanation** -- 84% of the capacity sits at a decidable
+cut (PART 3), so "nothing could have worked here" is not available.
+
 ## PART 2 -- What is PROVED
 
 From the adversarial-review theorem package (2026-09-02, three independent
