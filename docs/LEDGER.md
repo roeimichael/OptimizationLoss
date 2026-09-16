@@ -1057,6 +1057,59 @@ the first). A campaign inventory across all worktrees now exists; `live11`,
 COMPLETE and may be unscored. **Check the inventory before proposing any
 "untested" direction.**
 
+### 🟢/🔴 fm2_vit AND fm2_mn2 WERE COMPLETE AND UNSCORED -- and ViTB16 is the best TraLO result we have (2026-09-16)
+
+**Third and fourth stale entries found today.** `fm2_mn2` and `fm2_vit` (56 runs
+each, `~/optloss-lean-20260914`) are COMPLETE and had **zero mentions** in LEDGER
+or MISSION. `fm2_vit` is **ViTB16, the headline backbone fixed a priori** under
+FRAMEWORK 1-pre. Seven arms: `alm`, `clip`, `fioretto`, `focal_clip`, `hounie`,
+`tralo`, `tralo_null`. Budget 30 (1 + 29), lr 1e-4, ~10% live.
+
+**`fm2_vit` -- TraLO leads EVERY dual rival, directionally, on both caps.**
+Paired, 4 seeds, `tralo` minus the named arm:
+
+| contrast | cc-F1 L80 | F1 Macro L80 | cc-F1 L90 | F1 Macro L90 |
+|---|---|---|---|---|
+| - `tralo_null` | +0.0117 | +0.0230 (t 2.47) | +0.0141 | +0.0149 |
+| - `clip` | +0.0060 | +0.0114 | +0.0104 (t 2.45) | +0.0049 |
+| - **`alm`** | **+0.0160** | **+0.0284 (t 2.62)** | **+0.0179 (t 1.86)** | +0.0000 |
+| - `fioretto` | +0.0011 | +0.0082 | +0.0177 | +0.0168 |
+| - `hounie` | +0.0041 | +0.0056 | +0.0180 | +0.0175 (t 2.60) |
+
+**Every sign is positive against every dual rival and against the plain clipper
+and its own null.** This is the most pro-TraLO evidence in the corpus. ⚠️ **Not
+one of those CIs excludes zero at n=4** -- consistent with the standing power
+finding (4 seeds gives ~15% power against a seed sd of ~0.011). It is a
+DIRECTION, not a result.
+
+**🔴 And `focal_clip` beats TraLO decisively, on the headline backbone, in both
+caps, with CIs excluding zero:**
+
+| contrast | F1 (Macro) | Precision (Macro) |
+|---|---|---|
+| `tralo` - `focal_clip` L80 | **-0.0223** [-0.0380, -0.0067] | **-0.0261** [-0.0480, -0.0042] |
+| `tralo` - `focal_clip` L90 | **-0.0309** [-0.0561, -0.0058] | **-0.0315** [-0.0532, -0.0099] |
+
+This reproduces the long-standing record (PART 4: the cc-F1 win dies against
+focal+clip). **`focal_clip` -- focal loss plus the post-hoc allocator, no
+constraint -- is the arm to beat, not `clip` and not ALM.**
+
+**`fm2_mn2` -- no win.** `tralo` - `clip` is -0.0162 cc-F1 [-0.0250, -0.0075] at
+L80 (CI excludes zero, TraLO loses); `tralo` - `tralo_null` is -0.0125 (t -2.69)
+at L90. Small positives against `alm` (+0.0076) and `fioretto` (+0.0057 F1 Macro,
+t 2.10) at L90 only.
+
+**READING.** The backbone is a real moderator: ViTB16 directionally ahead of
+everything, MobileNetV2 behind. Combined with the memory record that ViT task
+cells are UNDER-POWERED rather than shut, **the cheapest route to a defensible
+TraLO-vs-ALM claim is more SEEDS on ViTB16, not a new mechanism.** But any such
+claim must clear `focal_clip`, which currently beats TraLO by 0.022-0.032 on
+F1 Macro and Precision Macro with intervals excluding zero.
+
+⚠️ Budget 30 = ~10% live, the frozen regime. These numbers describe the regime
+PART 2.1b says measures little; that cuts both ways and the ViT lead is not
+exempt from it.
+
 ## PART 4 -- Closed and rejected
 
 - **Early stopping / per-epoch boundary selection -- CLOSED 2026-09-15.** The
