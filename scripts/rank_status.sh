@@ -109,10 +109,18 @@ done
 # from hung -- which cost a false stall reading once. The queue log gets an
 # epoch line every few epochs, so its mtime is the real pulse: a live dispatcher
 # whose log has been silent for >8 minutes is wedged, not working.
+# Only meaningful while a campaign is STILL RUNNING. A finished campaign's log
+# is silent by definition, and alerting on that fired three false ALERTs the
+# moment rank3 completed -- while also asserting "dispatcher alive" without
+# checking. Both conditions are now required.
 now=$(date +%s)
 for l in k3_mn3 k3_mn2 k3_rgn; do
     f=$(ls -t "$LOGS/${l}"_*.log 2>/dev/null | head -1)
     [ -z "$f" ] && continue
+    grep -q "ALL DONE" "$f" 2>/dev/null && continue
+    owner=0
+    for p in $(pgrep -u "$ME" -f 'main\.py' 2>/dev/null); do owner=1; done
+    [ "$owner" = "0" ] && continue
     age=$(( (now - $(stat -c %Y "$f")) / 60 ))
     [ "$age" -gt 8 ] && echo "ALERT    $l log silent for ${age} min -- dispatcher alive but not training"
 done
