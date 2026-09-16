@@ -1133,6 +1133,27 @@ tests; they cannot establish the new campaign's success or failure.
 
 ## PART 5 -- Live candidates, not yet tested
 
+- ✅ **OPTION C IS CORRECTLY APPLIED END TO END -- verified 2026-09-17 on 52
+  live runs.** Allocated predictions: **0 violations, 30.0/30 per-group ceilings
+  saturated exactly**, in every arm at every cap level. Raw pre-allocation
+  predictions: **52/52 violating**, 0.7/30 saturated. So the policy ceilings bind
+  and the allocator delivers them; without it the model breaks every one.
+
+  ⚠️ **Saturation at 30/30 is expected and does NOT mean the budget is slack.**
+  The earlier "wasted capacity" figures counted ceilings above a group's TRUE
+  positives; the allocator fills a ceiling from any item, and with 3442 items
+  against a few hundred slots there is always something to place. **The cap is
+  therefore a pure ranking question now: every method spends the same budget in
+  the same cells, and only WHICH items differ.** That is the cleanest form this
+  comparison has ever had.
+
+  Mechanism during training (`L25_G25`, tralo, 6 live epochs): `L_Global`
+  0.035 -> 56.1, `L_Local` 0.27 -> 404.7, `Grad_Norm` 2.7 -> 6399, satisfied
+  flags 0 throughout, `Hard_Class1` 333-410 against a limit of 91. ALM likewise
+  holds `total_excess` at 1769-2023. **Neither dual reaches feasibility in
+  training at a strict cap** -- which the allocator makes moot at deployment, but
+  it means the constraint term is a shaping pressure, never a satisfied one.
+
 - 🔑 **THE BUDGET IS NOW 7, DERIVED, NOT INHERITED (2026-09-16).** The first
   Option C pilot ran at the protocol default of 30 and FAILED the saturation
   gate at 14 runs: MobileNetV3/fmow2 reaches train acc 0.962 by epoch 4, so the
