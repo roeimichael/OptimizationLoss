@@ -96,12 +96,19 @@ def write_csv_header(csv_path, num_classes, local_constraints=None):
             csv.writer(f).writerow(header)
 
 
+def _sat_cell(value):
+    """1, 0, or empty for "not evaluated". See log_progress_to_csv."""
+    if value is None:
+        return ""
+    return 1 if value else 0
+
+
 def log_progress_to_csv(csv_path, epoch, ce_loss, train_acc,
                         global_loss=0.0, local_loss=0.0,
                         global_counts=None, local_counts=None,
                         global_soft=None, local_soft=None,
                         lambda_global=0.0, lambda_local=0.0,
-                        constraints=None, global_satisfied=True, local_satisfied=True,
+                        constraints=None, global_satisfied=None, local_satisfied=None,
                         num_classes=None, grad_norm=0.0, local_constraints=None):
     # `7` used to be the default here and in four other signatures -- dermmnist's
     # class count, baked in where a forgetful caller would have picked it up
@@ -124,7 +131,15 @@ def log_progress_to_csv(csv_path, epoch, ce_loss, train_acc,
            # quantise the ratchet to 5x its own increment and a run that climbed
            # 0.070 -> 0.074 reads as flat.
            f"{lambda_global:.4f}", f"{lambda_local:.4f}",
-           1 if global_satisfied else 0, 1 if local_satisfied else 0]
+           # None means NOT EVALUATED, and must not be written as satisfied.
+           # These defaulted to True, so the warm-up caller
+           # (src/pipeline/warmup.py, which passes neither) wrote a row
+           # asserting BOTH constraints were met on an epoch that never ran a
+           # satisfaction test. Because the warm-up is CACHED, only the run that
+           # trained it carries that row, so the corruption was not even a
+           # constant offset between runs. Empty reads back as NaN under the
+           # `pd.to_numeric(errors="coerce")` idiom every consumer already uses.
+           _sat_cell(global_satisfied), _sat_cell(local_satisfied)]
     for i in range(num_classes):
         limit = int(constraints[i]) if constraints[i] < UNLIMITED else 'inf'
         row += [limit, global_counts.get(i, 0), f"{global_soft.get(i, 0.0):.2f}"]

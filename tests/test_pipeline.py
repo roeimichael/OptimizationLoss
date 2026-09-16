@@ -2301,3 +2301,51 @@ def test_log_health_reads_UNLIMITED_as_the_sentinel_it_is_not_as_a_divergence(tm
     assert not read_run(grouped)["nonfinite"], (
         "Group<g>_Limit_Class<c> is the same declaration and needs the same sentinel"
     )
+
+
+def test_unevaluated_satisfaction_is_blank_not_satisfied():
+    """The warm-up row must not claim the constraints were met.
+
+    `global_satisfied` / `local_satisfied` defaulted to True, and
+    `src/pipeline/warmup.py` calls `log_progress_to_csv` without either, so
+    every warm-up epoch wrote a row asserting BOTH constraints satisfied on an
+    epoch that never ran a satisfaction test. Measured 2026-09-16 on the ViT
+    campaign: it read as `focal_tralo` reaching joint satisfaction, which it
+    never did. The warm-up is CACHED, so only the run that trained it carries
+    the row -- the corruption was not even a constant offset between runs.
+    """
+    import csv
+
+    from src.training.logging import log_progress_to_csv, write_csv_header
+
+    def row_of(tmp, **kw):
+        path = os.path.join(tmp, "training_log.csv")
+        write_csv_header(path, 3)
+        log_progress_to_csv(path, 0, 0.5, 0.9, num_classes=3, **kw)
+        with open(path) as fh:
+            rows = list(csv.DictReader(fh))
+        return rows[-1]
+
+    with tempfile.TemporaryDirectory() as tmp:
+        # The warm-up caller's exact shape: neither flag passed.
+        r = row_of(tmp, )
+        assert r["Global_Satisfied"] == "", (
+            "an UNEVALUATED constraint was written as %r; it must be blank, not "
+            "a claim of satisfaction" % r["Global_Satisfied"]
+        )
+        assert r["Local_Satisfied"] == "", (
+            "an UNEVALUATED local constraint was written as %r" % r["Local_Satisfied"]
+        )
+
+    # NEGATIVE CONTROL -- explicit values must still round-trip, or the fix
+    # would have silently blanked every real constraint epoch too.
+    with tempfile.TemporaryDirectory() as tmp:
+        r = row_of(tmp, global_satisfied=True, local_satisfied=False)
+        assert (r["Global_Satisfied"], r["Local_Satisfied"]) == ("1", "0"), (
+            "explicit satisfaction no longer round-trips: %r" % r
+        )
+    with tempfile.TemporaryDirectory() as tmp:
+        r = row_of(tmp, global_satisfied=False, local_satisfied=True)
+        assert (r["Global_Satisfied"], r["Local_Satisfied"]) == ("0", "1"), (
+            "explicit satisfaction no longer round-trips: %r" % r
+        )

@@ -1349,6 +1349,53 @@ where either of them works.
   `aug_clip` == `aug_rank_clip` variants where both arms resolve to the same
   8-epoch budget -- identical by construction, not a collision.
 
+- 🛑 **THE WARM-UP ROW CLAIMED BOTH CONSTRAINTS WERE SATISFIED ON AN EPOCH THAT
+  NEVER TESTED THEM -- AND IT FOOLED ME WITHIN THE HOUR.** Found and fixed
+  2026-09-16.
+
+  `log_progress_to_csv` declared `global_satisfied=True, local_satisfied=True`
+  as DEFAULTS. `src/pipeline/warmup.py:223` calls it with neither, so every
+  warm-up epoch wrote `Global_Satisfied=1, Local_Satisfied=1` on a row whose
+  `L_Global`, `L_Local`, `Lambda_Global` and `Grad_Norm` are all exactly 0 --
+  an epoch on which no satisfaction test was ever run.
+
+  **⛔ RETRACTION.** Reading those columns, I reported that `focal_tralo` was
+  the only arm ever to reach joint global+local satisfaction, 1 epoch of 30 at
+  L80 in both seeds. **That is false and is withdrawn.** The single "satisfied"
+  row is Epoch 1, the warm-up. No ViT arm reaches joint satisfaction, no rho
+  freeze fires, and the standing finding that the paper's second phase has never
+  run is UNCHANGED.
+
+  **Why it is worse than a constant offset.** The warm-up is CACHED
+  (`save_to_cache`/`load_from_cache`), so only the run that trains it emits the
+  row. Measured on the ViT campaign: `focal_tralo` at L80 has 30 rows starting
+  at Epoch 1, while the SAME arm at L90 has 29 rows starting at Epoch 2, because
+  L90 reused the cached warm-up. So the contamination varies run to run with
+  cache hits and cannot be corrected by subtracting one.
+
+  **The fix.** Both parameters now default to `None`, and `_sat_cell()` writes
+  an EMPTY cell for "not evaluated". Blank reads back as NaN under the
+  `pd.to_numeric(errors="coerce")` idiom `scripts/log_health.py:101` already
+  uses, so no consumer changes. Regression test
+  `test_unevaluated_satisfaction_is_blank_not_satisfied` covers the warm-up
+  caller's exact shape plus both explicit round-trips; mutation-verified by
+  restoring the old default and executing (FAILS), then restoring (PASSES), with
+  `__pycache__` cleared each way. 445 tests pass.
+
+  🛑 **The historical logs still carry the bad rows.** Every training_log.csv
+  written before this fix asserts satisfaction on its warm-up epoch. Any count
+  of satisfied epochs must restrict to rows at or after
+  `warmup_epochs + 1`, or equivalently drop rows where `Grad_Norm` is 0 and
+  `Lambda_Global` is 0. The running campaigns are pinned at `55c1be530de9` and
+  are NOT affected in their training -- this is a logging defect only, and the
+  fix must not be deployed to the server while they run.
+
+  This is the SIXTH defect of the "a flag reports something it never measured"
+  family, after `class_balanced`, `logit_adjust`, `hounie_alpha`,
+  `graph_probe --dump` and `disable_lambda_t`. The others were inert inputs;
+  this one is a fabricated OUTPUT, which is worse, because nothing downstream
+  can tell it from a measurement.
+
 ## PART 4 -- Closed and rejected
 
 - **Early stopping / per-epoch boundary selection -- CLOSED 2026-09-15.** The
