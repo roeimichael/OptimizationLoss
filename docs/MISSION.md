@@ -264,6 +264,55 @@ dsisco01**: they are frozen for dsisco02/bf16 and `validate_campaign` refuses a
 cross-host release, so a relaunch would be a different unit, not a recovery.
 Recovery needs console or admin access to dsisco02.
 
+**RUN-STATE ON NFS, checked 18:37 and again 19:34 (unchanged, confirming the
+jobs are blocked rather than slow):**
+
+| campaign | completed | running (stuck) | pending |
+|---|---|---|---|
+| `vit_a` | 21 | 1 | 62 |
+| `vit_b` | 21 | 1 | 62 |
+| `cap_a` | 0 | 0 | 90 |
+| `cap_b` | 0 | 0 | 90 |
+
+### RECOVERY RUNBOOK for dsisco02 -- follow in order, do not skip step 2
+
+1. Confirm ssh answers: `ssh dsisco02 'echo ALIVE; uptime'`.
+2. 🛑 **Confirm NO trainer of ours is alive before touching any config:**
+   `pgrep -u michaer8 -f 'main\.py'` and `pgrep -u michaer8 -f queue_runner`.
+   If a trainer is alive it may simply have UNBLOCKED and be finishing its run.
+   Resetting its config to `pending` while it still holds the directory gives
+   two writers to one run. Either wait for it, or stop it by EXPLICIT PID
+   (INT, then TERM/KILL), scoped by reading `/proc/<pid>/environ` for
+   `EXPERIMENT_DIR`. Never `pkill`, never `grep main.py`.
+3. Reset ONLY the stuck run in each campaign. `scripts/reset_crashed.py` is the
+   maintained tool and is conservative by construction: a run is eligible only
+   if it has NO usable result (no `results.accuracy`, no full `training_log.csv`
+   of >= 5 rows), so the 21 completed runs cannot be clobbered. Dry run first:
+   `python -m scripts.reset_crashed results/vit_a` then `--apply`. Same for
+   `vit_b`. `cap_a`/`cap_b` need nothing -- they never started.
+4. Re-validate each: `python -m src.pipeline.campaign validate --root results/vit_a`.
+   🛑 Do NOT re-freeze. The campaigns are already frozen against dsisco02/bf16
+   and the stamp `55c1be530de9` must not move.
+5. Relaunch with a **NEW label** so a fresh log file is created:
+   `setsid nohup bash ~/queue_runner_v2.sh 0 vita2 "$WT:results/vit_a" </dev/null >>~/queue_logs/vita2_launch.log 2>&1 &`
+   (and gpu 1 / `vitb2` / `vit_b`). 🛑 Never reuse the old label: the previous
+   log may still be held open, and rewriting a live log is what orphaned
+   `vita_vit_a.log` earlier today (RULESET 6).
+6. Re-queue the cap sweep behind them, same pattern, labels `capa2` / `capb2`.
+7. `~/camp_status.sh` needs no edit -- it resolves logs by `*_<campaign>.log`.
+
+🛑 **Do NOT relaunch any of these on dsisco01.** They are frozen against
+dsisco02/bf16 and `validate_campaign` refuses a cross-host release. A dsisco01
+run would be a different (backbone, HOST) unit that cannot pool with the 42
+completed runs, so it is a new experiment, not a recovery.
+
+**Decision if dsisco02 stays down.** Rebuilding the ViT ladder on dsisco01 means
+Turing fp16 at an estimated 15-20 min/run, so a 5-cap x 12-seed x 4-arm ladder
+is 240 runs / 60-80 GPU-hours, and dsisco01 has no free card -- it would cost
+stopping one or two `bud_*` campaigns. That is 30-80 hours to reproduce what
+dsisco02 does in ~25. **Recommendation: wait for the box and keep `bud_*`
+running.** Revisit only if dsisco02 is down for more than about a day.
+
 **dsisco01 is unaffected** and its three campaigns are advancing normally
 (`bud_mn3` 96/300, `bud_mn2` 77/300, `bud_rgn` 100/300 at 18:37).
 
