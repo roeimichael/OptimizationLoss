@@ -244,7 +244,77 @@ update ordering and training behaviour do not change during structural cleanup.
 
 ---
 
-## RUN STATE -- checked 2026-09-16 (post-completion)
+## RUN STATE -- checked 2026-09-16 10:41 IDT (server clock). FIVE CAMPAIGNS LIVE.
+
+**The budget sweep. 1,500 runs, five GPUs, both hosts.** Launched after
+LEDGER 2.1b established that rank1/rank2/rank3 (360 runs) all ran at an 8-10%
+live fraction -- the dead regime -- because `saturation_gate.py` skipped every
+run with `constraint_epochs = 0` and reported "no training_log.csv matched".
+
+| campaign | host | GPU | backbone | seeds | runs |
+|---|---|---|---|---|---|
+| `bud_mn3` | dsisco01 | 1 | MobileNetV3 | 1-6 | 300 |
+| `bud_mn2` | dsisco01 | 2 | MobileNetV2 | 1-6 | 300 |
+| `bud_rgn` | dsisco01 | 3 | RegNetY400MF | 1-6 | 300 |
+| `bud_mn3b` | dsisco02 | 0 | MobileNetV3 | 7-12 | 300 |
+| `bud_mn2b` | dsisco02 | 1 | MobileNetV2 | 7-12 | 300 |
+
+Grid: fmow2, caps L80_G95 + L90_G95, 25 arms = {tralo, tralo_null, clip} x
+{30, b12, b8, b7, b6, b5} + {alm, fioretto} x {30, b7, b6} + focal_clip.
+Frozen per host (dsisco01 fp16 + grad scaler, dsisco02 **bf16, no scaler** --
+`validate_campaign` refuses a cross-host release, correctly).
+
+🛑 **DO NOT POOL ACROSS HOSTS.** The precision regimes differ, so
+(backbone, HOST) is the unit. dsisco02 is not extra seeds.
+
+## BUDGET SWEEP -- PRE-REGISTERED READING (written 2026-09-16 10:45, before any run finished)
+
+**Why this is written first.** The standing goal is "a valid metric on which we
+beat the rivals". The panel has 50+ metrics and the grid has 25 arms x 2 caps x
+6 budgets; searching that surface for a winner and reporting it would find one
+whether or not anything is real. The protections are fixed here, in advance.
+
+**DISCOVERY / CONFIRMATION SPLIT.** dsisco01 (3 campaigns, seeds 1-6, fp16) is
+the DISCOVERY set. dsisco02 (2 campaigns, seeds 7-12, bf16, independent
+numerics) is the CONFIRMATION set. **Nothing found on dsisco01 is a result
+until it reproduces, same sign, on dsisco02.** The two MobileNet backbones are
+run on both hosts precisely so this is possible.
+
+**PRIMARY endpoints, in this order, fixed now:**
+1. `cc_f1` -- the deployed endpoint.
+2. `F1 (Macro)` -- the user's alternative, equally admissible.
+
+Everything else in the panel (constrained_precision, collateral_f1, ECE,
+Brier, per-class) is EXPLORATORY: reportable, but only as a hypothesis for the
+confirmation set, never as a headline from discovery alone.
+
+**The three contrasts, at each budget, averaged over SEED only:**
+- `tralo_bN` - `tralo_null_bN` -- does the constraint do anything?
+- `tralo_bN` - `clip_bN` -- does it beat its MATCHED clipper?
+- `tralo_bN` - `alm_bN` -- do we beat ALM? (b6, b7 only; these are the new arms)
+
+**What each outcome means, decided now:**
+- **The live-regime account is CONFIRMED** if the `tralo - clip` contrast is
+  negative at budget 30/b12 and positive at b6/b5, on both primary endpoints,
+  in the discovery set, and the sign reproduces in confirmation. The
+  between-campaign evidence predicts exactly this (`live11` 30% live -0.0089;
+  `live6b` 60% live +0.0079).
+- **The regime is a null** if the contrast is flat across budgets. Then the
+  ~8 pp `track_b` warm-up effect did not survive to fmow2 + current code, and
+  the regime lever is closed with it.
+- **TraLO specifically loses** if `tralo - alm` is <= 0 wherever `tralo - clip`
+  is positive. That is the recorded `track_b` outcome (ALM +9.18 vs TraLO
+  +7.17) and would mean the FAMILY wins, not our method. **This is a real
+  possible outcome and it is written down before the numbers exist.**
+- **A budget that helps EVERY arm equally is not a constraint result.** The
+  matched `clip_bN` and `tralo_null_bN` exist to catch exactly that; the
+  protocol's own comment says short budgets may simply help everything.
+
+**Power.** 6 seeds per cell per host, 12 across hosts but NOT poolable. Prior
+seed sd on cc-F1 is ~0.011, so a 6-seed cell resolves ~0.013 at t=2. Effects
+below that are not measurable here and must not be reported as findings.
+
+## RUN STATE -- rank3 (superseded, kept for provenance)
 
 **NOTHING IS RUNNING. dsisco01 GPUs 1, 2, 3 are free by decision, not by
 accident** -- Stage 1 is answered and Stage 2 is a compute-budget question for
