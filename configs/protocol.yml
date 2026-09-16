@@ -439,6 +439,19 @@ datasets:
     - 2
     - 7
     disjoint_groups: true
+    # OPTIONAL: `group_budget_shares` turns the local cap from a prevalence
+    # into a POLICY. Without it, Phi[group][class] = round(local_pct x that
+    # group's own count of the class), so a group holding twice the positives
+    # gets twice the ceiling. With it, the class's pooled budget is split
+    # across groups by externally given shares that must sum to 1, which is
+    # what Shifman et al. Eq. (2) takes as given -- 100 beds split 60/30/10
+    # across membership tiers regardless of who applied. Keys are the ENCODED
+    # group ids and must name every group present; both are enforced.
+    # Set the two percentages EQUAL when using it, so the local ceilings
+    # partition the global one exactly and both constraints bind.
+    # Incompatible with rank_weight > 0; see check_rank_budget_agreement.
+    #
+    # group_budget_shares: {0: 0.10, 1: 0.30, 2: 0.60}
   bcn:
     data_dir: data/bcn/oodslice
     num_classes: 8
