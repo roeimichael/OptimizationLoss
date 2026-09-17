@@ -1046,6 +1046,52 @@ comparison against it is available until it is restored.
 
 ## PART 4 -- Closed and rejected
 
+- ⛔ **ViTB16 DOES NOT RESCUE OPTION C -- and it REVERSES the old corpus's only
+  positive backbone. 2026-09-17, 112 usable runs, n=8.**
+
+  Verdict by the pre-registered mapping (written before launch): **outcome 3,
+  AMBIGUOUS**, because `cc_f1` splits sign across caps. ⚠️ **But the ambiguity is
+  between "no effect" and "harmful", never between "no effect" and "helps": every
+  cell that moves beyond noise moves NEGATIVE.**
+
+  `tralo - tralo_null`, n=8 per cell:
+
+  | cap | cc_f1 | F1 (Macro) |
+  |---|---|---|
+  | `L25_G25` | +0.0007 (t +0.2) | **-0.0165 (t -2.4)** |
+  | `L75_G75` | **-0.0139 (t -2.0)** | -0.0187 (t -1.2) |
+
+  Mechanism, precision of the filled ceilings (all arms saturate all ceilings, so
+  only WHICH items differ):
+
+  | arm | L25 | L75 |
+  |---|---|---|
+  | `tralo` | 0.5908 | **0.4610 (worst of seven)** |
+  | `tralo_null` | 0.5932 | 0.4786 |
+  | `focal_clip` | **0.5993** | **0.4838** |
+  | `clip` | 0.5920 | 0.4809 |
+
+  Attributable `tralo - tralo_null`: **-0.0024 at L25, -0.0176 at L75.** TraLO
+  evicts **805 true positives at L75 against 784-798 for every rival** -- it is
+  the only arm that throws away more than the budget forces. **On ViTB16 the
+  constraint does not merely fail to help; it damages the ranking**, and the
+  endpoint and the mechanism agree.
+
+  🔑 **This REVERSES `project_the_vit_task_cells_are_underpowered` and the
+  old corpus's ViT-only positive.** That result was measured under the
+  PREVALENCE cap (2.9), where the ceiling restated the per-group label histogram.
+  With the cap correctly specified, ViTB16 flips from the one hopeful backbone to
+  the clearest negative one.
+
+  ⚠️ **SCOPE AND A REAL DEFECT IN THIS RUN. 56 of 168 runs were LOST to
+  `OSError 28: No space left on device`** -- `/home` hit 100% mid-campaign
+  because the cleanup was blocked at the permission layer. The loss is uniform
+  (every cell has exactly 8 seeds; `polcv2_a` kept seeds 1-4, `polcv2_b` 7-10),
+  so the surviving set is balanced and matched-pairs, but **n=8 detects ~0.011,
+  not the ~0.009 the pre-registration assumed. This should be re-run at full n
+  once there is disk.**
+
+
 - ⛔ **OPTION C IS REFUTED ON (MobileNetV3, fmow2) -- 252 runs, 12 seeds, 2026-09-17.**
   The pre-registered mapping (MISSION, written at 130/252 before any score was
   read) called outcome 3 when the pooled mean sits inside the seed sd. It does,
