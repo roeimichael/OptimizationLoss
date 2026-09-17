@@ -116,26 +116,39 @@ needs the user. ~110G is safely removable (`optloss-history-20260914` 46G,
 Deleting `optloss-audit` destroys the data. Nothing else symlinks into the
 removable list (verified by `find -type l` + `readlink -f`).
 
-### LIVE: the first Option C campaigns
+### DONE: Option C on MobileNetV3 -- REFUTED
 
-| campaign | host | GPU | backbone | caps | seeds | runs |
+`polc2_a` + `polc2_b`, 252/252, 12 seeds, completed 02:00. Gates green
+(saturation `ok` at 50% live; both campaigns validate; 252 distinct prediction
+hashes, no re-runs counted as seeds). **Verdict taken once against the mapping
+fixed at 130/252: outcome 3, REFUTED, on both primary endpoints.** Full numbers
+and the mechanism in LEDGER PART 4.
+
+### LIVE: Option C on ViTB16
+
+| campaign | host | GPU | caps | seeds | runs | budget |
 |---|---|---|---|---|---|---|
-| `polc_a` (runner `polca`) | dsisco02 | 0 | MobileNetV3 | L25_G25 L50_G50 L75_G75 | 1-3 | 63 |
-| `polc_b` (runner `polcb`) | dsisco02 | 1 | MobileNetV3 | L25_G25 L50_G50 L75_G75 | 4-6 | 63 |
+| `polcv2_a` (runner `pcv2a`) | dsisco02 | 0 | L25_G25 L75_G75 | 1-6 | 84 | 5 (1+4) |
+| `polcv2_b` (runner `pcv2b`) | dsisco02 | 1 | L25_G25 L75_G75 | 7-12 | 84 | 5 (1+4) |
 
-Seven arms each (`tralo tralo_null clip focal_clip fioretto hounie alm`). Frozen
-on dsisco02 under stamp `10e4391d8335`, bf16, no scaler. Launched 22:55 IDT.
-dsisco02 GPUs 2-3 are `liverty`; dsisco01 is idle except `dvorata1` on GPU 0.
+Seven arms each, stamp `8085c356`, bf16, no scaler. Launched 02:33, ETA ~05:30.
+Saturation gate re-checked at 56 runs: **50% live, `ok`**. GPUs 2-3 are
+`liverty`; dsisco01 is idle but for `dvorata1` on GPU 0.
 
-**These are the first runs in the project's history where the global constraint
-can bind**: `sum(Phi) == Psi` exactly at every cap level and every capped class,
-verified in the frozen manifest, not just offline.
+⚠️ **`polcv_a`/`polcv_b` (budget 7) were KILLED at 14 runs** for failing the
+firstrun saturation gate at 33% live, and quarantined. The replacement runs at
+budget 5 because the live window is a property of (backbone, dataset).
+`gen_campaign --total-epochs` was added for exactly this and moves every arm in
+a campaign together, so equal dose still holds within each campaign.
 
-⚠️ **The pilot is deliberately small and under-powered at 3 seeds per campaign
-(6 pooled).** It exists to check that the constraint is applied correctly and
-that the loss responds, NOT to settle the head-to-head. Per
-`project_every_campaign_is_underpowered`, 6 seeds against a seed sd of ~0.011
-detects roughly 0.013. Read direction and mechanism, not significance.
+### Disk -- BLOCKED ON THE USER
+
+`/home` is at 93%. ~110G is safely removable (`optloss-history-20260914` 46G,
+`optloss-archive-stale-2026-09-02` 18G, `isic_cache` 13G, `_cct_chunks` 2.2G,
+`hp_liveness_out` 607M, `quarantine_2026-09-16` ~30G). **No dataset is in that
+list.** The deletion was refused by the permission layer and needs the user to
+run it. 🛑 **`~/optloss-audit/data/` holds the ONLY real dataset bytes** -- every
+tree reaches fmow2 through `optloss-rank -> optloss-probe -> optloss-audit`.
 
 ---
 
