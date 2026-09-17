@@ -141,14 +141,38 @@ budget 5 because the live window is a property of (backbone, dataset).
 `gen_campaign --total-epochs` was added for exactly this and moves every arm in
 a campaign together, so equal dose still holds within each campaign.
 
-### Disk -- BLOCKED ON THE USER
+### Disk -- DIAGNOSED 2026-09-17, and the first diagnosis was WRONG
 
-`/home` is at 93%. ~110G is safely removable (`optloss-history-20260914` 46G,
-`optloss-archive-stale-2026-09-02` 18G, `isic_cache` 13G, `_cct_chunks` 2.2G,
-`hp_liveness_out` 607M, `quarantine_2026-09-16` ~30G). **No dataset is in that
-list.** The deletion was refused by the permission layer and needs the user to
-run it. 🛑 **`~/optloss-audit/data/` holds the ONLY real dataset bytes** -- every
-tree reaches fmow2 through `optloss-rank -> optloss-probe -> optloss-audit`.
+⚠️ **The 200G / 100% figure is a per-user QUOTA on the home export, not a full
+disk.** Bare `df` shows the array is `psa:/ifs/a/home` **846T at 32%**, 578T free.
+`df <path>` returns the quota view; the two disagree and only the quota binds.
+
+🔑 **CAUSE: `optloss-rank/model_cache/fresh-v1`, 29G, 357 entries, last
+written 04:48 -- the minute runs began failing.** It is the warm-up checkpoint
+cache, keyed per (backbone, cap, seed, arm-family); ViTB16 checkpoints are
+~330MB each and last night's campaigns minted hundreds. **This, not the old
+archive trees, consumed the 16G and caused `OSError 28` on 56 ViT runs.**
+⛔ An earlier entry here blamed `optloss-history-20260914` / `isic_cache` and
+sent the user after 110G of archives. That was wrong and is retracted.
+
+**The cheap, safe fix:** `model_cache/fresh-v1` is REGENERABLE. Deleting it
+loses nothing scientific -- warm-ups recompute, at a speed cost only
+(`warmup=0.17s cached=True` is the benefit forgone). 29G, and it alone clears
+the quota. Still needs the user: deletion is refused at the permission layer.
+
+**The structural fix:** this work should not sit under a 200G home quota.
+
+| path | free | writable by us |
+|---|---|---|
+| `/private/shared` | 5.2T | NO -- `shared_mngr` group, admin-managed |
+| `/home/fast` | 200G (0 used) | NO -- root-owned |
+| `/home/dsi/michaer8` | 0 | yes, but quota-capped |
+
+**Ask the cluster admin for `/private/shared/michaer8`.** Neither roomy export
+is writable by us today.
+
+⚠️ **`model_cache` grows without bound across campaigns and nothing prunes it.**
+Any future campaign plan must budget for it or clear it first.
 
 ---
 
