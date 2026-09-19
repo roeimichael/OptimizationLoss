@@ -124,16 +124,24 @@ hashes, no re-runs counted as seeds). **Verdict taken once against the mapping
 fixed at 130/252: outcome 3, REFUTED, on both primary endpoints.** Full numbers
 and the mechanism in LEDGER PART 4.
 
-### LIVE: Option C on ViTB16
+### DONE: Option C on ViTB16 -- AMBIGUOUS by the mapping, NEGATIVE in direction
 
-| campaign | host | GPU | caps | seeds | runs | budget |
-|---|---|---|---|---|---|---|
-| `polcv2_a` (runner `pcv2a`) | dsisco02 | 0 | L25_G25 L75_G75 | 1-6 | 84 | 5 (1+4) |
-| `polcv2_b` (runner `pcv2b`) | dsisco02 | 1 | L25_G25 L75_G75 | 7-12 | 84 | 5 (1+4) |
+`polcv2_a` + `polcv2_b`, **112 of 168 runs** (56 lost to `OSError 28`, disk
+full). The loss is UNIFORM -- every one of the 14 (cap, arm) cells kept exactly
+8 of 12 seeds -- so the survivors are balanced, not a truncated prefix, but
+**n=8, not the 12 the pre-registration assumed**. Quote that wherever the
+numbers are quoted.
 
-Seven arms each, stamp `8085c356`, bf16, no scaler. Launched 02:33, ETA ~05:30.
-Saturation gate re-checked at 56 runs: **50% live, `ok`**. GPUs 2-3 are
-`liverty`; dsisco01 is idle but for `dvorata1` on GPU 0.
+Verdict against the registered mapping: **outcome 2, AMBIGUOUS**, because no
+contrast clears the pre-registered threshold. Every point estimate that moves,
+moves against TraLO: `cc_f1` L25 +0.0007 / L75 **-0.0139** (t -2.0), F1 Macro
+L25 **-0.0165** (t -2.4) / L75 **-0.0187**. Ceiling precision at L75 is 0.4610,
+the **worst of all seven arms**, and it evicts 805 true positives against
+784-798 for every rival. **This REVERSES the old corpus's ViT-only positive**,
+which was measured under the prevalence cap. Full numbers in LEDGER PART 4.
+
+**Both Option C campaigns are therefore closed.** MobileNetV3 refuted, ViTB16
+ambiguous-and-negative. No GPU work is queued behind them.
 
 ⚠️ **`polcv_a`/`polcv_b` (budget 7) were KILLED at 14 runs** for failing the
 firstrun saturation gate at 33% live, and quarantined. The replacement runs at
@@ -160,16 +168,38 @@ loses nothing scientific -- warm-ups recompute, at a speed cost only
 (`warmup=0.17s cached=True` is the benefit forgone). 29G, and it alone clears
 the quota. Still needs the user: deletion is refused at the permission layer.
 
-**The structural fix:** this work should not sit under a 200G home quota.
+**The structural fix -- decided by the user 2026-09-19: stay inside our own
+folder, do not involve the admin.**
 
-| path | free | writable by us |
+First, the contamination worry is already answered: ✅ **nothing of ours has
+ever been outside `/home/dsi/michaer8`**, which is mode `drwx------`, i.e.
+private to us. `/private/shared` and `/home/fast` hold none of our bytes.
+Neither is writable by us anyway (`shared_mngr` group; root-owned), so using
+either would require the admin the user wants to avoid. **The roomy-export
+option is closed by choice, not by failure.**
+
+| path | free | writable by us | ours on it |
+|---|---|---|---|
+| `/private/shared` | 5.2T | NO -- `shared_mngr` group, admin-managed | none |
+| `/home/fast` | 200G (0 used) | NO -- root-owned | none |
+| `/home/dsi/michaer8` | 0 | yes, but quota-capped | **everything** |
+
+So the whole problem is **37 `optloss-*` trees inside our own folder**, not
+where the folder sits. Measured 2026-09-19, the keep-set is **44G of 260G**:
+
+| keep | size | why |
 |---|---|---|
-| `/private/shared` | 5.2T | NO -- `shared_mngr` group, admin-managed |
-| `/home/fast` | 200G (0 used) | NO -- root-owned |
-| `/home/dsi/michaer8` | 0 | yes, but quota-capped |
+| `anaconda3` | 21G | the `optloss` env; rebuilding it costs hours |
+| `optloss-audit/data` | 17G | 🛑 **the ONLY real dataset bytes** |
+| `optloss-rank` minus `model_cache` | 6.2G | the working tree + scored results |
 
-**Ask the cluster admin for `/private/shared/michaer8`.** Neither roomy export
-is writable by us today.
+🔑 **`optloss-probe` is no longer load-bearing.** The data symlink was repointed
+`optloss-rank/data/fmow2 -> optloss-audit/data/fmow2`, collapsing the old
+two-hop chain, and verified by LOADING: `(3442, 224, 224, 3) uint8`. The other
+35 trees can now go without breaking a path.
+
+⚠️ Deletion is still **refused at the permission layer** and needs the user to
+run it. Nothing on the removable list is a dataset.
 
 ⚠️ **`model_cache` grows without bound across campaigns and nothing prunes it.**
 Any future campaign plan must budget for it or clear it first.

@@ -212,6 +212,23 @@ Each trap below produced a wrong conclusion at least once.
   checks and cross-split image hashes all pass it GREEN by construction. Only
   re-deriving the join from the source archive can detect it.
 
+### Freezes and re-validation
+
+- 🛑 **A COMPLETED CAMPAIGN STOPS RE-VALIDATING ONCE THE WORKING TREE MOVES PAST
+  ITS FREEZE, AND THE MESSAGE BLAMES THE DATA.** Observed 2026-09-19: all four
+  `polc*` campaigns reported `REFUSED: source bytes differ from frozen release`.
+  They were complete and already scored; `polc2` was frozen at `b2051c88` and the
+  server tree is now `8085c356`. I had just repointed a data symlink, so the
+  obvious reading was that I had corrupted the data. **I reverted the symlink and
+  the refusal PERSISTED** -- which is the only thing that separates the two
+  causes. The refusal is over `source_inventory()` (102 entries: `src/`,
+  `configs/`, `scripts/`, `main.py`), not over the dataset.
+  **Rule: this refusal on a finished campaign is expected code drift and means
+  nothing about the results already scored. Never "fix" it by re-freezing a
+  completed campaign against newer source -- that would silently re-stamp runs
+  with a code version that did not produce them.** Revert-and-retest is what
+  distinguishes drift from damage; do it before believing the message.
+
 ---
 
 ## PART 2 -- Mechanism
