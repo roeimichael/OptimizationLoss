@@ -1059,6 +1059,29 @@ comparison against it is available until it is restored.
   dsisco01 ViT estimate is the dsisco02 rate scaled by 3.1x (ViT is 10.4 min/run on
   dsisco02, hence ~32 min/run on dsisco01), not a measurement.
 
+- 🔑 **THE WHOLE OPTION C CORPUS IN ONE TALLY -- 60 contrasts, 1 tail for
+  TraLO and 4 against (re-scored from raw predictions 2026-09-20).** Both
+  campaigns, both backbones, every cap x rival x primary endpoint. MobileNetV3
+  252 runs / 12 seeds per cell, ViTB16 112 runs / 8, both BALANCED, both
+  dsisco02/bf16, every prediction hash distinct (no re-run counted as a seed).
+
+  | backbone | contrasts favouring TraLO | \|t\| >= 2 for | \|t\| >= 2 against |
+  |---|---|---|---|
+  | MobileNetV3 | 24 of 36 | 1 (L75 cc_f1 vs `fioretto`, +0.0058) | 0 |
+  | ViTB16 | 4 of 24 | 0 | 4 (largest -0.0181, t -3.3) |
+
+  ⚠️ **The 24-of-36 is NOT corroboration and must never be quoted as a sign
+  test.** All 36 contrasts share the same `tralo` runs and the same seeds, so
+  they are one heavily-correlated family, not 36 draws. The contrast that
+  actually separates the method from the recipe -- `tralo` - `tralo_null` --
+  peaks at **+0.0034, t +1.6 (p ~ 0.14)** on MobileNetV3 and is negative on
+  ViTB16. **There is no pocket of positive evidence left in the corpus.**
+
+  ⚠️ Stated symmetrically: n=12 detects ~0.009 and n=8 ~0.011 while these
+  effects are ~0.003, so MobileNetV3's null is **underpowered, not evidence of
+  absence**. The ViTB16 negatives do clear that bar, so the power caveat
+  excuses the flat cells and not the negative ones.
+
 ---
 
 ## PART 4 -- Closed and rejected
@@ -1243,7 +1266,14 @@ tests; they cannot establish the new campaign's success or failure.
 
 ## PART 5 -- Live candidates, not yet tested
 
-- ✅ **OPTION C IS CORRECTLY APPLIED END TO END -- verified 2026-09-17 on 52
+- ⛔ **RETRACTED AS A CANDIDATE -- OPTION C HAS NOW RUN AND IS CLOSED ON BOTH
+  BACKBONES (2026-09-20).** MobileNetV3 refuted (252 runs, 12 seeds), ViTB16
+  ambiguous-by-mapping and negative in direction (112 runs, 8 seeds). The
+  verdicts are in PART 4. What remains true and reusable is the plumbing
+  check below; it is kept because it is the evidence the cap is now specified
+  correctly, not because the direction is open.
+
+  ✅ **OPTION C IS CORRECTLY APPLIED END TO END -- verified 2026-09-17 on 52
   live runs.** Allocated predictions: **0 violations, 30.0/30 per-group ceilings
   saturated exactly**, in every arm at every cap level. Raw pre-allocation
   predictions: **52/52 violating**, 0.7/30 saturated. So the policy ceilings bind
@@ -1284,8 +1314,16 @@ tests; they cannot establish the new campaign's success or failure.
   ("it was comparing to a number, not checking parity"). **A gate that pins the
   one knob the diagnostics tell you to move is a gate that blocks the fix.**
 
-- 🟢 **THE EQUAL-PERCENTAGE POLICY CAP (`L50_G50` + `group_budget_shares`).**
-  The code exists and is gated (2.9); nothing has run on it. It is the first
+- ⛔ **RETRACTED: THE EQUAL-PERCENTAGE POLICY CAP HAS RUN.** Rule C
+  (`proportional_to_group_size`) was selected by the user on 2026-09-17 and
+  carried both Option C campaigns at L25/L50/L75. It answered both of the
+  open design questions below, and the answer was negative on each: a cap
+  decoupled from group size DOES change the deployed outcome, and the change
+  does not favour TraLO. The measurement that motivated it still stands and
+  is kept for the record.
+
+  🟢 **THE EQUAL-PERCENTAGE POLICY CAP (`L50_G50` + `group_budget_shares`).**
+  The code exists and is gated (2.9). It is the first
   configuration in which **both constraints bind** (2.7 says none so far did) and
   the first in which the local cap carries information the prevalence cannot
   reproduce. Two open design questions it would settle, which no existing cell
@@ -1320,8 +1358,14 @@ tests; they cannot establish the new campaign's success or failure.
   not an entitlement tier, so no external policy supplies the shares the way a
   hospital's membership rules would. Picking the rule is picking the scientific
   question and needs the user.
-- ⛔ **RESTORE `danits_lp` BEFORE CLAIMING ANYTHING AGAINST THE LP.** Absent from
-  the live tree; `lp_solver.py`, `heuristic.py`, `cost_matrices.py`,
+- ✅ **DONE 2026-09-19: `danits_lp` IS RESTORED** to `reference/danits_lp/`
+  (8 files, each recovered from its own last-present commit and verified by
+  EXECUTION via `selfcheck.py`, not by reading). It is reference material:
+  nothing under `reference/` is imported by `src/`. Wiring it in as a rival
+  arm still needs OR-Tools on the server and is not done.
+
+  ⛔ **RESTORE `danits_lp` BEFORE CLAIMING ANYTHING AGAINST THE LP.** Was absent
+  from the live tree; `lp_solver.py`, `heuristic.py`, `cost_matrices.py`,
   `constraints_builder.py` and `train.py` all recoverable from `cb516cb3^`.
   Needs OR-Tools. Until then the manuscript's second post-hoc clipper has no
   implementation in this repo.

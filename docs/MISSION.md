@@ -35,20 +35,27 @@ deliverable. Do not start a new research task to manufacture an advantage.
 
 ### Where the answer stands today
 
-**TraLO does not clear the bar, and the backbone is a real moderator.**
+**TraLO does not clear the bar on any backbone.** The backbone was thought to be
+a real moderator; under the corrected cap it is not -- the one exception reversed.
 
 - On MobileNetV2, MobileNetV3 and RegNetY400MF the constraint contributes nothing:
   every apparent clipper win is delivered by `tralo_null` at the same or a larger
   margin, and in `live11` the constraint is actively negative while its null posts
   the corpus's largest clipper win.
-- On **ViTB16 only**, `tralo` - `tralo_null` is positive on 4 of 4 (cap x metric)
-  combinations while the null LOSES to `clip` -- the one cell in 1,364 fmow2 runs
-  where the attributable contrast survives its own control. **n=4, only 1 of 4
-  reaches |t| >= 2, and seed 3 reverses everywhere.** A candidate, not a result.
-- **`focal_clip` beats `tralo` on ViTB16 with CIs excluding zero** (-0.022 to
-  -0.032 on F1 Macro and Precision Macro), so even the ViT cell is a live-null
-  result, not a rival-beating one. The best arm measured anywhere is **`aug_clip`
-  at budget 6** -- a post-hoc clipper with flip-and-crop and early stopping.
+- ⛔ **The ViTB16 exception is DEAD, reversed 2026-09-17 and re-confirmed from raw
+  predictions 2026-09-20.** It was the one cell in 1,364 fmow2 runs where
+  `tralo` - `tralo_null` survived its own control, and it was measured under the
+  PREVALENCE cap, where the ceiling is an affine image of the per-group label
+  histogram (LEDGER 2.9). Re-run under the corrected policy cap (`polcv2`, 112
+  runs, 8 seeds/cell, balanced), ViTB16 **flips to the worst arm of seven**:
+  `tralo` - `tralo_null` is **-0.0139** (t -2.0) on cc_f1 at L75 and **-0.0165**
+  (t -2.4) on F1 Macro at L25; ceiling precision 0.4610, last of seven; 805 true
+  positives evicted against 784-798 for every rival. **TraLO now has no cell
+  anywhere in which the attributable contrast is positive.**
+- **`focal_clip` beats `tralo` on ViTB16 with CIs excluding zero**, and does so
+  again under the corrected cap (-0.0181, t -3.3, the largest single contrast in
+  the corpus). The best arm measured anywhere is **`aug_clip` at budget 6** -- a
+  post-hoc clipper with flip-and-crop and early stopping.
 
 **The mechanism is proved, not guessed** (LEDGER PART 2). The loss is a function
 of the multiset of test probabilities while the allocator is a function of their
