@@ -1,5 +1,6 @@
 import logging
 import math
+import random
 import numpy as np
 from src.utils.constants import UNLIMITED
 
@@ -239,6 +240,45 @@ def compute_global_constraints(
     return constraints
 
 
+def permute_local_budgets(local, classes, seed):
+    """The matched control: move WHICH group holds each ceiling, nothing else.
+
+    Within each constrained class the multiset of ceilings is preserved exactly,
+    so the per-class total -- and therefore the tie to Psi that makes both
+    constraints bind -- is untouched. Only the group-to-ceiling assignment
+    changes, which is precisely the information the transductive claim says the
+    budgets carry.
+
+    If the permuted budgets perform as well as the real ones, the budgets are
+    not doing the work and both the transductive claim and the constraint claim
+    fail. It is the strongest matched control obtainable, because by M2 a
+    permutation changes only the gain trajectory and leaves the field direction
+    untouched.
+    """
+    groups = sorted(local)
+    rng = random.Random(seed)
+    out = {g: list(local[g]) for g in groups}
+    for c in classes:
+        capped = [g for g in groups if local[g][c] < UNLIMITED]
+        if len(capped) < 2:
+            continue
+        values = [local[g][c] for g in capped]
+        if len(set(values)) < 2:
+            # A genuine no-op: every ceiling in this class is the same number,
+            # so no assignment of them differs. Say so rather than pretend the
+            # control bit.
+            log.warning("permute_group_budgets: class %d has one distinct ceiling "
+                        "across %d groups, so the permutation is an identity and "
+                        "this class measures nothing.", c, len(capped))
+            continue
+        shuffled = list(values)
+        while shuffled == values:
+            rng.shuffle(shuffled)
+        for g, k in zip(capped, shuffled):
+            out[g][c] = k
+    return out
+
+
 def compute_local_constraints(
     data,
     target_col,
@@ -247,6 +287,7 @@ def compute_local_constraints(
     constrained_class,
     num_classes,
     group_budget_shares=None,
+    permute_group_budgets=None,
     **kwargs
 ):
     """Per-(group, class) ceilings: Phi[lambda][i] of Shifman et al. Eq. (2).
@@ -269,10 +310,13 @@ def compute_local_constraints(
     """
     classes = normalize_constrained_classes(constrained_class)
     if group_budget_shares is not None:
-        return _local_constraints_from_shares(
+        local = _local_constraints_from_shares(
             data, target_col, percentage, group_col, classes, num_classes,
             group_budget_shares,
         )
+        if permute_group_budgets is not None:
+            local = permute_local_budgets(local, classes, permute_group_budgets)
+        return local
     local = {}
     for group in data[group_col].unique():
         gdata = data[data[group_col] == group]
@@ -286,6 +330,8 @@ def compute_local_constraints(
                 count, pct, f"local K (group {group}, class {c})"
             )
         local[group] = constraints
+    if permute_group_budgets is not None:
+        local = permute_local_budgets(local, classes, permute_group_budgets)
     return local
 
 

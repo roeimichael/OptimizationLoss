@@ -1441,7 +1441,18 @@ tests; they cannot establish the new campaign's success or failure.
   is a compute-budget decision to be asked, not taken. 🛑 The split must be carved
   from TRAIN countries only and its labels must never reach a gradient -- it selects
   among already-trained checkpoints and nothing else.
-- **The budget-permuted twin.** Identical code and schedule, budgets permuted across
+- 🟢 **THE BUDGET-PERMUTED TWIN -- BUILT AND GATED 2026-09-20, ready to launch.**
+  `permute_group_budgets: <seed>` on a dataset config, plumbed through
+  `data_loader`, `campaign` and `gen_campaign` exactly like `group_budget_shares`.
+  Within each constrained class the multiset of ceilings is preserved exactly, so
+  the per-class total -- and the tie to Psi that makes both constraints bind --
+  is untouched; only the group-to-ceiling assignment moves.
+  `tests/test_permuted_budgets.py`, 14 tests, and the gate is proved by MUTATION:
+  an identity permutation fails 2 tests, a one-item change to a class total fails
+  6. It WARNS instead of pretending when a class has one distinct ceiling across
+  all groups, which is a genuine no-op rather than a permutation.
+
+  Identical code and schedule, budgets permuted across
   groups within a class. By M2 this changes only the gain trajectory and leaves the
   field direction untouched, so it is the closest matched control obtainable. **If
   the effect survives permutation the budgets are not doing the work and both the

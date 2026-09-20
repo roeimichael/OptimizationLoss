@@ -312,6 +312,7 @@ def _load_imagery_data(config):
         constrained_class=constrained_class,
         num_classes=num_classes,
         group_budget_shares=ds.get("group_budget_shares"),
+        permute_group_budgets=ds.get("permute_group_budgets"),
     )
     log.info(
         "mode=%s classes=%d constrained=%s global=%s local_groups=%d test=%d train=%d",

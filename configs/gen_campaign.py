@@ -191,6 +191,7 @@ def validate(P, args, resolved, arms):
                     constrained_class=classes,
                     num_classes=dc["num_classes"],
                     group_budget_shares=dc.get("group_budget_shares"),
+                    permute_group_budgets=dc.get("permute_group_budgets"),
                 )
     for arm in arms:
         build_hyperparams(P, P["arms"][arm], seeds[0])
