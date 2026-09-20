@@ -65,11 +65,15 @@ IS the optimum for selection-rate constraints, with one crack: it is optimal onl
 when the score is Bayes-optimal (Woodworth et al., COLT 2017). **A training-time
 win is permitted only by improving the SCORE.**
 
-**And the root cause is measured** (LEDGER PART 2.3): every constraint term this
-project has run is computed on TRAIN data, where the model reaches 0.9999 accuracy
-and the violation is **identically zero in 174 of 174 cells**. The term is
-multiplied by an empty support for ~80% of training. **Fixing the loss FUNCTION
-cannot fix this -- the defect is which DATA the term is computed on.**
+⛔ **The "root cause" in LEDGER 2.3 was RETRACTED 2026-09-20.** It said the
+constraint runs on TRAIN data where violation is identically zero. It does not:
+`runner.py:109` binds `X_test = data.X_test`, and `tralo` plus all four duals run
+their whole backward pass over the deployment pool. In the logs the term is
+violated in **288 of 288 constraint epochs across 60 runs (0.0% satisfied)**,
+growing ~1500x to a gradient norm of 6399 while the capped class sits 4x over
+budget. **The term is maximally alive and TraLO still loses** -- which closes
+"the term was never alive" as an escape and leaves M1 as the operative
+mechanism. The held-out-fold direction this opened is cancelled.
 
 ### What is settled
 

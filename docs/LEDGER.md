@@ -300,13 +300,54 @@ family). Learning-from-label-proportions does NOT transfer: LLP's counts are
 observed LABELS (new supervision), ours are caps on PREDICTIONS (no supervision)
 -- the cleanest statement of why the penalty is information-free.
 
-### 2.3 ROOT CAUSE: the constraint is computed where its violation is EXACTLY ZERO
+### 2.3 ⛔ RETRACTED 2026-09-20 -- THE TERM IS NOT COMPUTED ON TRAIN DATA
 
-Measured 2026-09-16 by loading the actual rank3 warm-up checkpoint
-(`MobileNetV3_fmow2_5aa9cfb1e37a.pt`) and scoring the real train and test splits.
-Not a simulation. Every constraint term this project has run -- the count
-penalty, all four duals, `budgeted_rank_loss`, the proposed inversion loss -- is
-computed on TRAIN data. At the deployed cut (cap 0.90, classes 1/2/7):
+**The premise below is false, and the conclusion drawn from it is withdrawn.**
+The claim was that every constraint term runs on TRAIN data, where violation is
+identically zero, making the term silent for ~80% of training. Two independent
+checks refute it:
+
+1. **By reading the source** (not grep -- the files are read end to end):
+   `src/experiments/runner.py:109` binds `TrainInputs.X_test = data.X_test`, the
+   real deployment pool, and `group_ids = groups_test`.
+   `src/methodologies/tralo/train.py` computes its soft counts and runs its
+   entire backward pass over `model(X_test[...])`. All four duals do the same
+   (`fioretto_alm`, `fioretto_ldf`, `hounie_rcl` each bind `X_test_dev =
+   inputs.X_test`). **Only `budgeted_rank_loss` uses train data -- and no arm
+   using it has ever run.**
+2. **By the logs**, across every Option C run: **0 of 288 constraint epochs in
+   60 `tralo` runs was ever satisfied -- 0.0%.** A representative L25 run:
+
+   | epoch | train acc | L_Global | L_Local | grad norm | Hard_Class1 vs limit 91 |
+   |---|---|---|---|---|---|
+   | 2 | 0.842 | 0.04 | 0.27 | 2.7 | 410 |
+   | 4 | 0.961 | 10.3 | 70.0 | 1080 | 333 |
+   | 7 | 0.985 | 56.1 | 404.7 | 6399 | 402 |
+
+   The term grows ~1500x, the gradient norm reaches 6399, and the class is
+   over-budget **4x in every epoch**. It is not silent; it is maximally alive.
+
+🔑 **This makes the negative result STRONGER, not weaker.** The constraint is
+computed exactly where the transductive setting says it should be, is violated
+throughout training, and delivers a large gradient -- and TraLO still does not
+beat a post-hoc clipper (PART 3, PART 4). **"The term was never alive" is now
+closed as an explanation.** M1 stands as the operative mechanism: the loss is a
+function of the probability MULTISET while the allocator is a function of their
+RANKS, so a live, large, well-aimed term still cannot prefer a correct ordering.
+
+⚠️ **The direction this section opened in PART 5 -- route the constraint to a
+held-out fold of the train groups -- is therefore CANCELLED.** It would move the
+term from a pool where it is 4x violated onto a fold where it would be violated
+less. That is strictly worse, and it was approved by the user on the strength of
+this section before the section was checked.
+
+**What the original measurement DID establish**, and which stands: on train the
+term would be silent (V=0 in 174/174 cells), on test it is not (V=5,507, 26 of
+27 cells live). Its own TEST column always contained the refutation of the
+premise sentence. The error was asserting the code used the TRAIN column.
+
+Original measurement, 2026-09-16, from the rank3 warm-up checkpoint
+(`MobileNetV3_fmow2_5aa9cfb1e37a.pt`) at the deployed cut (cap 0.90, classes 1/2/7):
 
 | | TRAIN (17,670 items) | TEST (3,442 items) |
 |---|---|---|
@@ -331,13 +372,13 @@ is inside to swap with them.
 MobileNetV2 alike). Support scales with `(1 - accuracy)`, so the term carried real
 signal for roughly **epochs 1-5 of 30** and was silent for the remaining 80%.
 
-**This SUBSUMES 2.4 and 2.5 below**: they describe the shape of a gradient that
-is, for 80% of training, multiplied by an empty support. **Fixing the loss
-FUNCTION cannot fix this -- the defect is which DATA the term is computed on.**
+⛔ **WITHDRAWN with the premise:** this paragraph claimed to subsume 2.4 and 2.5
+because the gradient was multiplied by an empty support for 80% of training. The
+support is not empty -- it is the test pool, violated in 288 of 288 epochs. **2.4
+and 2.5 are NOT subsumed and stand on their own.**
 Train 0.9999 against test 0.6322 is a 37-point generalisation gap, and the term is
 asked to repair an ordering that is already perfect on every item it can see,
-which is consistent with 2.2 and with every null in PART 4. The direction it opens
-is in PART 5.
+which is consistent with 2.2 and with every null in PART 4. ⛔ The direction it opened in PART 5 is cancelled, above.
 
 ### 2.4 The ranking gradient is UNCERTAINTY-weighted, not CUT-anchored
 
@@ -1370,8 +1411,13 @@ tests; they cannot establish the new campaign's success or failure.
   Needs OR-Tools. Until then the manuscript's second post-hoc clipper has no
   implementation in this repo.
 
-- 🟢 **COMPUTE THE CONSTRAINT ON A HELD-OUT FOLD OF THE TRAIN GROUPS.** The
-  direction PART 2.3 opens, and the first candidate motivated by a measured zero
+- ⛔ **CANCELLED 2026-09-20 -- ITS PREMISE WAS RETRACTED (2.3).** The constraint
+  already runs on the test pool, where it is violated in 288 of 288 epochs.
+  Routing it to a held-out train fold would make the term LESS violated, not
+  more. Cancelled before any compute was spent.
+
+  🟢 **COMPUTE THE CONSTRAINT ON A HELD-OUT FOLD OF THE TRAIN GROUPS.** The
+  direction PART 2.3 opened, and the first candidate motivated by a measured zero
   rather than a theory of the surrogate. The term's violation is identically 0 on
   train because the model memorises it; on a fold cross-entropy does not fit,
   `V > 0` and the term is alive for all 30 epochs. Uses TRAIN labels only, touches
