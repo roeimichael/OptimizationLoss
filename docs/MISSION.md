@@ -135,6 +135,29 @@ hashes, no re-runs counted as seeds). **Verdict taken once against the mapping
 fixed at 130/252: outcome 3, REFUTED, on both primary endpoints.** Full numbers
 and the mechanism in LEDGER PART 4.
 
+### LIVE: the augmentation cell -- checked 2026-09-21 13:23 IDT (server clock)
+
+| campaign | host | GPU | runner | caps | seeds | runs | budget |
+|---|---|---|---|---|---|---|---|
+| `augfin_a` | dsisco02 | 0 | `afa2` | L25_G25 L75_G75 | 1-6 | 84 | 11 (1+10) |
+| `augfin_b` | dsisco02 | 1 | `afb`  | L25_G25 L75_G75 | 7-12 | 84 | 11 (1+10) |
+
+Seven arms each, single stamp `99504a126ff1`, bf16, no scaler. Launched 13:16
+and 13:17, both confirmed training at 88% GPU. GPUs 2-3 free; dsisco01 idle.
+**Pre-registered reading is above -- the decisive contrast is `aug_tralo` -
+`aug_clip`, NOT `aug_tralo` - `clip`.**
+
+⚠️ **NOT YET DONE: the `firstrun` gate.** Nothing may be read from these runs
+until `gate:saturation` and `gate:trainlog` pass. Augmentation should hold the
+boundary live for ~5 of 10 constraint epochs; below 33% the cell is killed early.
+Run: `python -m scripts.run_campaign --root augfin_a --step firstrun`
+
+⚠️ The runner resolves `<worktree>/<root>` RELATIVE TO ITS CWD. Launching from
+`~/optloss-rank` makes it look for `optloss-rank/optloss-rank/augfin_a` and it
+logs `SKIP -- does not exist`, then exits cleanly with the GPU idle. **Launch
+from `$HOME`.** The first `afa` runner died this way and was relaunched as
+`afa2`.
+
 ### DONE: Option C on ViTB16 -- AMBIGUOUS by the mapping, NEGATIVE in direction
 
 `polcv2_a` + `polcv2_b`, **112 of 168 runs** (56 lost to `OSError 28`, disk
