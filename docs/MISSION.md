@@ -219,6 +219,46 @@ Any future campaign plan must budget for it or clear it first.
 
 ## PRE-REGISTERED READINGS -- fixed before the numbers, do not reinterpret
 
+### `augfin_a` + `augfin_b` -- the augmentation cell, written 2026-09-21 BEFORE launch
+
+**Why this exists.** Every other direction is closed (PART 4). The augmentation x
+constraint interaction is the ONLY one in which the constraint has never been
+harmful: positive in 5 of 6 budget-8 cells across three backbones (+0.004 to
++0.010), with ViTB16 the lone negative and also the cell that fails the
+saturation gate. It has never run at adequate power, and never under the
+corrected policy cap. This is the last live lead.
+
+**Design.** MobileNetV3 x fmow2, caps `L25_G25` and `L75_G75`, 7 arms, seeds
+1-12 split across two roots, dsisco02/bf16. `total_epochs 11` because
+augmentation roughly doubles the live window (3 -> ~5) and the budget rule is
+`2 x live + 1`; every arm in the campaign carries the same 11, so the dose is
+equal. `group_budget_shares: proportional_to_group_size` -- the corrected cap.
+
+**The two contrasts, fixed now.**
+- **Decisive:** `aug_tralo` - `aug_clip`. Same augmentation, same budget, same
+  allocator; differs only in whether the constraint trained. This is the bar.
+- **Attributable:** `aug_tralo` - `aug_tralo_null`. Isolates the constraint
+  inside the augmented column.
+
+🛑 **`aug_tralo` - `clip` and `aug_tralo` - `focal_clip` are NOT the test.**
+`stab8` already showed those large wins (cc-F1 +0.018 to +0.020, t 5.6-7.0) are
+the AUGMENTATION, not the constraint. Quoting them as a TraLO win is the exact
+error this pre-registration exists to prevent.
+
+**Outcomes, fixed before the numbers.**
+1. **CONFIRMED** -- `aug_tralo` - `aug_clip` > 0 on cc_f1 with a 95% CI excluding
+   zero, AND `aug_tralo` - `aug_tralo_null` > 0. This would be the project's
+   first positive result that survives both its rival and its own control.
+2. **AMBIGUOUS** -- the attributable contrast is positive but the decisive one is
+   not, or either CI includes zero. Reported as underpowered, not as a win.
+3. **REFUTED** -- `aug_tralo` - `aug_clip` <= 0 on cc_f1. The interaction is the
+   augmentation, and the last non-harmful direction closes with it.
+
+**Gate before reading anything:** `gate:saturation` at firstrun. Augmentation
+should hold the boundary live for ~5 of 10 constraint epochs (~50%). If it comes
+in below 33% the cell is killed early, as `polcv_a`/`polcv_b` were.
+
+
 ### Option C on ViTB16 (`polcv_a` + `polcv_b`, written 2026-09-17 02:10, BEFORE launch)
 
 **Why this exists.** Option C is REFUTED on MobileNetV3 (LEDGER PART 4). ViTB16

@@ -1,0 +1,36 @@
+{
+  "arm": "clip",
+  "base_model_id": "MobileNetV3_fmow2_9d77971bcd96",
+  "code_version": "99504a126ff1",
+  "constraint": [
+    0.75,
+    0.75
+  ],
+  "constraint_tag": "L75_G75",
+  "dataset_config": {
+    "constrained_class": [
+      1,
+      2,
+      7
+    ],
+    "data_dir": "data/fmow2/oodslice",
+    "disjoint_groups": true,
+    "group_budget_shares": "proportional_to_group_size",
+    "group_column": "location",
+    "num_classes": 8
+  },
+  "dataset_mode": "fmow2",
+  "exp_name": "MobileNetV3_fmow2_clip_L75_G75_c1-2-7_seed10",
+  "hyperparams": {
+    "batch_size": 64,
+    "constraint_epochs": 0,
+    "dropout": 0.3,
+    "lr": 0.0001,
+    "pretrained": true,
+    "seed": 10,
+    "warmup_epochs": 11
+  },
+  "methodology": "heuristic",
+  "model_name": "MobileNetV3",
+  "status": "pending"
+}

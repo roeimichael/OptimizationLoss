@@ -1,0 +1,550 @@
+{
+  "campaign_id": "d272fbd368ba41f782d9d2d9722eea11",
+  "configs": {
+    "MobileNetV3/fmow2/L25_G25/aug_clip/seed_10/config.json": "aeeb39bb4a8d91709e9d5065d3a1e44cee3eea9acc791121a1cc5aaf3fadf035",
+    "MobileNetV3/fmow2/L25_G25/aug_clip/seed_11/config.json": "283661e1dd52b39038872f32b4a3cdc8d3d4df74140a5ebc6c9a129a6ec24b0d",
+    "MobileNetV3/fmow2/L25_G25/aug_clip/seed_12/config.json": "789dd66f3cc110a3900daeb2684c3fab4fd3d81e36b629b8a9afcf469f85e101",
+    "MobileNetV3/fmow2/L25_G25/aug_clip/seed_7/config.json": "532189c9426f5f6e605e9c1937a13a89e4bcae32237d85fd4a10ca6df9cd3891",
+    "MobileNetV3/fmow2/L25_G25/aug_clip/seed_8/config.json": "55bc6220169c88892e921fc23eebf6cbd17d97de8385d3d3caf8525a3af51a02",
+    "MobileNetV3/fmow2/L25_G25/aug_clip/seed_9/config.json": "8bab51d716ab39e909ab97ffb5d2523ddbab06bc44977e6463587310a4712251",
+    "MobileNetV3/fmow2/L25_G25/aug_tralo/seed_10/config.json": "b5ec788402ee011d54e401a54473d7c9b8c3c451b68d5d64e83af1f8caffdd47",
+    "MobileNetV3/fmow2/L25_G25/aug_tralo/seed_11/config.json": "c86d0bdf4eeab40261d2494578fb2e433c724fe5670a0e4415029763a46ce8db",
+    "MobileNetV3/fmow2/L25_G25/aug_tralo/seed_12/config.json": "7eee2f889e5bd84adde4097426a3386b2bea7bcf20762974bed581d3afb2f346",
+    "MobileNetV3/fmow2/L25_G25/aug_tralo/seed_7/config.json": "1a5c7391faca3483fb4f6dd2f9aa8698b9aab7d0c24fb54803262af9bf911570",
+    "MobileNetV3/fmow2/L25_G25/aug_tralo/seed_8/config.json": "45da6b9a4c54d3fc653890d205717b837be42e0f88daae362669c33b44e795a8",
+    "MobileNetV3/fmow2/L25_G25/aug_tralo/seed_9/config.json": "ec1e57c13b868d68b6535cb1fbbe915ecce6eeba560d991899a5ca513218f859",
+    "MobileNetV3/fmow2/L25_G25/aug_tralo_null/seed_10/config.json": "8ac4f79dc0a93d8f439c2e6a14510b00a51344d377d334dc6333187f0676e731",
+    "MobileNetV3/fmow2/L25_G25/aug_tralo_null/seed_11/config.json": "a243fc6c08f3617c67ad0539c7ff5ff6eeeeb6a2e4fccf5eb7ff43b6627a583f",
+    "MobileNetV3/fmow2/L25_G25/aug_tralo_null/seed_12/config.json": "3275a5290be5542cb03a689046c2e3ad6c6d00e4ceba8f7947ad125264a19bf0",
+    "MobileNetV3/fmow2/L25_G25/aug_tralo_null/seed_7/config.json": "8a659225f5f5d64b09bffa13974b9cda302ceb5095fad526ae9a979d5f0b3cd0",
+    "MobileNetV3/fmow2/L25_G25/aug_tralo_null/seed_8/config.json": "eee32e6dca3391a57ab74476afeadcb87847873b65d6516a143386d4d8607cff",
+    "MobileNetV3/fmow2/L25_G25/aug_tralo_null/seed_9/config.json": "288cfbdca8e8fb891b32b473531fdd5be35414c9572871ac1a30e7896cad381f",
+    "MobileNetV3/fmow2/L25_G25/aug_tralo_stab/seed_10/config.json": "11be470ae5a5c6b089057b20a320136c6977d72286b2c19d3b271d7baf6a7814",
+    "MobileNetV3/fmow2/L25_G25/aug_tralo_stab/seed_11/config.json": "53eebb3887c3826cf9dbad33927c468c977dfaf491148bd1cc60d094cf8a0034",
+    "MobileNetV3/fmow2/L25_G25/aug_tralo_stab/seed_12/config.json": "6b779cc3f93226fee5ca25ae6be00657c65f1864c8e85ab42eb56b0ad251358d",
+    "MobileNetV3/fmow2/L25_G25/aug_tralo_stab/seed_7/config.json": "50aa096b989bc6ec29e428415563a5ce09ad1dff2b4413fdae7bc3c9212a4669",
+    "MobileNetV3/fmow2/L25_G25/aug_tralo_stab/seed_8/config.json": "a9c2000ef74597ee0726de1ed99aa06c4ff1f5169f8cb64d254dbe027507b8c1",
+    "MobileNetV3/fmow2/L25_G25/aug_tralo_stab/seed_9/config.json": "33c4a63cdd1a3b12b9638a4ec8768abce6b49bb5e7caad57ccd20d5d22f82af4",
+    "MobileNetV3/fmow2/L25_G25/clip/seed_10/config.json": "4e84a466a3c34137d4b2fd9893a284797b3cc4283c16baaedb38cf48736396b5",
+    "MobileNetV3/fmow2/L25_G25/clip/seed_11/config.json": "e4697d0370758e15954cd4b1e83d9a3cbd56102abe1a9b22c2b6662e75770dcb",
+    "MobileNetV3/fmow2/L25_G25/clip/seed_12/config.json": "9298a9bc13abd9fc6e85cd3f9022851e745ab15d14cf4fb77084dc94ae4e6cc2",
+    "MobileNetV3/fmow2/L25_G25/clip/seed_7/config.json": "eb9c72acc55ccc4ddf503ee02ed4bc0ebf4002a5df8ac564937a2dba383d9fbb",
+    "MobileNetV3/fmow2/L25_G25/clip/seed_8/config.json": "0d5daa881011e0f76329fdaed15ad0ec14c1cd5efed69f233663e9334228a1c8",
+    "MobileNetV3/fmow2/L25_G25/clip/seed_9/config.json": "4f3f387abd44412e5a12e59983ce58adcd3e2781a409a514eec302c679371293",
+    "MobileNetV3/fmow2/L25_G25/focal_clip/seed_10/config.json": "47fa4e593fa14469bcd52eb783bbba4b1a62edc25189304a4a9e97a251352519",
+    "MobileNetV3/fmow2/L25_G25/focal_clip/seed_11/config.json": "b9eb2d2d29f2d5cacffc6198552b6ebc7365d55f9dfc1bde42ad641c98e9a8f3",
+    "MobileNetV3/fmow2/L25_G25/focal_clip/seed_12/config.json": "9f0b2ad92ef9192d67b7dd27860091cabc36a10acae1ac9119c40aae27cdf5ae",
+    "MobileNetV3/fmow2/L25_G25/focal_clip/seed_7/config.json": "c1c06da4b59358e8357d09b54bf38a8f07c32decc5b07f9f34514f7e79b9af72",
+    "MobileNetV3/fmow2/L25_G25/focal_clip/seed_8/config.json": "857a3d142bc4f4dc78230ef3487e112634f3b200ba159803779de8c0a3e58739",
+    "MobileNetV3/fmow2/L25_G25/focal_clip/seed_9/config.json": "ba2560d1dec0bc3ef9457df7382e7f26b3e7a6d819315d404ac2b4f153fd3ea8",
+    "MobileNetV3/fmow2/L25_G25/tralo_null/seed_10/config.json": "4495a55434fce997916de28c36f8dd40c9d9f01259fdadb79c95638ecacd71c6",
+    "MobileNetV3/fmow2/L25_G25/tralo_null/seed_11/config.json": "27ceb1bc895877f03a2b8bfea2866a6fbb129aa10fc4788115a9c55f1e00dec8",
+    "MobileNetV3/fmow2/L25_G25/tralo_null/seed_12/config.json": "dd1ea7d977ddf30cfab11b9b7acd44b9f3713341de82934b82532ee46b8d953d",
+    "MobileNetV3/fmow2/L25_G25/tralo_null/seed_7/config.json": "161c6d6993cefe04819b8b85e01ae6fdc420808a854348902d1f0dffda348a44",
+    "MobileNetV3/fmow2/L25_G25/tralo_null/seed_8/config.json": "18db2e0bdc4aa7706efcd0dbe57a30daf106fa9ae906a0682a7be7201936d295",
+    "MobileNetV3/fmow2/L25_G25/tralo_null/seed_9/config.json": "3daf0176a800d3644b561e65ab7dbffeb0075d3062469e1e8fb987576c9c3b88",
+    "MobileNetV3/fmow2/L75_G75/aug_clip/seed_10/config.json": "c1a4872ced83b9337757793b7b90b1988df193b4c859742246db843aa56ec484",
+    "MobileNetV3/fmow2/L75_G75/aug_clip/seed_11/config.json": "532b39f73fa04c59dad36f758ac98d0aa06ce8c415201fdd0ba9f460ccd5512b",
+    "MobileNetV3/fmow2/L75_G75/aug_clip/seed_12/config.json": "906f3d3d8057321d4a0ba997b3f872fc9be19e9b3688622f1393aba936eb1068",
+    "MobileNetV3/fmow2/L75_G75/aug_clip/seed_7/config.json": "785e5d569767ef8047e8eadca6122dbf23479dca551411087529db4a3404852a",
+    "MobileNetV3/fmow2/L75_G75/aug_clip/seed_8/config.json": "34dee9f9039504fd7ae08967a079995bf39c9acc69abfc9f1827418553676ca0",
+    "MobileNetV3/fmow2/L75_G75/aug_clip/seed_9/config.json": "bda9a73075fae6746a75654a5d4fc3688d6c74dcf93ef9fbf43b25e635ea980f",
+    "MobileNetV3/fmow2/L75_G75/aug_tralo/seed_10/config.json": "3610817e2e194d880567cdcd02f4b5c961bbf5e9900aecd763377e3a35b34294",
+    "MobileNetV3/fmow2/L75_G75/aug_tralo/seed_11/config.json": "3115a39058737de11eee88200c27d48dac66beb539e32b5d7b36b5a6e6098156",
+    "MobileNetV3/fmow2/L75_G75/aug_tralo/seed_12/config.json": "b873477e13c30dc34798e98b7c003dcbb7a7768e67a556a86166c199b808d576",
+    "MobileNetV3/fmow2/L75_G75/aug_tralo/seed_7/config.json": "400ead2417f69f8273e618d02f14d199be72105dba480b938b7f765c047632d2",
+    "MobileNetV3/fmow2/L75_G75/aug_tralo/seed_8/config.json": "cb27e5b7b0ea910ca906d0fedc0786b6cce7260d4ff0e5dba90feb49c786bc84",
+    "MobileNetV3/fmow2/L75_G75/aug_tralo/seed_9/config.json": "97670b1c14b1d101534b823bf09c8c6ed8d4995250813fd4d809ba4bdcb18c28",
+    "MobileNetV3/fmow2/L75_G75/aug_tralo_null/seed_10/config.json": "aa556d2c2b40f38bcca3bc0167a5c288726127fd8830ae6ac8544f0ad9fd1701",
+    "MobileNetV3/fmow2/L75_G75/aug_tralo_null/seed_11/config.json": "73e4619cbacfd2aeb5eba59f1ddd972753f065596bc4e9f2c8ebe52c42256560",
+    "MobileNetV3/fmow2/L75_G75/aug_tralo_null/seed_12/config.json": "80c1b21974d62d94f6ac83e5b2691444264f3c71344837c996c88f1cfd803b3a",
+    "MobileNetV3/fmow2/L75_G75/aug_tralo_null/seed_7/config.json": "c5d9b7985a9958bec1e0c0d9f7b778d9fe75ffa7f5745453e63004135d3526a5",
+    "MobileNetV3/fmow2/L75_G75/aug_tralo_null/seed_8/config.json": "cd34b268fb697365bf82a78c876426026ca58418a56b6fa805296e7ffa36aa5c",
+    "MobileNetV3/fmow2/L75_G75/aug_tralo_null/seed_9/config.json": "63864787287e00992e1f473504e81959722bf317a23b4398fca00896915403fe",
+    "MobileNetV3/fmow2/L75_G75/aug_tralo_stab/seed_10/config.json": "e368d72eac0c055a53ee0b7ed9d51759c605a21a2a24373736f06b111d850e05",
+    "MobileNetV3/fmow2/L75_G75/aug_tralo_stab/seed_11/config.json": "539e03115a8da1f72b970677954582fb086e3764f3282439d50307044bebe235",
+    "MobileNetV3/fmow2/L75_G75/aug_tralo_stab/seed_12/config.json": "45f11308c72664c7a20e2664ca75cacb976ce0443618bd93d1eaa124dbd37639",
+    "MobileNetV3/fmow2/L75_G75/aug_tralo_stab/seed_7/config.json": "f1208682e400dd35c69be51e9f5b3ac0a917e8f8f6429db394b5f9f95e13e773",
+    "MobileNetV3/fmow2/L75_G75/aug_tralo_stab/seed_8/config.json": "9f5e8ce99677313f61d75c9c07654955f3d67babc764951583d37e8d1556208f",
+    "MobileNetV3/fmow2/L75_G75/aug_tralo_stab/seed_9/config.json": "b5f53e1d635250ff3d9a1cb9876a503b33c2dd5ec0469c99173369d871a20cb8",
+    "MobileNetV3/fmow2/L75_G75/clip/seed_10/config.json": "5feb3f312ace6cf125b4a643d4ae7be3902f3e7fd394535e04541346d3528530",
+    "MobileNetV3/fmow2/L75_G75/clip/seed_11/config.json": "f2a32951cfcacb785da6661e161cdc1da36997fe19811e90d43b267b5a72e71b",
+    "MobileNetV3/fmow2/L75_G75/clip/seed_12/config.json": "c765599e42c68a350de3e47da066e500450dae4eaf8c98840611a076d276427c",
+    "MobileNetV3/fmow2/L75_G75/clip/seed_7/config.json": "17aacdf647ce4afb612920ff52e681b223b4964a32821d194347326a641bf922",
+    "MobileNetV3/fmow2/L75_G75/clip/seed_8/config.json": "de387124c064068e5a5f4dddd98f78d5b2630e24bc52116ce8007a9d54ef0a0f",
+    "MobileNetV3/fmow2/L75_G75/clip/seed_9/config.json": "4a6046e9d147cd1122708ae0cd71bf80364bbf035c6a68ec3468e4841a577e8d",
+    "MobileNetV3/fmow2/L75_G75/focal_clip/seed_10/config.json": "854e15d7f9a7e0ebbdaa8aec38f3f550769a941d062fe6ec3d87ab0ffcf96bd8",
+    "MobileNetV3/fmow2/L75_G75/focal_clip/seed_11/config.json": "813a2e8af5233922364884bbc4d8b256ad5971fd96eaa6816ee948c108d134ae",
+    "MobileNetV3/fmow2/L75_G75/focal_clip/seed_12/config.json": "b2e7dd01fe7edcd24f7a615a997412f1a738a851186d745c0bc9e40fc9bf00fd",
+    "MobileNetV3/fmow2/L75_G75/focal_clip/seed_7/config.json": "7bf2089dfe2e1dcc9137bd15b89108784e24fff0b266566a5a8a96b764175a4e",
+    "MobileNetV3/fmow2/L75_G75/focal_clip/seed_8/config.json": "a8a48385ab68ef7490393b2d9e2ed6afd3457e974737d37568555e1753330ee6",
+    "MobileNetV3/fmow2/L75_G75/focal_clip/seed_9/config.json": "5602cb71cc9d55a99998f46ff4e366d2978470756027b93da61946357fb1deb8",
+    "MobileNetV3/fmow2/L75_G75/tralo_null/seed_10/config.json": "b1ef3f937d5cf0578a3ffdcb5b1fb3442f047cc5022881bfa0d1d33af4b54984",
+    "MobileNetV3/fmow2/L75_G75/tralo_null/seed_11/config.json": "44e983111f0b518b1fe9cfd6c622f8a083d35d9ef4567f301d626bfa810f37e1",
+    "MobileNetV3/fmow2/L75_G75/tralo_null/seed_12/config.json": "a90b3229f598427bda694f03848aefd4f44400f63eb4b6d7c363cf14459b5b03",
+    "MobileNetV3/fmow2/L75_G75/tralo_null/seed_7/config.json": "92dce33780435cfefa2d166edd6ae3dc586db46dcca7aa6fe4d531cb34045218",
+    "MobileNetV3/fmow2/L75_G75/tralo_null/seed_8/config.json": "abe0d4272decf7e6885457ff2d0591cf070455c879dd47043c20dd5f416f0687",
+    "MobileNetV3/fmow2/L75_G75/tralo_null/seed_9/config.json": "f580a5c8a0f97c90357da419da9e40bcf6b00c6729e9dc1c9704a00ed931550a"
+  },
+  "deployment": "joint-greedy-prob256-v1",
+  "metrics": "fixed-classes-zero-division0-ccf1-v1",
+  "protocol": {
+    "arms": {
+      "alm": {
+        "blocks": [
+          "constraint_phase",
+          "alm"
+        ],
+        "methodology": "fioretto_alm",
+        "phase": "trained"
+      },
+      "alm_b6": {
+        "blocks": [
+          "constraint_phase",
+          "alm",
+          "b6"
+        ],
+        "methodology": "fioretto_alm",
+        "phase": "trained"
+      },
+      "alm_b7": {
+        "blocks": [
+          "constraint_phase",
+          "alm",
+          "b7"
+        ],
+        "methodology": "fioretto_alm",
+        "phase": "trained"
+      },
+      "aug_clip": {
+        "blocks": [
+          "augment"
+        ],
+        "methodology": "heuristic",
+        "phase": "posthoc"
+      },
+      "aug_rank_clip": {
+        "blocks": [
+          "rank",
+          "augment"
+        ],
+        "methodology": "heuristic",
+        "phase": "posthoc"
+      },
+      "aug_tralo": {
+        "blocks": [
+          "constraint_phase",
+          "tralo",
+          "augment"
+        ],
+        "methodology": "tralo",
+        "phase": "trained"
+      },
+      "aug_tralo_null": {
+        "blocks": [
+          "constraint_phase",
+          "tralo_null",
+          "augment"
+        ],
+        "methodology": "tralo",
+        "phase": "trained"
+      },
+      "aug_tralo_stab": {
+        "blocks": [
+          "constraint_phase",
+          "tralo_stab",
+          "augment"
+        ],
+        "methodology": "tralo",
+        "phase": "trained"
+      },
+      "clip": {
+        "blocks": [],
+        "methodology": "heuristic",
+        "phase": "posthoc"
+      },
+      "clip_b12": {
+        "blocks": [
+          "b12"
+        ],
+        "methodology": "heuristic",
+        "phase": "posthoc"
+      },
+      "clip_b5": {
+        "blocks": [
+          "b5"
+        ],
+        "methodology": "heuristic",
+        "phase": "posthoc"
+      },
+      "clip_b6": {
+        "blocks": [
+          "b6"
+        ],
+        "methodology": "heuristic",
+        "phase": "posthoc"
+      },
+      "clip_b7": {
+        "blocks": [
+          "b7"
+        ],
+        "methodology": "heuristic",
+        "phase": "posthoc"
+      },
+      "clip_b8": {
+        "blocks": [
+          "b8"
+        ],
+        "methodology": "heuristic",
+        "phase": "posthoc"
+      },
+      "fioretto": {
+        "blocks": [
+          "constraint_phase",
+          "fioretto"
+        ],
+        "methodology": "fioretto_ldf",
+        "phase": "trained"
+      },
+      "fioretto_b6": {
+        "blocks": [
+          "constraint_phase",
+          "fioretto",
+          "b6"
+        ],
+        "methodology": "fioretto_ldf",
+        "phase": "trained"
+      },
+      "fioretto_b7": {
+        "blocks": [
+          "constraint_phase",
+          "fioretto",
+          "b7"
+        ],
+        "methodology": "fioretto_ldf",
+        "phase": "trained"
+      },
+      "focal_clip": {
+        "blocks": [
+          "focal"
+        ],
+        "methodology": "heuristic",
+        "phase": "posthoc"
+      },
+      "focal_tralo": {
+        "blocks": [
+          "constraint_phase",
+          "tralo",
+          "focal"
+        ],
+        "methodology": "tralo",
+        "phase": "trained"
+      },
+      "focal_tralo_null": {
+        "blocks": [
+          "constraint_phase",
+          "tralo_null",
+          "focal"
+        ],
+        "methodology": "tralo",
+        "phase": "trained"
+      },
+      "hounie": {
+        "blocks": [
+          "constraint_phase",
+          "hounie"
+        ],
+        "methodology": "hounie_rcl",
+        "phase": "trained"
+      },
+      "rank_clip": {
+        "blocks": [
+          "rank"
+        ],
+        "methodology": "heuristic",
+        "phase": "posthoc"
+      },
+      "rank_tralo": {
+        "blocks": [
+          "constraint_phase",
+          "tralo",
+          "rank"
+        ],
+        "methodology": "tralo",
+        "phase": "trained"
+      },
+      "rank_tralo_null": {
+        "blocks": [
+          "constraint_phase",
+          "tralo_null",
+          "rank"
+        ],
+        "methodology": "tralo",
+        "phase": "trained"
+      },
+      "tralo": {
+        "blocks": [
+          "constraint_phase",
+          "tralo"
+        ],
+        "methodology": "tralo",
+        "phase": "trained"
+      },
+      "tralo_b12": {
+        "blocks": [
+          "constraint_phase",
+          "tralo",
+          "b12"
+        ],
+        "methodology": "tralo",
+        "phase": "trained"
+      },
+      "tralo_b5": {
+        "blocks": [
+          "constraint_phase",
+          "tralo",
+          "b5"
+        ],
+        "methodology": "tralo",
+        "phase": "trained"
+      },
+      "tralo_b6": {
+        "blocks": [
+          "constraint_phase",
+          "tralo",
+          "b6"
+        ],
+        "methodology": "tralo",
+        "phase": "trained"
+      },
+      "tralo_b7": {
+        "blocks": [
+          "constraint_phase",
+          "tralo",
+          "b7"
+        ],
+        "methodology": "tralo",
+        "phase": "trained"
+      },
+      "tralo_b8": {
+        "blocks": [
+          "constraint_phase",
+          "tralo",
+          "b8"
+        ],
+        "methodology": "tralo",
+        "phase": "trained"
+      },
+      "tralo_null": {
+        "blocks": [
+          "constraint_phase",
+          "tralo_null"
+        ],
+        "methodology": "tralo",
+        "phase": "trained"
+      },
+      "tralo_null_b12": {
+        "blocks": [
+          "constraint_phase",
+          "tralo_null",
+          "b12"
+        ],
+        "methodology": "tralo",
+        "phase": "trained"
+      },
+      "tralo_null_b5": {
+        "blocks": [
+          "constraint_phase",
+          "tralo_null",
+          "b5"
+        ],
+        "methodology": "tralo",
+        "phase": "trained"
+      },
+      "tralo_null_b6": {
+        "blocks": [
+          "constraint_phase",
+          "tralo_null",
+          "b6"
+        ],
+        "methodology": "tralo",
+        "phase": "trained"
+      },
+      "tralo_null_b7": {
+        "blocks": [
+          "constraint_phase",
+          "tralo_null",
+          "b7"
+        ],
+        "methodology": "tralo",
+        "phase": "trained"
+      },
+      "tralo_null_b8": {
+        "blocks": [
+          "constraint_phase",
+          "tralo_null",
+          "b8"
+        ],
+        "methodology": "tralo",
+        "phase": "trained"
+      },
+      "tralo_stab": {
+        "blocks": [
+          "constraint_phase",
+          "tralo_stab"
+        ],
+        "methodology": "tralo",
+        "phase": "trained"
+      }
+    },
+    "blocks": {
+      "alm": {
+        "alm_eta": 0.005,
+        "alm_mu0": 0.01,
+        "alm_mu_step": 0.01,
+        "fioretto_lambda_init": 0.0
+      },
+      "augment": {
+        "augment": true
+      },
+      "b12": {
+        "total_epochs": 12
+      },
+      "b5": {
+        "total_epochs": 5
+      },
+      "b6": {
+        "total_epochs": 6
+      },
+      "b7": {
+        "total_epochs": 7
+      },
+      "b8": {
+        "total_epochs": 8
+      },
+      "fioretto": {
+        "fioretto_lambda_init": 0.0,
+        "fioretto_step_size": 0.005
+      },
+      "focal": {
+        "focal_alpha": 0.25,
+        "focal_gamma": 2.0,
+        "warmup_loss": "focal"
+      },
+      "hounie": {
+        "hounie_alpha": 1.0,
+        "hounie_eta_lambda": 0.1,
+        "hounie_eta_u": 0.1
+      },
+      "rank": {
+        "rank_margin": 0.05,
+        "rank_min_group": 8,
+        "rank_weight": 1.0
+      },
+      "tralo": {
+        "epoch_trace": true,
+        "initial_rho": 0.5,
+        "lambda_global": 0.01,
+        "lambda_local": 0.01,
+        "lambda_step": 0.05,
+        "rho_target": 100.0
+      },
+      "tralo_null": {
+        "epoch_trace": true,
+        "initial_rho": 0.5,
+        "lambda_global": 0.0,
+        "lambda_local": 0.0,
+        "lambda_step": 0.0,
+        "rho_target": 100.0
+      },
+      "tralo_stab": {
+        "constraint_weight": "knn_disagree",
+        "constraint_weight_floor": 0.05,
+        "constraint_weight_k": 20,
+        "epoch_trace": true,
+        "initial_rho": 0.5,
+        "lambda_global": 0.01,
+        "lambda_local": 0.01,
+        "lambda_step": 0.05,
+        "rho_target": 100.0
+      }
+    },
+    "constraint_phase": {
+      "constraint_chunk_size": 128,
+      "constraint_fp32": true,
+      "constraint_grad_clip": 1.0,
+      "constraint_grad_mode": "normalize",
+      "lr_constraint": 0.0001
+    },
+    "core": {
+      "batch_size": 64,
+      "dropout": 0.3,
+      "lr": 0.0001,
+      "pretrained": true
+    },
+    "datasets": {
+      "bcn": {
+        "constrained_class": [
+          0,
+          2
+        ],
+        "data_dir": "data/bcn/oodslice",
+        "disjoint_groups": true,
+        "group_column": "location",
+        "num_classes": 8
+      },
+      "fmow2": {
+        "constrained_class": [
+          1,
+          2,
+          7
+        ],
+        "data_dir": "data/fmow2/oodslice",
+        "disjoint_groups": true,
+        "group_budget_shares": "proportional_to_group_size",
+        "group_column": "location",
+        "num_classes": 8
+      }
+    },
+    "mandatory_arms": [
+      "clip",
+      "focal_clip"
+    ],
+    "models": [
+      "SmallCNN",
+      "MobileNetV3",
+      "MobileNetV2",
+      "RegNetY400MF",
+      "ViTB16"
+    ],
+    "protocol": {
+      "seeds": [
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "total_epochs": 11,
+      "trained_warmup": 1
+    },
+    "warmup_identity_keys": [
+      "rank_weight",
+      "rank_margin",
+      "rank_cap_fraction",
+      "rank_min_group",
+      "augment",
+      "lr",
+      "dropout",
+      "batch_size",
+      "warmup_epochs",
+      "pretrained",
+      "seed",
+      "warmup_loss",
+      "focal_alpha",
+      "focal_gamma"
+    ]
+  },
+  "schema": "fresh-campaign-v1"
+}

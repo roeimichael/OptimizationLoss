@@ -1,0 +1,48 @@
+{
+  "arm": "aug_tralo_null",
+  "base_model_id": "MobileNetV3_fmow2_a659272eae3c",
+  "code_version": "99504a126ff1",
+  "constraint": [
+    0.25,
+    0.25
+  ],
+  "constraint_tag": "L25_G25",
+  "dataset_config": {
+    "constrained_class": [
+      1,
+      2,
+      7
+    ],
+    "data_dir": "data/fmow2/oodslice",
+    "disjoint_groups": true,
+    "group_budget_shares": "proportional_to_group_size",
+    "group_column": "location",
+    "num_classes": 8
+  },
+  "dataset_mode": "fmow2",
+  "exp_name": "MobileNetV3_fmow2_aug_tralo_null_L25_G25_c1-2-7_seed2",
+  "hyperparams": {
+    "augment": true,
+    "batch_size": 64,
+    "constraint_chunk_size": 128,
+    "constraint_epochs": 10,
+    "constraint_fp32": true,
+    "constraint_grad_clip": 1.0,
+    "constraint_grad_mode": "normalize",
+    "dropout": 0.3,
+    "epoch_trace": true,
+    "initial_rho": 0.5,
+    "lambda_global": 0.0,
+    "lambda_local": 0.0,
+    "lambda_step": 0.0,
+    "lr": 0.0001,
+    "lr_constraint": 0.0001,
+    "pretrained": true,
+    "rho_target": 100.0,
+    "seed": 2,
+    "warmup_epochs": 1
+  },
+  "methodology": "tralo",
+  "model_name": "MobileNetV3",
+  "status": "pending"
+}
