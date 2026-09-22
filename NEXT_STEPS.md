@@ -113,3 +113,13 @@ not weakened. Failed receipts remain under that commit's verification directory.
 generate them, train a model, or verify the named allocation rule. GPU smoke checks
 small arithmetic and logger behavior, not a scientific result or real allocator.
 The numerical values in that smoke are analytic fixtures, not research settings.
+
+
+## 2026-09-22: achieved-budget evaluation and author-baseline replication
+
+- DONE: four seeds701–704, three unchanged training arms, original and raw-TraLO-derived budgets, both allocators;60 verified evaluation rows. Results: experiments/achieved_counts_result_20260922.html. Original high-rho/shared-Adam failure remains unresolved by this evaluation-only change.
+- DONE: data features fully regenerated (12,000 rows, exact parity);59 tests plus independent artifact/statistical review.
+- ACTIVE: replicate Kassif/Singer predict-then-optimize baseline before TraLO. See experiments/yuval_clipper_replication.md.
+- STAGED: official DermaMNIST28 candidate, checksum and schema verified; original splits preserved. No paper-specific training launched.
+- REQUIRED: full paper PDF or experimental sections/tables; supplied HTM contains abstract only. Resolve backbone, preprocessing/native resolution, knee data identity, training schedule, quotas, allocator and target metrics. Author repository pending.
+- NEXT: match raw baseline first, then paper allocator on identical probabilities; compare checkpoint/logits when author code arrives. Do not label guessed settings an exact replication.

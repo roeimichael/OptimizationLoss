@@ -1,0 +1,27 @@
+{
+  "dataset": "DermaMNIST",
+  "release_record": "10519652",
+  "resolution": 28,
+  "url": "https://zenodo.org/records/10519652/files/dermamnist.npz?download=1",
+  "md5": "0744692d530f8e62ec473284d019b0c7",
+  "samples": {
+    "train": 7007,
+    "val": 1003,
+    "test": 2005
+  },
+  "channels": 3,
+  "labels": {
+    "0": "actinic keratoses and intraepithelial carcinoma",
+    "1": "basal cell carcinoma",
+    "2": "benign keratosis-like lesions",
+    "3": "dermatofibroma",
+    "4": "melanoma",
+    "5": "melanocytic nevi",
+    "6": "vascular lesions"
+  },
+  "license": "CC BY-NC 4.0",
+  "source": "https://raw.githubusercontent.com/MedMNIST/MedMNIST/main/medmnist/info.py",
+  "source_snapshot_sha256": "d85e77f308dcfad2000b610448cefbae7fae69d8f2a7ac15a3f1686fc289c8d2",
+  "paper_match_confirmed": false,
+  "rationale": "Stage the small official 28x28 release; do not assume this is the paper input resolution or preprocessing."
+}

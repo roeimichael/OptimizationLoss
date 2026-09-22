@@ -1,0 +1,77 @@
+{
+  "status": "archive_integrity_and_schema_passed",
+  "paper_replication_ready": false,
+  "archive_sha256": "1a309fec2e33bb6aba88e7d078e5ccbb9736c84a0b415ac197eb3c8fa331e050",
+  "manifest_sha256": "cb34ea4bd637f6581a36b92da9c24f28029e9494320d890935a7fcacab54e636",
+  "splits": {
+    "train": {
+      "shape": [
+        7007,
+        28,
+        28,
+        3
+      ],
+      "dtype": "uint8",
+      "class_support": [
+        228,
+        359,
+        769,
+        80,
+        779,
+        4693,
+        99
+      ],
+      "exact_duplicate_rows": 1,
+      "ordered_images_sha256": "1bd1980f46edcbe30f4b30802b4086492f4c20e8900d039079441bb5ba5f3b9a",
+      "ordered_labels_sha256": "fb97885a5b2654aeb5fe492fb22800bd3e0235d9e00b558ecd7bdcd0c2cd4f6d"
+    },
+    "val": {
+      "shape": [
+        1003,
+        28,
+        28,
+        3
+      ],
+      "dtype": "uint8",
+      "class_support": [
+        33,
+        52,
+        110,
+        12,
+        111,
+        671,
+        14
+      ],
+      "exact_duplicate_rows": 1,
+      "ordered_images_sha256": "3577a04b27e14e8d93516b72b87275ed2bc8dcb15fc23b270b84ddc7b55828a5",
+      "ordered_labels_sha256": "57afda6151623097db498cc6fb5c9e2cea3c959995f87f2d178e30875489222a"
+    },
+    "test": {
+      "shape": [
+        2005,
+        28,
+        28,
+        3
+      ],
+      "dtype": "uint8",
+      "class_support": [
+        66,
+        103,
+        220,
+        23,
+        223,
+        1341,
+        29
+      ],
+      "exact_duplicate_rows": 0,
+      "ordered_images_sha256": "621a830a81b97f8b3e15bf02e29f8f6b3279625f95e22567eea8c0cd1b27874d",
+      "ordered_labels_sha256": "ca1e287b8fecd417fc2c4a3ba531aabbb6948d7461526af38f7521f42ce251f8"
+    }
+  },
+  "cross_split_identical_image_hashes": {
+    "train / val": 0,
+    "test / train": 0,
+    "test / val": 0
+  },
+  "limitation": "Image-byte checks do not certify lesion or patient independence. Paper release/resolution/split and experiment settings remain unconfirmed."
+}

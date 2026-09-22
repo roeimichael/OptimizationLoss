@@ -1,0 +1,20 @@
+{
+  "status": "not_runnable_missing_paper_protocol",
+  "paper_doi": "10.1016/j.engappai.2026.115989",
+  "target": "predict_then_optimize_baseline_only",
+  "candidate_manifest": "examples/dermamnist_candidate_manifest.json",
+  "confirmed_paper_dataset_version": null,
+  "knee_dataset_identifier": null,
+  "split_indices": null,
+  "native_image_resolution": null,
+  "backbone_and_classifier_head": null,
+  "pretrained_weights_and_trainable_layers": null,
+  "preprocessing_and_augmentation": null,
+  "training_loss_and_class_weights": null,
+  "optimizer_schedule_and_training_budget": null,
+  "checkpoint_selection": null,
+  "seeds": null,
+  "constrained_classes_and_budgets": null,
+  "allocation_objective_and_algorithm": null,
+  "paper_metrics_and_reference_results": null
+}
