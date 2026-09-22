@@ -1,0 +1,13 @@
+{
+  "global_caps": [10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+    null, null, null, null, null, null, null, null, null, null,
+    null, null, null, null, null, null, null, null, null, null,
+    null, null, null, null, null, null, null, null, null, null,
+    null, null, null, null, null, null, null, null, null, null,
+    null, null, null, null, null, null, null, null, null, null,
+    null, null, null, null, null, null, null, null, null, null,
+    null, null, null, null, null, null, null, null, null, null,
+    null, null, null, null, null, null, null, null, null, null,
+    null, null, null, null, null, null, null, null, null, null],
+  "rationale": "Predeclared diagnostic policy: at most 10 predictions for each class index 0-9 among 2000 development items. Other classes uncapped. Quotas do not read development labels or model scores. Both allocation definitions use the same probabilities and caps; no winner metric is selected."
+}

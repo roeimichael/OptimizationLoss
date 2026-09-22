@@ -1,0 +1,12 @@
+{
+  "data_root": "/home/dsi/michaer8/tralo-rebuild/data",
+  "seed": 20260922,
+  "train_samples": 10000,
+  "development_samples": 2000,
+  "image_size": 224,
+  "feature_batch_size": 64,
+  "head_batch_size": 256,
+  "head_epochs": 10,
+  "head_lr": 0.1,
+  "precision": "fp32"
+}

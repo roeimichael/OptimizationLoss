@@ -2,6 +2,11 @@
 
 ## Contract
 
+Scope amendment, 2026-09-22: the user explicitly requests global-only constraints
+first. Local constraints are deferred; they are not required for the first real
+dataset pilot. The existing local quota auditor is a utility, not a requirement
+that datasets carry groups. No legacy dual-only restriction applies here.
+
 The user approved a fresh, readable implementation beside the old repository.
 This is a replacement design, not behavior-preserving refactoring. Old modules,
 experiments, documentation, and tests are not carried into the runtime tree.
@@ -74,6 +79,10 @@ slots remains open for the user. Diagnostic implementations must be named and
 cannot silently establish the research baseline. Greedy failure does not prove
 global infeasibility. Exhaustive enumeration on tiny fixtures is an independent
 test oracle, not a production solver or a claim about which objective is best.
+
+The first pilot reports BOTH named global-only definitions on the same saved
+probabilities, rather than silently selecting a research baseline. See
+[experiments/global_clipper_pilot.md](experiments/global_clipper_pilot.md).
 
 ## Logging contract
 

@@ -37,8 +37,11 @@ metrics, counts and sample predictions), and `events.jsonl` (start/completion
 with source/input/report hashes). Success means the supplied predictions were
 audited, not that their named allocation policy has been verified.
 
-**Next:** settle Clipper's allocation contract, implement it with independent
-tiny cases, then add the first supervised training path. See [NEXT_STEPS.md](NEXT_STEPS.md)
+The new [global-only pilot](experiments/global_clipper_pilot.md) adds two explicitly
+named greedy allocation diagnostics and a CIFAR-100 frozen-feature baseline.
+The image command requires CUDA, PyTorch and torchvision; core tests remain
+standard-library only. Neither allocator is yet selected as the research baseline.
+See [NEXT_STEPS.md](NEXT_STEPS.md)
 for the task queue and commit/push/deploy/check workflow. The CUDA smoke checks
 Torch RNG, parameter, gradient and optimizer-state neutrality for a single event;
 full training with different logging frequencies is a separate pending test.
