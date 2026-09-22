@@ -7,6 +7,48 @@ This is a replacement design, not behavior-preserving refactoring. Old modules,
 experiments, documentation, and tests are not carried into the runtime tree.
 Historical artifacts remain recoverable outside it.
 
+## Revisable choices, not inherited truths
+
+There is no selected primary research metric in this rebuild. Computing F1 does
+not establish F1 as the right objective. The task's costs and desired behavior
+must justify the evaluation criteria before a campaign is run. Record that
+choice before interpreting outcomes; do not select the metric that makes a
+method look favorable after seeing its results.
+
+For every new design choice record: what problem it addresses, why this choice,
+which alternatives were considered, and what evidence would justify changing it.
+Use a short entry here or in the experiment configuration, not a new framework.
+Old code is a source of questions and failure cases, never a correctness oracle.
+
+| Current choice | Rationale and boundary | How it can change |
+|---|---|---|
+| Accuracy, precision, recall, macro-F1 and cc-F1 diagnostics | Small, hand-checkable summaries; none is declared the winner criterion | Add or replace reporting according to the task's utility/costs |
+| Undefined ratios reported as zero; all declared classes included | Keeps the denominator explicit in this metric implementation | Introduce and label another convention; retain definitions with old reports |
+| Probability inputs in this first inspector | Makes saved-score inspection independently testable | Logits or other scores need an explicit input contract, not silent normalization |
+| Integer upper bounds supplied as input | Separates checking a quota from inventing its meaning | Quota construction, filling policy and any aggregate-label access need their own specification |
+| Standard-library implementation | Keeps this first slice readable and dependency-light | Use an established library when it reduces complexity; verify its conventions |
+| No optimizer, initialization or training budget yet | No inherited defaults are being carried over | Specify and justify these at the first training milestone |
+
+## Tests establish correctness, not scientific preferences
+
+Separate three kinds of checks:
+
+1. General correctness: sample alignment, no observation-induced state changes,
+   faithful artifact hashes, and independently calculated metrics/gradients.
+2. Named-definition checks: an upper-bound auditor must detect violations; a
+   particular allocator must obey its specified rule. These tests do not prove
+   that the rule is the best scientific choice.
+3. Experiment checks: compare execution with that run's declared learning rate,
+   epochs, quota and data identities. Read expected settings from the experiment,
+   not a globally hardcoded value such as "all runs must have 30 epochs".
+
+Small numeric fixtures are mathematical examples, not required research settings.
+Also test transformations such as permuting samples/classes where results should
+be invariant. A different metric convention or algorithm may require new tests;
+a different seed, cap, learning rate or epoch budget should not break unrelated
+correctness tests. Test counts are not a measure of scientific validity. Do not
+port the old suite wholesale or add tests that merely assert source text exists.
+
 ## First deliverable
 
 A CPU-only diagnostic path: explicit probability matrix and group IDs -> named

@@ -6,6 +6,9 @@ workspace, not a validated replacement for historical experiments.
 
 Start with [DESIGN.md](DESIGN.md). It defines the first small deliverable and the
 order for adding training and methods. Nothing here establishes a research win.
+No primary research metric or training recipe has been chosen. Existing metric
+functions are diagnostics with explicit, revisable definitions. Tests check
+those definitions, not whether F1, Adam, or a historical recipe should be used.
 
 ## Read and run
 

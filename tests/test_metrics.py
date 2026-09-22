@@ -22,6 +22,26 @@ class MetricsTests(unittest.TestCase):
     def test_no_constraints_has_no_cc_metric(self):
         self.assertIsNone(classification_metrics([0], [0], 1, [])['cc_f1'])
 
+    def test_sample_order_does_not_change_metrics(self):
+        actual, predicted = [0, 2, 1, 2, 0], [1, 2, 1, 0, 0]
+        expected = classification_metrics(actual, predicted, 3, [0, 2])
+        order = [4, 1, 3, 0, 2]
+        observed = classification_metrics([actual[i] for i in order],
+                                          [predicted[i] for i in order], 3, [0, 2])
+        self.assertEqual(observed, expected)
+
+    def test_renaming_classes_preserves_aggregate_metrics(self):
+        actual, predicted = [0, 2, 1, 2, 0], [1, 2, 1, 0, 0]
+        rename = {0: 2, 1: 0, 2: 1}
+        expected = classification_metrics(actual, predicted, 3, [0, 2])
+        observed = classification_metrics([rename[c] for c in actual],
+                                          [rename[c] for c in predicted], 3, [2, 1])
+        for metric in ('accuracy', 'macro_f1', 'cc_f1'):
+            self.assertAlmostEqual(observed[metric], expected[metric])
+        for c in range(3):
+            self.assertEqual(observed['per_class'][rename[c]]['f1'],
+                             expected['per_class'][c]['f1'])
+
     def test_reject_invalid_labels_and_shapes(self):
         for actual, predicted, count, constrained in [
             ([], [], 2, [0]), ([0], [], 2, [0]), ([2], [0], 2, [0]),

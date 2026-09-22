@@ -9,6 +9,15 @@
 - Never let labels enter allocation; labels are used only by the metric function.
 - No GPU campaigns until data, training, gradients, and source identity are validated.
 - No silent scientific defaults: explicitly name allocation policy and quotas.
+- Research choices are revisable: no metric, optimizer, initialization, budget,
+  backbone or allocation policy is privileged by historical usage.
+- For each introduced choice, record its purpose, rationale, alternatives and
+  evidence needed to reconsider it. Do not build unused options preemptively.
+- Tests verify mathematics and declared behavior, not preferred hyperparameter
+  values, historical winners, directory layouts or exact documentation wording.
+- Changing an experiment setting should not require editing general tests.
+  Changing a definition requires changing its named contract and relevant tests;
+  never weaken a test merely to obtain a passing result.
 - Never claim feasibility implies optimality, or tests prove no bugs remain.
 - Ask before changing the scientific question, data access, or compute budget.
 - Use `git -c gc.auto=0`; no pruning or destructive cleanup.
