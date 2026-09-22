@@ -14,8 +14,20 @@ from .global_report import evaluate_global
 def validate_config(config):
     keys = {'seeds', 'epochs', 'warmup_epochs', 'batch_size', 'lr',
             'lambda_initial', 'lambda_step', 'rho_initial', 'rho_target', 'cache_events_sha256'}
-    if set(config) != keys:
+    optional = {'constraint_optimizer','supervised_auxiliary','auxiliary_weight','auxiliary_margin'}
+    if not keys <= set(config) or set(config) - keys - optional:
         raise ValueError('comparison config keys must match the declared contract')
+    if config.get('constraint_optimizer', 'shared') not in ('shared', 'separate'):
+        raise ValueError('constraint_optimizer must be shared or separate')
+    auxiliary = config.get('supervised_auxiliary','none')
+    if auxiliary not in ('none','margin','false_positive'):
+        raise ValueError('unknown supervised_auxiliary')
+    for key, default in [('auxiliary_weight',0.),('auxiliary_margin',1.)]:
+        value = config.get(key,default)
+        if type(value) not in (int,float) or not math.isfinite(value) or value < 0:
+            raise ValueError(key+' must be finite and nonnegative')
+    if auxiliary == 'none' and config.get('auxiliary_weight',0.) != 0:
+        raise ValueError('nonzero auxiliary weight requires a named term')
     if (type(config['cache_events_sha256']) is not str or len(config['cache_events_sha256'])!=64 or
             any(c not in '0123456789abcdef' for c in config['cache_events_sha256'])):
         raise ValueError('cache completion provenance must be pinned by SHA-256')
@@ -58,6 +70,7 @@ def train_arm(train_x, train_y, unlabelled_x, caps, config, seed, arm, emit, obs
     """No evaluation-label argument. All arms use identical supervised batches."""
     import torch
     from .global_constraint import bounded_count_penalty, advance_controller
+    from .sample_losses import sample_loss
     validate_config(config)
     if arm not in ('clipper', 'tralo_null', 'tralo'):
         raise ValueError('unknown arm')
@@ -74,6 +87,11 @@ def train_arm(train_x, train_y, unlabelled_x, caps, config, seed, arm, emit, obs
         torch.manual_seed(seed)
         model = torch.nn.Linear(train_x.shape[1], len(caps), device=device)
     optimizer = torch.optim.Adam(model.parameters(), lr=config['lr'])
+    constraint_optimizer_mode = config.get('constraint_optimizer', 'shared')
+    # Separate moments isolate task updates from large constraint gradients.
+    # Shared remains the original comparison; compare both before choosing a mode.
+    constraint_optimizer = (torch.optim.Adam(model.parameters(), lr=config['lr'])
+                            if constraint_optimizer_mode == 'separate' else None)
     generator = torch.Generator().manual_seed(seed + 1)
     multipliers = [float(config['lambda_initial'])] * len(caps)
     rho, frozen = float(config['rho_initial']), False
@@ -81,7 +99,12 @@ def train_arm(train_x, train_y, unlabelled_x, caps, config, seed, arm, emit, obs
     task_updates = constraint_updates = 0
     task_attempts = constraint_attempts = 0
     planned_task = config['epochs'] * math.ceil(len(train_x)/config['batch_size'])
+    auxiliary = config.get('supervised_auxiliary','none')
+    auxiliary_weight = config.get('auxiliary_weight',0.)
     emit({'event':'started','seed':seed,'arm':arm,'task_updates_planned':planned_task,
+          'constraint_optimizer':constraint_optimizer_mode,
+          'supervised_auxiliary':auxiliary if arm != 'clipper' else 'none',
+          'auxiliary_weight':auxiliary_weight if arm != 'clipper' else 0.,
           'constraint_opportunities':config['epochs']-config['warmup_epochs'] if arm=='tralo' else 0})
     batch_hash = hashlib.sha256()
     warmup_hash = None
@@ -92,20 +115,20 @@ def train_arm(train_x, train_y, unlabelled_x, caps, config, seed, arm, emit, obs
               'constraint_applied':constraint_updates})
         raise RuntimeError(message)
 
-    def step(loss, phase, epoch, batch):
+    def step(loss, phase, epoch, batch, active_optimizer):
         if not torch.isfinite(loss):
             abort('nonfinite loss; no optimizer update applied')
-        optimizer.zero_grad(set_to_none=True)
+        active_optimizer.zero_grad(set_to_none=True)
         loss.backward()
         if any(p.grad is None or not torch.isfinite(p.grad).all() for p in model.parameters()):
             abort('missing/nonfinite gradient; no optimizer update applied')
         norm = float(torch.sqrt(sum(p.grad.square().sum() for p in model.parameters())).item())
         before = [p.detach().clone() for p in model.parameters()]
         if observer is not None:
-            observer('before',phase,epoch+1,batch,model,optimizer)
-        optimizer.step()
+            observer('before',phase,epoch+1,batch,model,active_optimizer)
+        active_optimizer.step()
         if observer is not None:
-            observer('after',phase,epoch+1,batch,model,optimizer)
+            observer('after',phase,epoch+1,batch,model,active_optimizer)
         if any(not torch.isfinite(p).all() for p in model.parameters()):
             abort('nonfinite parameter after optimizer update; run invalid')
         displacement = float(torch.sqrt(sum((p.detach()-b).square().sum()
@@ -118,17 +141,31 @@ def train_arm(train_x, train_y, unlabelled_x, caps, config, seed, arm, emit, obs
             emit({'event':'optimizer_reset', 'epoch':epoch+1})
         order = torch.randperm(len(train_x), generator=generator)
         batch_hash.update(order.numpy().tobytes())
-        loss_sum = 0.0
+        loss_sum = ce_sum = auxiliary_sum = 0.0
+        task_gradient_max = task_displacement_max = 0.0
         for start in range(0,len(order),config['batch_size']):
             indices = order[start:start+config['batch_size']].to(device)
-            loss = torch.nn.functional.cross_entropy(model(train_x[indices]),train_y[indices])
+            logits = model(train_x[indices])
+            ce = torch.nn.functional.cross_entropy(logits,train_y[indices])
+            loss = ce
+            extra = 0.
+            if arm != 'clipper' and epoch >= config['warmup_epochs'] and auxiliary_weight > 0:
+                extra = sample_loss(logits,train_y[indices],caps,auxiliary,
+                                    config.get('auxiliary_margin',1.))
+                loss = ce+auxiliary_weight*extra
             task_attempts += 1
-            step(loss,'task',epoch,start//config['batch_size'])
+            grad_norm, displacement = step(loss,'task',epoch,start//config['batch_size'],optimizer)
+            task_gradient_max = max(task_gradient_max,grad_norm)
+            task_displacement_max = max(task_displacement_max,displacement)
             task_updates += 1
             loss_sum += float(loss.item())*len(indices)
+            ce_sum += float(ce.item())*len(indices)
+            auxiliary_sum += float(extra)*len(indices)
         if epoch+1 == config['warmup_epochs']:
             warmup_hash = _state_hash(model)
         row = {'event':'epoch', 'epoch':epoch+1, 'task_loss':loss_sum/len(train_x),
+               'task_ce_loss':ce_sum/len(train_x), 'auxiliary_loss':auxiliary_sum/len(train_x),
+               'task_gradient_norm_max':task_gradient_max,'task_displacement_norm_max':task_displacement_max,
                'task_updates_cumulative':task_updates, 'constraint_updates_cumulative':constraint_updates}
         if epoch >= config['warmup_epochs']:
             logits = model(unlabelled_x)
@@ -145,7 +182,8 @@ def train_arm(train_x, train_y, unlabelled_x, caps, config, seed, arm, emit, obs
             if arm == 'tralo' and loss.item() > 0:
                 row['constraint_attempted'] = True
                 constraint_attempts += 1
-                norm, displacement = step(loss,'constraint',epoch,None)
+                norm, displacement = step(loss,'constraint',epoch,None,
+                                          constraint_optimizer if constraint_optimizer is not None else optimizer)
                 constraint_updates += 1
                 row.update(constraint_applied=True, gradient_norm=norm, displacement_norm=displacement)
             if arm == 'tralo':

@@ -123,3 +123,10 @@ The numerical values in that smoke are analytic fixtures, not research settings.
 - STAGED: official DermaMNIST28 candidate, checksum and schema verified; original splits preserved. No paper-specific training launched.
 - REQUIRED: full paper PDF or experimental sections/tables; supplied HTM contains abstract only. Resolve backbone, preprocessing/native resolution, knee data identity, training schedule, quotas, allocator and target metrics. Author repository pending.
 - NEXT: match raw baseline first, then paper allocator on identical probabilities; compare checkpoint/logits when author code arrives. Do not label guessed settings an exact replication.
+
+
+## 2026-09-22 overnight scope supersedes DermaMNIST staging
+
+User requests knee-only global TraLO/Clipper work through morning, one backbone, incremental sample-aware losses. See experiments/knee_overnight_plan.md for fixed stages, seeds, gates and data blocker. Automation knee-tralo-overnight-research is ACTIVE every20minutes until morning summary08:00Asia/Jerusalem2026-09-23, then pauses. DermaMNIST staged data remain archived/read-only; no further Derma experiments.
+
+Prepared separate persistent constraint Adam and supervised margin/false-positive terms;76 local tests and independent math/integration review passed. These are not knee results. Exact paper dataset/backbone remain unknown; fallback clarification pending. Do not launch substitute data without resolving this. Server verification receipts must be checked before claiming deployment.
