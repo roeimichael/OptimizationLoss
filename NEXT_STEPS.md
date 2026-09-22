@@ -22,7 +22,7 @@ Never update old research checkouts or a release in place.
 - [x] Implement independent metrics, explicit quota auditing and plain-value logger.
 - [x] Test hand-calculated cases, sample/class permutations, invalid input,
   exclusive outputs and logging neutrality for Python random state.
-- [ ] Establish remote checkpoint: matching commit/source on both hosts, CPU
+- [x] Establish remote checkpoint: matching commit/source on both hosts, CPU
   regressions and real CLI example; GPU arithmetic/logging smoke on a free card.
 - [ ] Agree Clipper's scientific definition: upper-bound correction versus
   preferentially filling slots; score/objective; global/local interaction;
@@ -57,6 +57,16 @@ Never update old research checkouts or a release in place.
   before expansion, with explicit compute/precision and evidence boundaries.
 
 ## What current tests establish
+
+Checkpoint `310cade` (2026-09-22): all 24 regressions and the CLI example passed
+on both hosts with matching tracked-file hashes. On dsisco01 GPU0, float32 mean
+cross-entropy equaled ln(2), gradients matched +/-1/4, the first Adam step matched
+its bias-corrected formula, and event logging preserved Torch CPU/CUDA RNG,
+parameter, gradient and optimizer state. These are analytic fixtures, not a
+chosen training recipe. dsisco02 GPUs belonged to another user and were untouched.
+Receipts: `/home/dsi/michaer8/tralo-rebuild/verification/310cadeaca29125c5d3b6b1f412570ef59ff2212/`.
+The five-minute heartbeat was deleted at the user's request; no scheduled
+monitoring remains for this task.
 
 Checkpoint `7b96b90` (2026-09-22): 24 regression tests and the example passed on
 both hosts with matching source hashes. The first GPU smoke failed while logging

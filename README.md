@@ -38,9 +38,10 @@ with source/input/report hashes). Success means the supplied predictions were
 audited, not that their named allocation policy has been verified.
 
 **Next:** settle Clipper's allocation contract, implement it with independent
-tiny cases, then add the first supervised training path. Logging neutrality
-currently covers Python RNG state; model/optimizer/Torch parity requires the
-training milestone and is not claimed yet. Server cleanup remains pending access.
+tiny cases, then add the first supervised training path. See [NEXT_STEPS.md](NEXT_STEPS.md)
+for the task queue and commit/push/deploy/check workflow. The CUDA smoke checks
+Torch RNG, parameter, gradient and optimizer-state neutrality for a single event;
+full training with different logging frequencies is a separate pending test.
 
 ## Evidence preservation
 
@@ -51,5 +52,9 @@ moved outside this worktree to
 All 411 files were checked against SHA-256 hashes in the adjacent
 `legacy_inventory.json`. This is preservation, not a runtime dependency.
 
-Both server connections failed at the DSI gateway on 2026-09-22. Server process
-state is unknown; no remote cleanup, deployment, or training has been performed.
+SSH to both hosts was restored on 2026-09-22. The rebuild is independently
+deployed under `/home/dsi/michaer8/tralo-rebuild/releases/<commit>` through a
+dedicated bare Git mirror. Source hashes and CPU regressions were verified on
+both hosts, with a CUDA smoke on a free dsisco01 GPU. Old remote research trees
+were not changed. Remote archive cleanup still needs an explicit path/symlink
+inventory; deployment does not constitute that cleanup.
