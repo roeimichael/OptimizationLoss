@@ -58,6 +58,12 @@ Never update old research checkouts or a release in place.
 
 ## What current tests establish
 
+Checkpoint `7b96b90` (2026-09-22): 24 regression tests and the example passed on
+both hosts with matching source hashes. The first GPU smoke failed while logging
+PyTorch's version, which is a string subclass rather than an exact plain string.
+The fix explicitly converts framework metadata to strings; logger validation is
+not weakened. Failed receipts remain under that commit's verification directory.
+
 `inspect_predictions` audits user-supplied corrected predictions. It does not
 generate them, train a model, or verify the named allocation rule. GPU smoke checks
 small arithmetic and logger behavior, not a scientific result or real allocator.

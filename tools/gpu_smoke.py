@@ -25,7 +25,7 @@ def run(output):
     output.mkdir(parents=True, exist_ok=False)
     with EventLog(output / 'events.jsonl') as log:
         log.emit('started', scope='infrastructure_smoke_not_research',
-                 torch=torch.__version__, device=torch.cuda.get_device_name(0),
+                 torch=str(torch.__version__), device=str(torch.cuda.get_device_name(0)),
                  precision='float32', script_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest())
         try:
             # At zero logits both classes have probability 1/2. Mean CE is ln(2).
