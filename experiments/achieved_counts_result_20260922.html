@@ -1,0 +1,1187 @@
+<!doctype html><meta charset="utf-8"><title>TraLO derived budgets — four seeds</title><style>body{font:16px/1.55 system-ui;background:#f6f7fa;color:#172339;margin:36px auto;padding:0 28px;max-width:1450px}h1,h2{color:#183a60}table{border-collapse:collapse;width:100%;font-size:14px;margin:22px 0;background:white}th,td{padding:8px 10px;border:1px solid #d7dfeb;text-align:right}th:first-child,td:first-child{text-align:left}th{background:#e6edf6}tr:nth-child(even){background:#f1f4f8}code{overflow-wrap:anywhere;font-size:.85em}p{max-width:1100px}</style><h1>Four-seed TraLO-derived budget diagnostic</h1>
+<p>Frozen ResNet18 / CIFAR-100; 10,000 training and 2,000 development images. Seeds [701, 702, 703, 704]; 10 head epochs, warm-up 5; rho 0.5 to 100.0, shared Adam. The previously diagnosed training failure is retained to isolate allocation. This is not a repaired-TraLO test or a run-until-satisfied experiment.</p>
+<p>Accuracy is percent correct. Macro-F1 averages all 100 class F1 scores; constrained F1 averages the same 10 constrained classes, including zero-cap classes. F1 is displayed on a 0–100 scale. Higher is better for these scores. Excess is the sum of predictions above individual caps; 0 means feasible. Changed counts label changes relative to that arm’s raw argmax.</p>
+<p>Original class:cap pairs are 0:10, 1:10, 2:10, 3:10, 4:10, 5:10, 6:10, 7:10, 8:10, 9:10. All other classes are uncapped. Derived caps are that seed’s raw TraLO counts, with no label access. Upper correction changes excess assignments only. Capped-first rebuilds assignments using the entire probability matrix. Raw has no allocation.</p>
+<h2>Observed result and interpretation</h2>
+<p>The unchanged TraLO recipe predicted only 14, 6, 9 and 7 samples across the ten constrained classes, whose original total capacity was 100. Using these counts as new budgets therefore transferred severe underprediction to Clipper and null. It did not repair the training failure. Under full reallocation at these derived budgets, mean constrained F1 was 6.10 for TraLO, versus 6.32 for either control. At original budgets, the corresponding means were 47.02, 51.78 (Clipper), and 52.24 (null). This is evidence about this failed training recipe, not a rejection of learned budgets with a healthier model.</p>
+<p>Self-count upper correction changed zero labels in every seed, as required mathematically. Full reallocation changed 2, 4, 0 and 4 TraLO labels. Every allocated output satisfied its declared budgets. All derived budgets here were tighter than or equal to the originals; the implementation also tests the case of a derived cap exceeding the original.</p>
+<p>Data audit: every one of the 12,000 cached feature rows was regenerated from the original images with maximum absolute error 0. Dataset/weights/artifact hashes, split IDs, label order and feature shapes passed. Exact image duplicates within and across the selected splits: zero. No semantic-duplicate/pretraining-overlap guarantee. All 12 runs completed 400 planned supervised updates with zero skipped updates. The 59-test suite passed locally and on both DSI hosts, plus an on-server GPU smoke.</p>
+<p>Training release: <code>d95fc0b3d4aafa550b5b56d70b817ed02c9f0425</code>, dsisco01 GPU0, FP32. Reporter additionally received a metadata-only change after training. Raw evidence stays outside the source tree at <code>C:/Users/roeym/.codex/rebuild-audit-20260922/achieved-counts-run</code>; the matching remote root is <code>/home/dsi/michaer8/tralo-rebuild/runs/achieved-counts-d95fc0b3-20260922T152521Z</code>.</p>
+<h2>Budgets actually used</h2>
+<table>
+<thead>
+<tr>
+<th>Seed</th>
+<th style="text-align: right;">Class 0</th>
+<th style="text-align: right;">Class 1</th>
+<th style="text-align: right;">Class 2</th>
+<th style="text-align: right;">Class 3</th>
+<th style="text-align: right;">Class 4</th>
+<th style="text-align: right;">Class 5</th>
+<th style="text-align: right;">Class 6</th>
+<th style="text-align: right;">Class 7</th>
+<th style="text-align: right;">Class 8</th>
+<th style="text-align: right;">Class 9</th>
+<th style="text-align: right;">Total</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>701</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">10</td>
+<td style="text-align: right;">14</td>
+</tr>
+<tr>
+<td>702</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">6</td>
+</tr>
+<tr>
+<td>703</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">9</td>
+</tr>
+<tr>
+<td>704</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">7</td>
+</tr>
+</tbody>
+</table>
+<h2>Seed 701</h2>
+<table>
+<thead>
+<tr>
+<th>Training</th>
+<th>Budget</th>
+<th>Allocation</th>
+<th style="text-align: right;">Accuracy %</th>
+<th style="text-align: right;">Macro-F1</th>
+<th style="text-align: right;">Constrained F1</th>
+<th style="text-align: right;">Changed</th>
+<th style="text-align: right;">Excess: original</th>
+<th style="text-align: right;">Excess: derived</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>clipper</td>
+<td>original</td>
+<td>raw</td>
+<td style="text-align: right;">61.80</td>
+<td style="text-align: right;">61.56</td>
+<td style="text-align: right;">59.34</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">70</td>
+<td style="text-align: right;">156</td>
+</tr>
+<tr>
+<td>clipper</td>
+<td>original</td>
+<td>upper_bound_correction</td>
+<td style="text-align: right;">60.50</td>
+<td style="text-align: right;">60.25</td>
+<td style="text-align: right;">51.96</td>
+<td style="text-align: right;">70</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">86</td>
+</tr>
+<tr>
+<td>clipper</td>
+<td>original</td>
+<td>capped_first</td>
+<td style="text-align: right;">60.50</td>
+<td style="text-align: right;">60.27</td>
+<td style="text-align: right;">52.83</td>
+<td style="text-align: right;">78</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">86</td>
+</tr>
+<tr>
+<td>clipper</td>
+<td>TraLO-derived</td>
+<td>upper_bound_correction</td>
+<td style="text-align: right;">57.50</td>
+<td style="text-align: right;">54.95</td>
+<td style="text-align: right;">8.06</td>
+<td style="text-align: right;">156</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>clipper</td>
+<td>TraLO-derived</td>
+<td>capped_first</td>
+<td style="text-align: right;">57.50</td>
+<td style="text-align: right;">54.95</td>
+<td style="text-align: right;">8.06</td>
+<td style="text-align: right;">156</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>tralo_null</td>
+<td>original</td>
+<td>raw</td>
+<td style="text-align: right;">62.15</td>
+<td style="text-align: right;">61.71</td>
+<td style="text-align: right;">58.31</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">69</td>
+<td style="text-align: right;">154</td>
+</tr>
+<tr>
+<td>tralo_null</td>
+<td>original</td>
+<td>upper_bound_correction</td>
+<td style="text-align: right;">60.95</td>
+<td style="text-align: right;">60.49</td>
+<td style="text-align: right;">52.10</td>
+<td style="text-align: right;">69</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">85</td>
+</tr>
+<tr>
+<td>tralo_null</td>
+<td>original</td>
+<td>capped_first</td>
+<td style="text-align: right;">60.95</td>
+<td style="text-align: right;">60.55</td>
+<td style="text-align: right;">52.83</td>
+<td style="text-align: right;">76</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">86</td>
+</tr>
+<tr>
+<td>tralo_null</td>
+<td>TraLO-derived</td>
+<td>upper_bound_correction</td>
+<td style="text-align: right;">58.00</td>
+<td style="text-align: right;">55.24</td>
+<td style="text-align: right;">8.06</td>
+<td style="text-align: right;">154</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>tralo_null</td>
+<td>TraLO-derived</td>
+<td>capped_first</td>
+<td style="text-align: right;">58.00</td>
+<td style="text-align: right;">55.24</td>
+<td style="text-align: right;">8.06</td>
+<td style="text-align: right;">154</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>tralo</td>
+<td>original</td>
+<td>raw</td>
+<td style="text-align: right;">57.40</td>
+<td style="text-align: right;">54.73</td>
+<td style="text-align: right;">7.22</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>tralo</td>
+<td>original</td>
+<td>upper_bound_correction</td>
+<td style="text-align: right;">57.40</td>
+<td style="text-align: right;">54.73</td>
+<td style="text-align: right;">7.22</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>tralo</td>
+<td>original</td>
+<td>capped_first</td>
+<td style="text-align: right;">59.80</td>
+<td style="text-align: right;">59.39</td>
+<td style="text-align: right;">47.31</td>
+<td style="text-align: right;">86</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">86</td>
+</tr>
+<tr>
+<td>tralo</td>
+<td>TraLO-derived</td>
+<td>upper_bound_correction</td>
+<td style="text-align: right;">57.40</td>
+<td style="text-align: right;">54.73</td>
+<td style="text-align: right;">7.22</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>tralo</td>
+<td>TraLO-derived</td>
+<td>capped_first</td>
+<td style="text-align: right;">57.45</td>
+<td style="text-align: right;">54.81</td>
+<td style="text-align: right;">8.06</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+</tbody>
+</table>
+<h2>Seed 702</h2>
+<table>
+<thead>
+<tr>
+<th>Training</th>
+<th>Budget</th>
+<th>Allocation</th>
+<th style="text-align: right;">Accuracy %</th>
+<th style="text-align: right;">Macro-F1</th>
+<th style="text-align: right;">Constrained F1</th>
+<th style="text-align: right;">Changed</th>
+<th style="text-align: right;">Excess: original</th>
+<th style="text-align: right;">Excess: derived</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>clipper</td>
+<td>original</td>
+<td>raw</td>
+<td style="text-align: right;">62.00</td>
+<td style="text-align: right;">61.83</td>
+<td style="text-align: right;">58.99</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">88</td>
+<td style="text-align: right;">182</td>
+</tr>
+<tr>
+<td>clipper</td>
+<td>original</td>
+<td>upper_bound_correction</td>
+<td style="text-align: right;">60.55</td>
+<td style="text-align: right;">60.39</td>
+<td style="text-align: right;">49.66</td>
+<td style="text-align: right;">88</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">94</td>
+</tr>
+<tr>
+<td>clipper</td>
+<td>original</td>
+<td>capped_first</td>
+<td style="text-align: right;">60.60</td>
+<td style="text-align: right;">60.45</td>
+<td style="text-align: right;">50.33</td>
+<td style="text-align: right;">94</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">94</td>
+</tr>
+<tr>
+<td>clipper</td>
+<td>TraLO-derived</td>
+<td>upper_bound_correction</td>
+<td style="text-align: right;">57.35</td>
+<td style="text-align: right;">55.04</td>
+<td style="text-align: right;">5.17</td>
+<td style="text-align: right;">182</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>clipper</td>
+<td>TraLO-derived</td>
+<td>capped_first</td>
+<td style="text-align: right;">57.35</td>
+<td style="text-align: right;">55.04</td>
+<td style="text-align: right;">5.17</td>
+<td style="text-align: right;">182</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>tralo_null</td>
+<td>original</td>
+<td>raw</td>
+<td style="text-align: right;">62.20</td>
+<td style="text-align: right;">61.99</td>
+<td style="text-align: right;">59.84</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">89</td>
+<td style="text-align: right;">183</td>
+</tr>
+<tr>
+<td>tralo_null</td>
+<td>original</td>
+<td>upper_bound_correction</td>
+<td style="text-align: right;">60.70</td>
+<td style="text-align: right;">60.55</td>
+<td style="text-align: right;">49.66</td>
+<td style="text-align: right;">89</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">94</td>
+</tr>
+<tr>
+<td>tralo_null</td>
+<td>original</td>
+<td>capped_first</td>
+<td style="text-align: right;">60.95</td>
+<td style="text-align: right;">60.87</td>
+<td style="text-align: right;">52.07</td>
+<td style="text-align: right;">95</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">94</td>
+</tr>
+<tr>
+<td>tralo_null</td>
+<td>TraLO-derived</td>
+<td>upper_bound_correction</td>
+<td style="text-align: right;">57.55</td>
+<td style="text-align: right;">55.25</td>
+<td style="text-align: right;">5.17</td>
+<td style="text-align: right;">183</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>tralo_null</td>
+<td>TraLO-derived</td>
+<td>capped_first</td>
+<td style="text-align: right;">57.55</td>
+<td style="text-align: right;">55.25</td>
+<td style="text-align: right;">5.17</td>
+<td style="text-align: right;">183</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>tralo</td>
+<td>original</td>
+<td>raw</td>
+<td style="text-align: right;">57.40</td>
+<td style="text-align: right;">54.56</td>
+<td style="text-align: right;">3.00</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>tralo</td>
+<td>original</td>
+<td>upper_bound_correction</td>
+<td style="text-align: right;">57.40</td>
+<td style="text-align: right;">54.56</td>
+<td style="text-align: right;">3.00</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>tralo</td>
+<td>original</td>
+<td>capped_first</td>
+<td style="text-align: right;">60.00</td>
+<td style="text-align: right;">59.41</td>
+<td style="text-align: right;">45.89</td>
+<td style="text-align: right;">94</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">94</td>
+</tr>
+<tr>
+<td>tralo</td>
+<td>TraLO-derived</td>
+<td>upper_bound_correction</td>
+<td style="text-align: right;">57.40</td>
+<td style="text-align: right;">54.56</td>
+<td style="text-align: right;">3.00</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>tralo</td>
+<td>TraLO-derived</td>
+<td>capped_first</td>
+<td style="text-align: right;">57.50</td>
+<td style="text-align: right;">54.77</td>
+<td style="text-align: right;">5.17</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+</tbody>
+</table>
+<h2>Seed 703</h2>
+<table>
+<thead>
+<tr>
+<th>Training</th>
+<th>Budget</th>
+<th>Allocation</th>
+<th style="text-align: right;">Accuracy %</th>
+<th style="text-align: right;">Macro-F1</th>
+<th style="text-align: right;">Constrained F1</th>
+<th style="text-align: right;">Changed</th>
+<th style="text-align: right;">Excess: original</th>
+<th style="text-align: right;">Excess: derived</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>clipper</td>
+<td>original</td>
+<td>raw</td>
+<td style="text-align: right;">61.45</td>
+<td style="text-align: right;">61.23</td>
+<td style="text-align: right;">57.88</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">81</td>
+<td style="text-align: right;">172</td>
+</tr>
+<tr>
+<td>clipper</td>
+<td>original</td>
+<td>upper_bound_correction</td>
+<td style="text-align: right;">60.35</td>
+<td style="text-align: right;">60.13</td>
+<td style="text-align: right;">50.94</td>
+<td style="text-align: right;">81</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">91</td>
+</tr>
+<tr>
+<td>clipper</td>
+<td>original</td>
+<td>capped_first</td>
+<td style="text-align: right;">60.40</td>
+<td style="text-align: right;">60.24</td>
+<td style="text-align: right;">51.81</td>
+<td style="text-align: right;">93</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">91</td>
+</tr>
+<tr>
+<td>clipper</td>
+<td>TraLO-derived</td>
+<td>upper_bound_correction</td>
+<td style="text-align: right;">57.35</td>
+<td style="text-align: right;">54.90</td>
+<td style="text-align: right;">6.11</td>
+<td style="text-align: right;">172</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>clipper</td>
+<td>TraLO-derived</td>
+<td>capped_first</td>
+<td style="text-align: right;">57.35</td>
+<td style="text-align: right;">54.90</td>
+<td style="text-align: right;">6.11</td>
+<td style="text-align: right;">172</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>tralo_null</td>
+<td>original</td>
+<td>raw</td>
+<td style="text-align: right;">61.60</td>
+<td style="text-align: right;">61.43</td>
+<td style="text-align: right;">57.77</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">79</td>
+<td style="text-align: right;">170</td>
+</tr>
+<tr>
+<td>tralo_null</td>
+<td>original</td>
+<td>upper_bound_correction</td>
+<td style="text-align: right;">60.35</td>
+<td style="text-align: right;">60.22</td>
+<td style="text-align: right;">50.38</td>
+<td style="text-align: right;">79</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">91</td>
+</tr>
+<tr>
+<td>tralo_null</td>
+<td>original</td>
+<td>capped_first</td>
+<td style="text-align: right;">60.40</td>
+<td style="text-align: right;">60.33</td>
+<td style="text-align: right;">51.25</td>
+<td style="text-align: right;">89</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">91</td>
+</tr>
+<tr>
+<td>tralo_null</td>
+<td>TraLO-derived</td>
+<td>upper_bound_correction</td>
+<td style="text-align: right;">57.45</td>
+<td style="text-align: right;">55.12</td>
+<td style="text-align: right;">6.11</td>
+<td style="text-align: right;">170</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>tralo_null</td>
+<td>TraLO-derived</td>
+<td>capped_first</td>
+<td style="text-align: right;">57.45</td>
+<td style="text-align: right;">55.12</td>
+<td style="text-align: right;">6.11</td>
+<td style="text-align: right;">170</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>tralo</td>
+<td>original</td>
+<td>raw</td>
+<td style="text-align: right;">58.30</td>
+<td style="text-align: right;">55.59</td>
+<td style="text-align: right;">6.11</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>tralo</td>
+<td>original</td>
+<td>upper_bound_correction</td>
+<td style="text-align: right;">58.30</td>
+<td style="text-align: right;">55.59</td>
+<td style="text-align: right;">6.11</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>tralo</td>
+<td>original</td>
+<td>capped_first</td>
+<td style="text-align: right;">60.50</td>
+<td style="text-align: right;">59.95</td>
+<td style="text-align: right;">46.36</td>
+<td style="text-align: right;">91</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">91</td>
+</tr>
+<tr>
+<td>tralo</td>
+<td>TraLO-derived</td>
+<td>upper_bound_correction</td>
+<td style="text-align: right;">58.30</td>
+<td style="text-align: right;">55.59</td>
+<td style="text-align: right;">6.11</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>tralo</td>
+<td>TraLO-derived</td>
+<td>capped_first</td>
+<td style="text-align: right;">58.30</td>
+<td style="text-align: right;">55.59</td>
+<td style="text-align: right;">6.11</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+</tbody>
+</table>
+<h2>Seed 704</h2>
+<table>
+<thead>
+<tr>
+<th>Training</th>
+<th>Budget</th>
+<th>Allocation</th>
+<th style="text-align: right;">Accuracy %</th>
+<th style="text-align: right;">Macro-F1</th>
+<th style="text-align: right;">Constrained F1</th>
+<th style="text-align: right;">Changed</th>
+<th style="text-align: right;">Excess: original</th>
+<th style="text-align: right;">Excess: derived</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>clipper</td>
+<td>original</td>
+<td>raw</td>
+<td style="text-align: right;">61.20</td>
+<td style="text-align: right;">60.90</td>
+<td style="text-align: right;">60.16</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">91</td>
+<td style="text-align: right;">184</td>
+</tr>
+<tr>
+<td>clipper</td>
+<td>original</td>
+<td>upper_bound_correction</td>
+<td style="text-align: right;">59.90</td>
+<td style="text-align: right;">59.47</td>
+<td style="text-align: right;">51.03</td>
+<td style="text-align: right;">91</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">93</td>
+</tr>
+<tr>
+<td>clipper</td>
+<td>original</td>
+<td>capped_first</td>
+<td style="text-align: right;">60.00</td>
+<td style="text-align: right;">59.62</td>
+<td style="text-align: right;">52.14</td>
+<td style="text-align: right;">101</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">93</td>
+</tr>
+<tr>
+<td>clipper</td>
+<td>TraLO-derived</td>
+<td>upper_bound_correction</td>
+<td style="text-align: right;">56.70</td>
+<td style="text-align: right;">54.10</td>
+<td style="text-align: right;">5.94</td>
+<td style="text-align: right;">184</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>clipper</td>
+<td>TraLO-derived</td>
+<td>capped_first</td>
+<td style="text-align: right;">56.70</td>
+<td style="text-align: right;">54.10</td>
+<td style="text-align: right;">5.94</td>
+<td style="text-align: right;">184</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>tralo_null</td>
+<td>original</td>
+<td>raw</td>
+<td style="text-align: right;">61.70</td>
+<td style="text-align: right;">61.36</td>
+<td style="text-align: right;">60.06</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">85</td>
+<td style="text-align: right;">178</td>
+</tr>
+<tr>
+<td>tralo_null</td>
+<td>original</td>
+<td>upper_bound_correction</td>
+<td style="text-align: right;">60.25</td>
+<td style="text-align: right;">59.82</td>
+<td style="text-align: right;">51.94</td>
+<td style="text-align: right;">85</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">93</td>
+</tr>
+<tr>
+<td>tralo_null</td>
+<td>original</td>
+<td>capped_first</td>
+<td style="text-align: right;">60.30</td>
+<td style="text-align: right;">59.89</td>
+<td style="text-align: right;">52.81</td>
+<td style="text-align: right;">91</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">93</td>
+</tr>
+<tr>
+<td>tralo_null</td>
+<td>TraLO-derived</td>
+<td>upper_bound_correction</td>
+<td style="text-align: right;">56.90</td>
+<td style="text-align: right;">54.22</td>
+<td style="text-align: right;">5.94</td>
+<td style="text-align: right;">178</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>tralo_null</td>
+<td>TraLO-derived</td>
+<td>capped_first</td>
+<td style="text-align: right;">56.90</td>
+<td style="text-align: right;">54.22</td>
+<td style="text-align: right;">5.94</td>
+<td style="text-align: right;">178</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>tralo</td>
+<td>original</td>
+<td>raw</td>
+<td style="text-align: right;">56.80</td>
+<td style="text-align: right;">54.10</td>
+<td style="text-align: right;">5.07</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>tralo</td>
+<td>original</td>
+<td>upper_bound_correction</td>
+<td style="text-align: right;">56.80</td>
+<td style="text-align: right;">54.10</td>
+<td style="text-align: right;">5.07</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>tralo</td>
+<td>original</td>
+<td>capped_first</td>
+<td style="text-align: right;">59.65</td>
+<td style="text-align: right;">59.11</td>
+<td style="text-align: right;">48.54</td>
+<td style="text-align: right;">93</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">93</td>
+</tr>
+<tr>
+<td>tralo</td>
+<td>TraLO-derived</td>
+<td>upper_bound_correction</td>
+<td style="text-align: right;">56.80</td>
+<td style="text-align: right;">54.10</td>
+<td style="text-align: right;">5.07</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>tralo</td>
+<td>TraLO-derived</td>
+<td>capped_first</td>
+<td style="text-align: right;">56.80</td>
+<td style="text-align: right;">54.09</td>
+<td style="text-align: right;">5.07</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+</tbody>
+</table>
+<h2>Means ± seed standard deviation (four seeds)</h2>
+<table>
+<thead>
+<tr>
+<th>Training</th>
+<th>Budget</th>
+<th>Allocation</th>
+<th style="text-align: right;">Accuracy %</th>
+<th style="text-align: right;">Macro-F1</th>
+<th style="text-align: right;">Constrained F1</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>clipper</td>
+<td>original</td>
+<td>raw</td>
+<td style="text-align: right;">61.61 ± 0.36</td>
+<td style="text-align: right;">61.38 ± 0.40</td>
+<td style="text-align: right;">59.09 ± 0.95</td>
+</tr>
+<tr>
+<td>clipper</td>
+<td>original</td>
+<td>upper_bound_correction</td>
+<td style="text-align: right;">60.33 ± 0.30</td>
+<td style="text-align: right;">60.06 ± 0.41</td>
+<td style="text-align: right;">50.90 ± 0.94</td>
+</tr>
+<tr>
+<td>clipper</td>
+<td>original</td>
+<td>capped_first</td>
+<td style="text-align: right;">60.38 ± 0.26</td>
+<td style="text-align: right;">60.15 ± 0.36</td>
+<td style="text-align: right;">51.78 ± 1.05</td>
+</tr>
+<tr>
+<td>clipper</td>
+<td>TraLO-derived</td>
+<td>upper_bound_correction</td>
+<td style="text-align: right;">57.22 ± 0.36</td>
+<td style="text-align: right;">54.75 ± 0.44</td>
+<td style="text-align: right;">6.32 ± 1.23</td>
+</tr>
+<tr>
+<td>clipper</td>
+<td>TraLO-derived</td>
+<td>capped_first</td>
+<td style="text-align: right;">57.22 ± 0.36</td>
+<td style="text-align: right;">54.75 ± 0.44</td>
+<td style="text-align: right;">6.32 ± 1.23</td>
+</tr>
+<tr>
+<td>tralo_null</td>
+<td>original</td>
+<td>raw</td>
+<td style="text-align: right;">61.91 ± 0.31</td>
+<td style="text-align: right;">61.62 ± 0.29</td>
+<td style="text-align: right;">58.99 ± 1.13</td>
+</tr>
+<tr>
+<td>tralo_null</td>
+<td>original</td>
+<td>upper_bound_correction</td>
+<td style="text-align: right;">60.56 ± 0.32</td>
+<td style="text-align: right;">60.27 ± 0.33</td>
+<td style="text-align: right;">51.02 ± 1.19</td>
+</tr>
+<tr>
+<td>tralo_null</td>
+<td>original</td>
+<td>capped_first</td>
+<td style="text-align: right;">60.65 ± 0.35</td>
+<td style="text-align: right;">60.41 ± 0.41</td>
+<td style="text-align: right;">52.24 ± 0.75</td>
+</tr>
+<tr>
+<td>tralo_null</td>
+<td>TraLO-derived</td>
+<td>upper_bound_correction</td>
+<td style="text-align: right;">57.48 ± 0.45</td>
+<td style="text-align: right;">54.96 ± 0.49</td>
+<td style="text-align: right;">6.32 ± 1.23</td>
+</tr>
+<tr>
+<td>tralo_null</td>
+<td>TraLO-derived</td>
+<td>capped_first</td>
+<td style="text-align: right;">57.48 ± 0.45</td>
+<td style="text-align: right;">54.96 ± 0.49</td>
+<td style="text-align: right;">6.32 ± 1.23</td>
+</tr>
+<tr>
+<td>tralo</td>
+<td>original</td>
+<td>raw</td>
+<td style="text-align: right;">57.48 ± 0.62</td>
+<td style="text-align: right;">54.74 ± 0.62</td>
+<td style="text-align: right;">5.35 ± 1.80</td>
+</tr>
+<tr>
+<td>tralo</td>
+<td>original</td>
+<td>upper_bound_correction</td>
+<td style="text-align: right;">57.48 ± 0.62</td>
+<td style="text-align: right;">54.74 ± 0.62</td>
+<td style="text-align: right;">5.35 ± 1.80</td>
+</tr>
+<tr>
+<td>tralo</td>
+<td>original</td>
+<td>capped_first</td>
+<td style="text-align: right;">59.99 ± 0.37</td>
+<td style="text-align: right;">59.47 ± 0.35</td>
+<td style="text-align: right;">47.02 ± 1.17</td>
+</tr>
+<tr>
+<td>tralo</td>
+<td>TraLO-derived</td>
+<td>upper_bound_correction</td>
+<td style="text-align: right;">57.48 ± 0.62</td>
+<td style="text-align: right;">54.74 ± 0.62</td>
+<td style="text-align: right;">5.35 ± 1.80</td>
+</tr>
+<tr>
+<td>tralo</td>
+<td>TraLO-derived</td>
+<td>capped_first</td>
+<td style="text-align: right;">57.51 ± 0.61</td>
+<td style="text-align: right;">54.82 ± 0.61</td>
+<td style="text-align: right;">6.10 ± 1.38</td>
+</tr>
+</tbody>
+</table>
+<h2>Paired differences: TraLO minus each control</h2>
+<p>Differences are percentage/F1 points. Positive favors TraLO; negative favors the control. The interval is a two-sided 95% Student-t interval over four paired seeds, conditional on this fixed development split. These exploratory intervals are not corrected for multiple comparisons, and normality at four seeds is unverified.</p>
+<table>
+<thead>
+<tr>
+<th>Budget</th>
+<th>Allocation</th>
+<th>Control</th>
+<th>Metric</th>
+<th>Seed deltas 701 / 702 / 703 / 704</th>
+<th style="text-align: right;">Mean</th>
+<th>95% interval</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>original</td>
+<td>upper_bound_correction</td>
+<td>clipper</td>
+<td>accuracy</td>
+<td>-3.10 / -3.15 / -2.05 / -3.10</td>
+<td style="text-align: right;">-2.85</td>
+<td>[-3.70, -2.00]</td>
+</tr>
+<tr>
+<td>original</td>
+<td>upper_bound_correction</td>
+<td>clipper</td>
+<td>macro_f1</td>
+<td>-5.51 / -5.83 / -4.55 / -5.37</td>
+<td style="text-align: right;">-5.31</td>
+<td>[-6.18, -4.45]</td>
+</tr>
+<tr>
+<td>original</td>
+<td>upper_bound_correction</td>
+<td>clipper</td>
+<td>cc_f1</td>
+<td>-44.73 / -46.66 / -44.82 / -45.96</td>
+<td style="text-align: right;">-45.54</td>
+<td>[-47.02, -44.06]</td>
+</tr>
+<tr>
+<td>original</td>
+<td>upper_bound_correction</td>
+<td>tralo_null</td>
+<td>accuracy</td>
+<td>-3.55 / -3.30 / -2.05 / -3.45</td>
+<td style="text-align: right;">-3.09</td>
+<td>[-4.20, -1.97]</td>
+</tr>
+<tr>
+<td>original</td>
+<td>upper_bound_correction</td>
+<td>tralo_null</td>
+<td>macro_f1</td>
+<td>-5.76 / -6.00 / -4.64 / -5.72</td>
+<td style="text-align: right;">-5.53</td>
+<td>[-6.49, -4.56]</td>
+</tr>
+<tr>
+<td>original</td>
+<td>upper_bound_correction</td>
+<td>tralo_null</td>
+<td>cc_f1</td>
+<td>-44.88 / -46.66 / -44.27 / -46.87</td>
+<td style="text-align: right;">-45.67</td>
+<td>[-47.72, -43.61]</td>
+</tr>
+<tr>
+<td>original</td>
+<td>capped_first</td>
+<td>clipper</td>
+<td>accuracy</td>
+<td>-0.70 / -0.60 / +0.10 / -0.35</td>
+<td style="text-align: right;">-0.39</td>
+<td>[-0.96, +0.18]</td>
+</tr>
+<tr>
+<td>original</td>
+<td>capped_first</td>
+<td>clipper</td>
+<td>macro_f1</td>
+<td>-0.88 / -1.04 / -0.29 / -0.51</td>
+<td style="text-align: right;">-0.68</td>
+<td>[-1.22, -0.14]</td>
+</tr>
+<tr>
+<td>original</td>
+<td>capped_first</td>
+<td>clipper</td>
+<td>cc_f1</td>
+<td>-5.51 / -4.44 / -5.45 / -3.61</td>
+<td style="text-align: right;">-4.75</td>
+<td>[-6.19, -3.31]</td>
+</tr>
+<tr>
+<td>original</td>
+<td>capped_first</td>
+<td>tralo_null</td>
+<td>accuracy</td>
+<td>-1.15 / -0.95 / +0.10 / -0.65</td>
+<td style="text-align: right;">-0.66</td>
+<td>[-1.53, +0.21]</td>
+</tr>
+<tr>
+<td>original</td>
+<td>capped_first</td>
+<td>tralo_null</td>
+<td>macro_f1</td>
+<td>-1.16 / -1.46 / -0.38 / -0.79</td>
+<td style="text-align: right;">-0.95</td>
+<td>[-1.69, -0.20]</td>
+</tr>
+<tr>
+<td>original</td>
+<td>capped_first</td>
+<td>tralo_null</td>
+<td>cc_f1</td>
+<td>-5.51 / -6.18 / -4.89 / -4.27</td>
+<td style="text-align: right;">-5.21</td>
+<td>[-6.52, -3.91]</td>
+</tr>
+<tr>
+<td>TraLO-derived</td>
+<td>upper_bound_correction</td>
+<td>clipper</td>
+<td>accuracy</td>
+<td>-0.10 / +0.05 / +0.95 / +0.10</td>
+<td style="text-align: right;">+0.25</td>
+<td>[-0.50, +1.00]</td>
+</tr>
+<tr>
+<td>TraLO-derived</td>
+<td>upper_bound_correction</td>
+<td>clipper</td>
+<td>macro_f1</td>
+<td>-0.22 / -0.48 / +0.69 / +0.00</td>
+<td style="text-align: right;">-0.00</td>
+<td>[-0.80, +0.79]</td>
+</tr>
+<tr>
+<td>TraLO-derived</td>
+<td>upper_bound_correction</td>
+<td>clipper</td>
+<td>cc_f1</td>
+<td>-0.83 / -2.17 / +0.00 / -0.87</td>
+<td style="text-align: right;">-0.97</td>
+<td>[-2.39, +0.46]</td>
+</tr>
+<tr>
+<td>TraLO-derived</td>
+<td>upper_bound_correction</td>
+<td>tralo_null</td>
+<td>accuracy</td>
+<td>-0.60 / -0.15 / +0.85 / -0.10</td>
+<td style="text-align: right;">-0.00</td>
+<td>[-0.97, +0.97]</td>
+</tr>
+<tr>
+<td>TraLO-derived</td>
+<td>upper_bound_correction</td>
+<td>tralo_null</td>
+<td>macro_f1</td>
+<td>-0.51 / -0.69 / +0.47 / -0.12</td>
+<td style="text-align: right;">-0.21</td>
+<td>[-1.03, +0.60]</td>
+</tr>
+<tr>
+<td>TraLO-derived</td>
+<td>upper_bound_correction</td>
+<td>tralo_null</td>
+<td>cc_f1</td>
+<td>-0.83 / -2.17 / +0.00 / -0.87</td>
+<td style="text-align: right;">-0.97</td>
+<td>[-2.39, +0.46]</td>
+</tr>
+<tr>
+<td>TraLO-derived</td>
+<td>capped_first</td>
+<td>clipper</td>
+<td>accuracy</td>
+<td>-0.05 / +0.15 / +0.95 / +0.10</td>
+<td style="text-align: right;">+0.29</td>
+<td>[-0.43, +1.00]</td>
+</tr>
+<tr>
+<td>TraLO-derived</td>
+<td>capped_first</td>
+<td>clipper</td>
+<td>macro_f1</td>
+<td>-0.14 / -0.27 / +0.69 / -0.00</td>
+<td style="text-align: right;">+0.07</td>
+<td>[-0.61, +0.74]</td>
+</tr>
+<tr>
+<td>TraLO-derived</td>
+<td>capped_first</td>
+<td>clipper</td>
+<td>cc_f1</td>
+<td>+0.00 / +0.00 / +0.00 / -0.87</td>
+<td style="text-align: right;">-0.22</td>
+<td>[-0.91, +0.47]</td>
+</tr>
+<tr>
+<td>TraLO-derived</td>
+<td>capped_first</td>
+<td>tralo_null</td>
+<td>accuracy</td>
+<td>-0.55 / -0.05 / +0.85 / -0.10</td>
+<td style="text-align: right;">+0.04</td>
+<td>[-0.90, +0.97]</td>
+</tr>
+<tr>
+<td>TraLO-derived</td>
+<td>capped_first</td>
+<td>tralo_null</td>
+<td>macro_f1</td>
+<td>-0.42 / -0.48 / +0.47 / -0.13</td>
+<td style="text-align: right;">-0.14</td>
+<td>[-0.83, +0.55]</td>
+</tr>
+<tr>
+<td>TraLO-derived</td>
+<td>capped_first</td>
+<td>tralo_null</td>
+<td>cc_f1</td>
+<td>+0.00 / +0.00 / +0.00 / -0.87</td>
+<td style="text-align: right;">-0.22</td>
+<td>[-0.91, +0.47]</td>
+</tr>
+</tbody>
+</table>
+<p>Source predictions: <code>C:\Users\roeym\.codex\rebuild-audit-20260922\achieved-counts-run\comparison</code>. Full counts, per-class metrics and labels assigned by every policy are in results.json. Independent scikit-learn metrics, artifact hashes, warm-up/batch matching, update counts and self-count identity passed. Four seeds on inspected development data do not establish superiority or absence of bugs.</p>

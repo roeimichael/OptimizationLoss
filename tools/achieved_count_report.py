@@ -15,7 +15,7 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def run(root, output):
+def run(root, output, cache_override=None):
     from sklearn.metrics import accuracy_score, f1_score
     from scipy.stats import t
     root, output = Path(root), Path(output)
@@ -24,6 +24,9 @@ def run(root, output):
     if len(config['seeds']) != 4:
         raise ValueError('this registered report requires four distinct seeds')
     caps = json.loads((root/'caps.json').read_text())['global_caps']
+    cache = Path(cache_override or json.loads((root/'events.jsonl').read_text().splitlines()[0])['cache'])
+    assert digest(cache/'events.jsonl') == config['cache_events_sha256']
+    cache_config = json.loads((cache/'config.json').read_text())
     constrained = [c for c,k in enumerate(caps) if k is not None]
     events = [json.loads(s) for s in (root/'events.jsonl').read_text().splitlines()]
     assert events[-1]['event'] == 'completed', 'training incomplete'
@@ -86,16 +89,18 @@ def run(root, output):
     report = dict(config=config,original_caps=caps,derived_caps=quotas,inputs_sha256=inputs,rows=rows,provenance=provenance)
     (output/'results.json').write_text(json.dumps(report,allow_nan=False),encoding='utf-8')
     text = ['# Four-seed TraLO-derived budget diagnostic', '',
-        'Frozen ResNet18 / CIFAR-100; 10,000 training and 2,000 development images. '
-        'Seeds 701–704; 10 head epochs, warm-up 5; unchanged high-rho/shared-Adam recipe. '
+        f"Frozen ResNet18 / CIFAR-100; {cache_config['train_samples']:,} training and "
+        f"{cache_config['development_samples']:,} development images. Seeds {config['seeds']}; "
+        f"{config['epochs']} head epochs, warm-up {config['warmup_epochs']}; "
+        f"rho {config['rho_initial']} to {config['rho_target']}, shared Adam. "
         'The previously diagnosed training failure is retained to isolate allocation. '
         'This is not a repaired-TraLO test or a run-until-satisfied experiment.', '',
-        'Accuracy is percent correct. Macro-F1 averages all 100 class F1 scores; '
-        'constrained F1 averages the same 10 constrained classes, including zero-cap classes. '
+        f'Accuracy is percent correct. Macro-F1 averages all {len(caps)} class F1 scores; '
+        f'constrained F1 averages the same {len(constrained)} constrained classes, including zero-cap classes. '
         'F1 is displayed on a 0–100 scale. Higher is better for these scores. '
         'Excess is the sum of predictions above individual caps; 0 means feasible. '
         'Changed counts label changes relative to that arm’s raw argmax.', '',
-        'Original caps are 10 for each class 0–9; all other classes are uncapped. '
+        'Original class:cap pairs are '+', '.join(f'{c}:{caps[c]}' for c in constrained)+'. All other classes are uncapped. '
         'Derived caps are that seed’s raw TraLO counts, with no label access. '
         'Upper correction changes excess assignments only. Capped-first rebuilds '
         'assignments using the entire probability matrix. Raw has no allocation.', '',
@@ -124,7 +129,7 @@ def run(root, output):
         'The interval is a two-sided 95% Student-t interval over four paired seeds, conditional '
         'on this fixed development split. These exploratory intervals are not corrected for '
         'multiple comparisons, and normality at four seeds is unverified.', '',
-        '| Budget | Allocation | Control | Metric | Seed deltas 701 / 702 / 703 / 704 | Mean | 95% interval |',
+        '| Budget | Allocation | Control | Metric | Seed deltas '+ ' / '.join(map(str,config['seeds']))+' | Mean | 95% interval |',
         '|---|---|---|---|---|---:|---|']
     for budget in ('original','TraLO-derived'):
         for policy in ('upper_bound_correction','capped_first'):
