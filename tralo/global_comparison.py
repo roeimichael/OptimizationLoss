@@ -54,7 +54,7 @@ def audited_arm_log(path):
             raise
 
 
-def train_arm(train_x, train_y, unlabelled_x, caps, config, seed, arm, emit):
+def train_arm(train_x, train_y, unlabelled_x, caps, config, seed, arm, emit, observer=None):
     """No evaluation-label argument. All arms use identical supervised batches."""
     import torch
     from .global_constraint import bounded_count_penalty, advance_controller
@@ -92,7 +92,7 @@ def train_arm(train_x, train_y, unlabelled_x, caps, config, seed, arm, emit):
               'constraint_applied':constraint_updates})
         raise RuntimeError(message)
 
-    def step(loss):
+    def step(loss, phase, epoch, batch):
         if not torch.isfinite(loss):
             abort('nonfinite loss; no optimizer update applied')
         optimizer.zero_grad(set_to_none=True)
@@ -101,7 +101,11 @@ def train_arm(train_x, train_y, unlabelled_x, caps, config, seed, arm, emit):
             abort('missing/nonfinite gradient; no optimizer update applied')
         norm = float(torch.sqrt(sum(p.grad.square().sum() for p in model.parameters())).item())
         before = [p.detach().clone() for p in model.parameters()]
+        if observer is not None:
+            observer('before',phase,epoch+1,batch,model,optimizer)
         optimizer.step()
+        if observer is not None:
+            observer('after',phase,epoch+1,batch,model,optimizer)
         if any(not torch.isfinite(p).all() for p in model.parameters()):
             abort('nonfinite parameter after optimizer update; run invalid')
         displacement = float(torch.sqrt(sum((p.detach()-b).square().sum()
@@ -119,7 +123,7 @@ def train_arm(train_x, train_y, unlabelled_x, caps, config, seed, arm, emit):
             indices = order[start:start+config['batch_size']].to(device)
             loss = torch.nn.functional.cross_entropy(model(train_x[indices]),train_y[indices])
             task_attempts += 1
-            step(loss)
+            step(loss,'task',epoch,start//config['batch_size'])
             task_updates += 1
             loss_sum += float(loss.item())*len(indices)
         if epoch+1 == config['warmup_epochs']:
@@ -141,7 +145,7 @@ def train_arm(train_x, train_y, unlabelled_x, caps, config, seed, arm, emit):
             if arm == 'tralo' and loss.item() > 0:
                 row['constraint_attempted'] = True
                 constraint_attempts += 1
-                norm, displacement = step(loss)
+                norm, displacement = step(loss,'constraint',epoch,None)
                 constraint_updates += 1
                 row.update(constraint_applied=True, gradient_norm=norm, displacement_norm=displacement)
             if arm == 'tralo':

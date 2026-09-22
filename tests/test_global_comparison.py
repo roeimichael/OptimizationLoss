@@ -42,3 +42,15 @@ class MatchedTrainingTests(unittest.TestCase):
         self.assertEqual({r['task_updates'] for r in results.values()},{8})
         self.assertEqual(results['tralo']['constraint_updates'],2)
         self.assertFalse(torch.equal(results['tralo']['probabilities'],results['tralo_null']['probabilities']))
+
+    def test_read_only_step_observer_does_not_change_training(self):
+        x,y,u=self.fixture(); seen=[]
+        reference=train_arm(x,y,u,[0,None],CFG,1,'tralo',lambda _:None)
+        def observe(stage,phase,epoch,batch,model,optimizer):
+            seen.append((stage,phase,epoch,batch,
+                         sum(float(p.detach().square().sum()) for p in model.parameters())))
+        traced=train_arm(x,y,u,[0,None],CFG,1,'tralo',lambda _:None,observer=observe)
+        self.assertTrue(torch.equal(reference['probabilities'],traced['probabilities']))
+        for key in reference['state']:
+            self.assertTrue(torch.equal(reference['state'][key],traced['state'][key]))
+        self.assertEqual(len(seen),2*(reference['task_updates']+reference['constraint_updates']))
