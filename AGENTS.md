@@ -21,3 +21,8 @@
 - Never claim feasibility implies optimality, or tests prove no bugs remain.
 - Ask before changing the scientific question, data access, or compute budget.
 - Use `git -c gc.auto=0`; no pruning or destructive cleanup.
+- Each coherent change: run relevant tests, inspect outputs, commit locally,
+  push this branch to GitHub and DSI, deploy a new immutable checkout at that
+  commit, then test it remotely. Record exact SHA and failures; never say synced
+  when a push or verification failed. Never alter a running release checkout.
+- No automatic five-minute monitoring. Follow NEXT_STEPS.md for the work queue.
