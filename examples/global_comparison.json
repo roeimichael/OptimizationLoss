@@ -1,0 +1,16 @@
+{
+  "seeds": [
+    701,
+    702,
+    703
+  ],
+  "epochs": 10,
+  "warmup_epochs": 5,
+  "batch_size": 256,
+  "lr": 0.001,
+  "lambda_initial": 0.01,
+  "lambda_step": 0.05,
+  "rho_initial": 0.5,
+  "rho_target": 100.0,
+  "cache_events_sha256": "6a28f56bbfe449b3f102c63567e378e931e470bc934de3f345267f8fbae99753"
+}
