@@ -58,6 +58,25 @@ Never update old research checkouts or a release in place.
 
 ## What current tests establish
 
+Global-only checkpoint `44f485e` (2026-09-22): 40 tests passed locally and on
+both DSI hosts; tracked bytes match, and the dsisco01 CUDA smoke passed. Two
+named greedy allocators are implemented as diagnostics while the research
+allocation definition remains open. A separate enumeration audit of 500 tiny
+problems found every output feasible, but confirmed neither greedy policy is
+always optimal for sum of assigned probabilities. This is not an accuracy claim.
+The CIFAR-100 pilot protocol is in `experiments/global_clipper_pilot.md`.
+
+Next global-only steps:
+- Select the intended allocation objective and upper-bound semantics; consider
+  an exact assignment reference before interpreting a greedy baseline's losses.
+- Inspect the real image pilot's data, updates, saved scores and independent
+  metric recomputation before changing a method or increasing the budget.
+- Add an explicit logging-frequency intervention test for full training.
+- Establish an adequately trained baseline and justified real quota policy;
+  synthetic pilot caps and frozen features are not the final research setting.
+- Only then implement a mathematically specified global constraint loss and
+  its matched no-constraint control. Group/local constraints remain deferred.
+
 Checkpoint `310cade` (2026-09-22): all 24 regressions and the CLI example passed
 on both hosts with matching tracked-file hashes. On dsisco01 GPU0, float32 mean
 cross-entropy equaled ln(2), gradients matched +/-1/4, the first Adam step matched
