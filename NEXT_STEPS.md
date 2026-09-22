@@ -58,6 +58,14 @@ Never update old research checkouts or a release in place.
 
 ## What current tests establish
 
+Global TraLO checkpoint `0c355ba4`: nine matched fits completed (three seeds,
+Clipper/null/TraLO),53 tests passed on both servers, all400 supervised updates
+per fit applied. [Results](experiments/global_tralo_result_20260922.md) show
+excessive constrained-class suppression for this recipe, with no mean benefit
+over the matched controls under either final allocation. This does not close
+the global-only method family. Any follow-up should isolate controller strength
+or shared Adam-state effects; do not tune multiple changes against these scores.
+
 Global-only checkpoint `44f485e` (2026-09-22): 40 tests passed locally and on
 both DSI hosts; tracked bytes match, and the dsisco01 CUDA smoke passed. Two
 named greedy allocators are implemented as diagnostics while the research
