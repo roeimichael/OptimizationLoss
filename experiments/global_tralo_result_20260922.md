@@ -1,5 +1,10 @@
 # Global-only TraLO, null and Clipper: first matched screen
 
+**Subsequent debugging:** [an exact replay and controlled interventions](global_tralo_debug_result_20260922.md)
+identified a harmful shared-Adam first-moment effect and sensitivity to the
+rapid rho ramp. This report preserves the original measurements; do not read
+them as an isolated rejection of the global constraint objective.
+
 **Result: this TraLO recipe did not improve the mean results over either
 control.** It enforced the global upper bounds, but suppressed the constrained
 classes excessively. This is a finding about one small frozen-feature recipe,

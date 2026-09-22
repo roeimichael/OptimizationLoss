@@ -1,0 +1,107 @@
+{
+  "exact_replay": {
+    "seed": 701,
+    "scores": {
+      "raw": {
+        "accuracy": 0.574,
+        "macro_f1": 0.547323405007355,
+        "cc_f1": 0.07222222222222222
+      },
+      "upper_bound_correction": {
+        "accuracy": 0.574,
+        "macro_f1": 0.547323405007355,
+        "cc_f1": 0.07222222222222222
+      },
+      "capped_first": {
+        "accuracy": 0.598,
+        "macro_f1": 0.5938980381857375,
+        "cc_f1": 0.47314332640244283
+      }
+    },
+    "raw_counts": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      4,
+      0,
+      10
+    ],
+    "constraint_updates": 4,
+    "warmup_sha256": "7c606f81dc2ce66ca64fbdd456e8d4a6911f1ff0e4c07528c79eb587a4000af9",
+    "batch_sha256": "0e01021f0eb3abb4769e499547c94bfc047c5e323d0b32f8e3550e06e9b9d680"
+  },
+  "constant_rho": {
+    "seed": 701,
+    "scores": {
+      "raw": {
+        "accuracy": 0.6165,
+        "macro_f1": 0.6123848946501321,
+        "cc_f1": 0.5540322688064623
+      },
+      "upper_bound_correction": {
+        "accuracy": 0.6045,
+        "macro_f1": 0.6001987815980825,
+        "cc_f1": 0.49012033159298235
+      },
+      "capped_first": {
+        "accuracy": 0.6075,
+        "macro_f1": 0.6054422963698866,
+        "cc_f1": 0.534927714226452
+      }
+    },
+    "raw_counts": [
+      15,
+      15,
+      10,
+      9,
+      11,
+      7,
+      24,
+      12,
+      19,
+      18
+    ],
+    "constraint_updates": 5,
+    "warmup_sha256": "7c606f81dc2ce66ca64fbdd456e8d4a6911f1ff0e4c07528c79eb587a4000af9",
+    "batch_sha256": "0e01021f0eb3abb4769e499547c94bfc047c5e323d0b32f8e3550e06e9b9d680"
+  },
+  "isolated_optimizer_state": {
+    "seed": 701,
+    "scores": {
+      "raw": {
+        "accuracy": 0.62,
+        "macro_f1": 0.6154520228434301,
+        "cc_f1": 0.5771321250861497
+      },
+      "upper_bound_correction": {
+        "accuracy": 0.61,
+        "macro_f1": 0.6053641168564726,
+        "cc_f1": 0.5148621914322935
+      },
+      "capped_first": {
+        "accuracy": 0.61,
+        "macro_f1": 0.6061559521437941,
+        "cc_f1": 0.5227054920042298
+      }
+    },
+    "raw_counts": [
+      15,
+      14,
+      7,
+      6,
+      5,
+      12,
+      19,
+      10,
+      15,
+      18
+    ],
+    "constraint_updates": 5,
+    "warmup_sha256": "7c606f81dc2ce66ca64fbdd456e8d4a6911f1ff0e4c07528c79eb587a4000af9",
+    "batch_sha256": "0e01021f0eb3abb4769e499547c94bfc047c5e323d0b32f8e3550e06e9b9d680"
+  }
+}

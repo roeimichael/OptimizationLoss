@@ -58,6 +58,14 @@ Never update old research checkouts or a release in place.
 
 ## What current tests establish
 
+Collapse debug checkpoint `3a70ba52`:54 tests passed; seed701 exactly replayed.
+With identical current parameters/gradient, clearing only Adam's first moment
+changed an uphill supervised step into a loss-decreasing step. Fixed rho and
+separate persistent optimizer states each prevented severe suppression in this
+single-seed diagnostic. [Evidence](experiments/global_tralo_debug_result_20260922.md).
+Next: explicit optimizer ownership and state-isolation tests before another
+matched small comparison. Do not interpret this as established method superiority.
+
 Global TraLO checkpoint `0c355ba4`: nine matched fits completed (three seeds,
 Clipper/null/TraLO),53 tests passed on both servers, all400 supervised updates
 per fit applied. [Results](experiments/global_tralo_result_20260922.md) show
