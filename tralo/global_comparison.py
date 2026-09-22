@@ -160,7 +160,8 @@ def train_arm(train_x, train_y, unlabelled_x, caps, config, seed, arm, emit, obs
             task_updates += 1
             loss_sum += float(loss.item())*len(indices)
             ce_sum += float(ce.item())*len(indices)
-            auxiliary_sum += float(extra)*len(indices)
+            auxiliary_sum += (float(extra.detach().item())
+                              if isinstance(extra,torch.Tensor) else float(extra))*len(indices)
         if epoch+1 == config['warmup_epochs']:
             warmup_hash = _state_hash(model)
         row = {'event':'epoch', 'epoch':epoch+1, 'task_loss':loss_sum/len(train_x),
