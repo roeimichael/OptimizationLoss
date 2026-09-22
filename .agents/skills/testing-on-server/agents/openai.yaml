@@ -1,0 +1,4 @@
+interface:
+  display_name: "Testing on Server"
+  short_description: "Publish and verify versioned tests on DSI GPUs"
+  default_prompt: "Use $testing-on-server to test, commit, deploy and verify this change on the DSI servers."
