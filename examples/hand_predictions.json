@@ -1,0 +1,11 @@
+{
+  "sample_ids": ["a", "b", "c"],
+  "groups": ["g", "g", "h"],
+  "probabilities": [[0.8, 0.2], [0.6, 0.4], [0.3, 0.7]],
+  "labels": [0, 1, 1],
+  "allocated_predictions": [0, 1, 1],
+  "global_caps": [1, null],
+  "local_caps": {"g": [1, null], "h": [1, null]},
+  "constrained_classes": [0],
+  "allocation_policy": "hand_worked_fixture"
+}

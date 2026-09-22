@@ -1,22 +1,14 @@
-# OptimizationLoss / TraLO
+# Working on the rebuild
 
-Read [`docs/FRAMEWORK.md`](docs/FRAMEWORK.md) for the protocol -- it is the law.
-Then [`RULESET.md`](RULESET.md) for how to work, [`docs/MISSION.md`](docs/MISSION.md)
-for where the project stands, and [`docs/LEDGER.md`](docs/LEDGER.md) for what is
-already proved, measured or closed.
-
-The user reset the evidence on 2026-09-14: historical results and folder names
-establish no winners, no failures, and no universally rejected family.
-
-Four rules that are easy to skip and expensive to skip:
-
-- Stay within dual-constraint training; do not pivot to a different research task.
-- Preserve evidence by recoverable archival. Never delete predictions, checkpoints,
-  data, or Git objects as a cleanup shortcut. Protect unrelated dirty changes.
-- Validate data, gradients, logging, and local/server source identity before a
-  fresh campaign. Follow the staged checks in FRAMEWORK; no bypass to keep GPUs busy.
-- Ask when a decision changes the scientific question, data access, held-out
-  evaluation, or compute budget. Ordinary validated cleanup is authorized.
-
-Everything else, including the full operational rules, is in `RULESET.md`.
-Report what is verified, what is unverified, and what is next.
+- Prefix shell commands with `rtk`; use `rtk proxy` for passthrough.
+- This branch is a fresh implementation. Do not import or copy legacy modules.
+- Preserve old evidence outside the active tree; never delete data, checkpoints,
+  predictions, or Git objects. Do not edit the original checkout or live servers.
+- Read DESIGN.md. Keep this first slice small: allocation, metrics, logging.
+- Write independent examples before implementation. A legacy result is not an oracle.
+- Never let labels enter allocation; labels are used only by the metric function.
+- No GPU campaigns until data, training, gradients, and source identity are validated.
+- No silent scientific defaults: explicitly name allocation policy and quotas.
+- Never claim feasibility implies optimality, or tests prove no bugs remain.
+- Ask before changing the scientific question, data access, or compute budget.
+- Use `git -c gc.auto=0`; no pruning or destructive cleanup.

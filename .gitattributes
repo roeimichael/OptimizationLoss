@@ -1,4 +1,1 @@
-# Historical material is not part of the maintained implementation.
-docs/archive/** linguist-vendored
-# Split inputs stay versioned; generated metadata is collapsed in GitHub reviews.
-data/**/oodslice/*_meta.csv linguist-generated=true
+* text=auto eol=lf
