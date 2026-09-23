@@ -138,3 +138,5 @@ User explicitly authorizes similar medical data and requires results by17:00. Do
 First36 knee fits COMPLETE; see experiments/knee_first_stage_20260923.md. Next fixed diagnostic: constraint_lr0.0001,base only, same901-904 seeds. No new data approval needed. All original source releases immutable.
 
 Smallstep12fits COMPLETE, hashes/dose audited, baseline/null byte-identical. RawccF1mean37.24vsnull38.00; capped-first42.19vsnull41.08,paired95%CI delta[-0.74,+2.96]points. No established benefit. Next: experiments/knee_adaptation_protocol_20260923.md prespecifies5training-only epochs perseed then base smallstep comparisons. Newprepare optionalADAPTATION_SEED; deploybeforelaunch, pilot901gate then902-904.
+
+2026-09-23 10:27Israel: All4adaptations+12adaptedhead fits COMPLETE and audited. See knee_adapted_result_20260923.md/json. No jobs remain from these campaigns. CappedccF1TraLO68.827vsnull68.694,pairedmean+.133CI[-.290,+.556]. Continue consolidate/audit60headfits+4backbones; no arbitrary extra sweeps. Scheduled17:00report remainsactive.
