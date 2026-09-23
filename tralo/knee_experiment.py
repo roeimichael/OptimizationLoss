@@ -1,6 +1,6 @@
 """Chen knee data: audited frozen ResNet18 features and matched global arms.
 
-prepare DATA_ROOT CACHE; compare CACHE CONFIG OUTPUT.
+prepare DATA_ROOT CACHE [ADAPTATION_SEED]; compare CACHE CONFIG OUTPUT.
 Test images are audited for split overlap but never featurized or scored here.
 """
 import hashlib
@@ -36,7 +36,7 @@ def source():
     return {p.name:digest(p) for p in sorted(Path(__file__).parent.glob('*.py'))}
 
 
-def prepare(data_root, output):
+def prepare(data_root, output, adaptation_seed=None):
     import torch
     from torchvision import models, transforms
     from PIL import Image
@@ -48,15 +48,28 @@ def prepare(data_root, output):
         log.emit('data_audit_passed', counts=manifest['counts'], subjects=manifest['subjects'],
                  duplicates=manifest['within_split_pixel_duplicates'], source_sha256=source())
         weights = models.ResNet18_Weights.IMAGENET1K_V1
+        if adaptation_seed is not None:torch.manual_seed(int(adaptation_seed))
         model = models.resnet18(weights=weights).cuda().eval()
-        model.fc = torch.nn.Identity()
-        model.requires_grad_(False)
         transform = transforms.Compose([transforms.Resize((224,224)), transforms.ToTensor(),
             transforms.Normalize((.485,.456,.406),(.229,.224,.225))])
         weight_path = Path(torch.hub.get_dir())/'checkpoints'/weights.url.rsplit('/',1)[-1]
-        log.emit('model_loaded', backbone='ResNet18 frozen', weights_sha256=digest(weight_path),
+        log.emit('model_loaded', backbone='ResNet18 ImageNet initialization', weights_sha256=digest(weight_path),
                  precision='fp32', device=str(torch.cuda.get_device_name()),
                  transform='RGB, resize224x224, ImageNet normalization, no augmentation')
+        if adaptation_seed is not None:
+            from .supervised_adaptation import adapt, TrainingImages
+            model.fc=torch.nn.Linear(model.fc.in_features,5).cuda()
+            dataset=TrainingImages(data_root,manifest['rows'],transform)
+            loader=torch.utils.data.DataLoader(dataset,batch_size=32,shuffle=True,num_workers=0,
+                generator=torch.Generator().manual_seed(int(adaptation_seed)+10000))
+            log.emit('adaptation_config',seed=int(adaptation_seed),epochs=5,lr=.0001,
+                     batch_size=32,scope='training only; final epoch; no validation selection')
+            adapt(model,loader,5,.0001,
+                  lambda row:log.emit(row['event'],**{k:v for k,v in row.items() if k!='event'}))
+            torch.save(model.state_dict(),output/'adapted_backbone.pt')
+        model.fc = torch.nn.Identity()
+        model.requires_grad_(False)
+        model.eval()
         for split in ('train','val'):
             rows = [r for r in manifest['rows'] if r['split']==split]
             features = []
@@ -137,6 +150,6 @@ def compare(cache, config_path, output):
 
 
 if __name__=='__main__':
-    if len(sys.argv)==4 and sys.argv[1]=='prepare': prepare(*sys.argv[2:])
+    if len(sys.argv) in (4,5) and sys.argv[1]=='prepare': prepare(*sys.argv[2:])
     elif len(sys.argv)==5 and sys.argv[1]=='compare': compare(*sys.argv[2:])
     else: raise SystemExit(__doc__)

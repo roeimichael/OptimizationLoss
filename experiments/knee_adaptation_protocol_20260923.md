@@ -1,0 +1,9 @@
+# Fixed knee representation-adaptation follow-up
+
+Registered before adaptation outcomes on23September2026. The first48 fits use frozen ImageNet features; their ~49% accuracy does not establish an adequate knee representation. This follow-up tests the same ResNet18 with training-only domain adaptation, not a new backbone or a replication claim.
+
+For each seed901-904, initialize ImageNet ResNet18 plus a5-class head, train all parameters with ordinary CE for exactly5epochs, Adam0.0001,batch32,FP32,no augmentation,original training5778images only.905updates per seed. BatchNorm statistics are learned on training batches only. Keep final epoch; no validation checkpoint selection, scheduling or early stopping. Record training CE/update dose; fail nonfinite gradients or parameters. Save the full adapted model. Then freeze backbone, discard its adaptation classifier and extract train/validation features exactly as before. Reinitialize the comparison head using the matching seed.
+
+On each seed-specific cache run Clipper/null/TraLO using20head epochs,warmup5,taskAdam0.001,separateconstraintAdam0.0001,rho0.5 and original synthetic caps82/16. No auxiliary terms initially. Same901-904seed pairs now include representation training randomness, unlike the prior shared frozen feature cache. Extra backbone training is common to all three arms. Adaptation alone is not a TraLO benefit. Head-only constraint training remains a limitation: no claim that constraints adapted the entire backbone.
+
+Gate: seed901first, verify905finite supervised adaptation updates, cache/data identities and three-arm460head updates; then remaining3seeds. Metrics/allocators as before, no test scoring. Preserve earlier frozen results and lower-step results, do not choose only favorable recipes. Do not extend epochs or add more rates based on validation scores. This remains exploratory development on826validation examples.
