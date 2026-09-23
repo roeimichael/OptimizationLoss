@@ -14,11 +14,16 @@ from .global_report import evaluate_global
 def validate_config(config):
     keys = {'seeds', 'epochs', 'warmup_epochs', 'batch_size', 'lr',
             'lambda_initial', 'lambda_step', 'rho_initial', 'rho_target', 'cache_events_sha256'}
-    optional = {'constraint_optimizer','supervised_auxiliary','auxiliary_weight','auxiliary_margin'}
+    optional = {'constraint_optimizer','constraint_lr','supervised_auxiliary','auxiliary_weight','auxiliary_margin'}
     if not keys <= set(config) or set(config) - keys - optional:
         raise ValueError('comparison config keys must match the declared contract')
     if config.get('constraint_optimizer', 'shared') not in ('shared', 'separate'):
         raise ValueError('constraint_optimizer must be shared or separate')
+    if 'constraint_lr' in config:
+        value=config['constraint_lr']
+        if (config.get('constraint_optimizer')!='separate' or type(value) not in (int,float)
+                or not math.isfinite(value) or value<=0):
+            raise ValueError('constraint_lr requires separate optimizer and positive finite value')
     auxiliary = config.get('supervised_auxiliary','none')
     if auxiliary not in ('none','margin','false_positive'):
         raise ValueError('unknown supervised_auxiliary')
@@ -90,7 +95,7 @@ def train_arm(train_x, train_y, unlabelled_x, caps, config, seed, arm, emit, obs
     constraint_optimizer_mode = config.get('constraint_optimizer', 'shared')
     # Separate moments isolate task updates from large constraint gradients.
     # Shared remains the original comparison; compare both before choosing a mode.
-    constraint_optimizer = (torch.optim.Adam(model.parameters(), lr=config['lr'])
+    constraint_optimizer = (torch.optim.Adam(model.parameters(), lr=config.get('constraint_lr',config['lr']))
                             if constraint_optimizer_mode == 'separate' else None)
     generator = torch.Generator().manual_seed(seed + 1)
     multipliers = [float(config['lambda_initial'])] * len(caps)
@@ -103,6 +108,7 @@ def train_arm(train_x, train_y, unlabelled_x, caps, config, seed, arm, emit, obs
     auxiliary_weight = config.get('auxiliary_weight',0.)
     emit({'event':'started','seed':seed,'arm':arm,'task_updates_planned':planned_task,
           'constraint_optimizer':constraint_optimizer_mode,
+          'constraint_lr':config.get('constraint_lr',config['lr']),
           'supervised_auxiliary':auxiliary if arm != 'clipper' else 'none',
           'auxiliary_weight':auxiliary_weight if arm != 'clipper' else 0.,
           'constraint_opportunities':config['epochs']-config['warmup_epochs'] if arm=='tralo' else 0})

@@ -26,6 +26,22 @@ class ConfigTests(unittest.TestCase):
 
 @unittest.skipIf(torch is None, 'PyTorch required; executed in native server suite')
 class MatchedTrainingTests(unittest.TestCase):
+    def test_constraint_lr_changes_only_constraint_first_displacement(self):
+        x,y,u=self.fixture()
+        first=[]
+        for rate in (.01,.001):
+            snapshots=[]
+            def observe(stage,phase,epoch,batch,model,optimizer):
+                if phase=='constraint' and len(snapshots)<2:
+                    snapshots.append(torch.cat([p.detach().flatten().clone() for p in model.parameters()]))
+            cfg=dict(CFG,constraint_optimizer='separate',constraint_lr=rate)
+            train_arm(x,y,u,[0,None],cfg,1,'tralo',lambda _:None,observer=observe)
+            first.append(snapshots[1]-snapshots[0])
+            null=train_arm(x,y,u,[0,None],cfg,1,'tralo_null',lambda _:None)
+            reference=train_arm(x,y,u,[0,None],CFG,1,'tralo_null',lambda _:None)
+            self.assertTrue(torch.equal(null['probabilities'],reference['probabilities']))
+        self.assertTrue(torch.allclose(first[0],first[1]*10,atol=1e-7,rtol=1e-4))
+
     def test_auxiliary_uses_same_warmup_and_null_with_no_constraint_is_exact(self):
         x,y,u=self.fixture()
         reference=train_arm(x,y,u,[0,None],CFG,1,'tralo_null',lambda _:None)

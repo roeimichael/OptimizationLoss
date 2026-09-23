@@ -134,3 +134,5 @@ Prepared separate persistent constraint Adam and supervised margin/false-positiv
 
 ## 2026-09-23 daytime: fallback authorized
 User explicitly authorizes similar medical data and requires results by17:00. Download of original Chen knee archive launched05:36UTC on dsisco02, PID1625027, /home/dsi/michaer8/tralo-rebuild/data/knee-chen-v1/download_launch.json. Check before retrying. Both hosts were idle. Continue dataset audit, minimal knee runner, deploy and matched4seed stages. Old pending-approval text is superseded; no waiting for exact Yuval release.
+
+First36 knee fits COMPLETE; see experiments/knee_first_stage_20260923.md. Next fixed diagnostic: constraint_lr0.0001,base only, same901-904 seeds. No new data approval needed. All original source releases immutable.
