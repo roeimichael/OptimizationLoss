@@ -1,5 +1,17 @@
 # Rebuild work queue
 
+## Active overnight diagnosis, 23–24 September
+
+User requests per-image mid-training mechanism analysis through the night.
+See experiments/knee_trace_protocol_20260923.md. Instrumented replay saves
+every task minibatch endpoint and both sides of constraint updates. 85 local
+tests pass, including observer state neutrality and exact training parity.
+Deploy and verify before pilot; do not infer native GPU parity from CPU tests.
+At 20:04 UTC Blackwell GPUs were occupied by others and Quadro was idle.
+Use separately labeled same-host references; historical equality is a separate
+recorded check. Morning report due 08:00 Israel, 24 September. New overnight
+heartbeat is authorized; the earlier daytime heartbeat remains paused.
+
 ## Checkpoint rule
 
 For each small coherent change: state the behavior/assumption -> write an
