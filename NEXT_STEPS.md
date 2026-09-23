@@ -130,3 +130,7 @@ The numerical values in that smoke are analytic fixtures, not research settings.
 User requests knee-only global TraLO/Clipper work through morning, one backbone, incremental sample-aware losses. See experiments/knee_overnight_plan.md for fixed stages, seeds, gates and data blocker. Automation knee-tralo-overnight-research is ACTIVE every20minutes until morning summary08:00Asia/Jerusalem2026-09-23, then pauses. DermaMNIST staged data remain archived/read-only; no further Derma experiments.
 
 Prepared separate persistent constraint Adam and supervised margin/false-positive terms;76 local tests and independent math/integration review passed. These are not knee results. Exact paper dataset/backbone remain unknown; fallback clarification pending. Do not launch substitute data without resolving this. Server verification receipts must be checked before claiming deployment.
+
+
+## 2026-09-23 daytime: fallback authorized
+User explicitly authorizes similar medical data and requires results by17:00. Download of original Chen knee archive launched05:36UTC on dsisco02, PID1625027, /home/dsi/michaer8/tralo-rebuild/data/knee-chen-v1/download_launch.json. Check before retrying. Both hosts were idle. Continue dataset audit, minimal knee runner, deploy and matched4seed stages. Old pending-approval text is superseded; no waiting for exact Yuval release.

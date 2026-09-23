@@ -1,3 +1,7 @@
+# 2026-09-23 daytime amendment (supersedes overnight blocker)
+
+User explicitly authorizes a documented similar medical/knee dataset if Yuval's exact release remains unknown. No further fallback approval is needed. Deadline: 17:00 Asia/Jerusalem today. Existing fixed stages below remain the design; dataset identity and actual split audit must pass before training. The original Pingjun Chen OAI archive is downloading to /home/dsi/michaer8/tralo-rebuild/data/knee-chen-v1; download_launch.json records process and URL. This is an independent mimic, not a verified replication of Kassif/Singer. Monitor knee-tralo-overnight-research is reactivated through 17:00. Preserve historical overnight notes below as a record, not a current blocker.
+
 # Knee TraLO overnight: 22--23 September 2026
 
 ## Current status and authorization
