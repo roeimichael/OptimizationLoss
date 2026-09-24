@@ -30,7 +30,7 @@ def validate_config(config):
                 or not math.isfinite(value) or value<=0):
             raise ValueError('constraint_lr requires separate optimizer and positive finite value')
     auxiliary = config.get('supervised_auxiliary','none')
-    if auxiliary not in ('none','margin','false_positive'):
+    if auxiliary not in ('none','margin','false_positive','far_error'):
         raise ValueError('unknown supervised_auxiliary')
     for key, default in [('auxiliary_weight',0.),('auxiliary_margin',1.)]:
         value = config.get(key,default)

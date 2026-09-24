@@ -28,6 +28,23 @@ def sample_loss(logits, training_labels, caps, kind, margin=1.0):
         wrong = logits.masked_fill(mask,-torch.inf).max(dim=1).values
         correct = logits.gather(1,training_labels[:,None]).squeeze(1)
         return torch.relu(margin+wrong-correct).mean()
+    if kind == 'far_error':
+        # An error confidently on the wrong side receives quadratically more
+        # pressure. Correct predictions beyond the margin receive no pressure.
+        # For uncapped truths, only mistakes toward capped classes matter;
+        # for capped truths, any competing class can displace a scarce slot.
+        capped = torch.tensor([cap is not None for cap in caps],
+                              device=logits.device,dtype=torch.bool)
+        true_is_capped = capped[training_labels]
+        eligible = capped[None,:] | true_is_capped[:,None]
+        eligible = eligible & ~torch.nn.functional.one_hot(
+            training_labels,logits.shape[1]).bool()
+        competitors = logits.masked_fill(~eligible,-torch.inf).max(dim=1).values
+        true_logits = logits.gather(1,training_labels[:,None]).squeeze(1)
+        gap = torch.where(eligible.any(dim=1),competitors-true_logits,
+                          torch.zeros_like(true_logits))
+        return torch.where(eligible.any(dim=1),torch.relu(gap+margin).square(),
+                           torch.zeros_like(gap)).mean()
     if kind == 'false_positive':
         total, count = logits.sum()*0.0, 0
         normalizer = logits.logsumexp(dim=1)
