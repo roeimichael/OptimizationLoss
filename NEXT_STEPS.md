@@ -13,11 +13,11 @@ training-prevalence-scaled grade-3-only caps and four fresh seeds. See
 both hosts. No run queues remain; never duplicate. All raw evidence is retained.
 TraLO changed raw grade-3 counts substantially but rarely changed the correct
 people selected among exact capped slots; no reliable gain over Null. The next
-substantive experiment is a preregistered **end-to-end backbone constraint phase**
-with a matched Null and Clipper, using one cap first. The current head-only
-runner does not test representation shaping. Read the existing supervised
-adaptation and trajectory contracts, specify exact gradient/update schedule,
-independent mathematical checks and a bounded GPU pilot before implementation.
+substantive experiment is the preregistered **end-to-end backbone constraint
+phase** in `experiments/knee_end_to_end_protocol_20260924.md`, with a matched
+Null and Clipper. The current head-only runner does not test representation
+shaping. Its exact-gradient streaming check and one-seed GPU pilot must pass
+before expanding to the other three fixed seeds.
 Do not select a favorable cap or step from the completed validation grid. Keep
 the test split untouched until a fixed independent confirmation is justified.
 
