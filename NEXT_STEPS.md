@@ -12,14 +12,20 @@ training-prevalence-scaled grade-3-only caps and four fresh seeds. See
 `0c23b286eae61978c510899eb4ffa3ef1e2e9cd7` is immutable and verified on
 both hosts. No run queues remain; never duplicate. All raw evidence is retained.
 TraLO changed raw grade-3 counts substantially but rarely changed the correct
-people selected among exact capped slots; no reliable gain over Null. The next
-substantive experiment is the preregistered **end-to-end backbone constraint
-phase** in `experiments/knee_end_to_end_protocol_20260924.md`, with a matched
-Null and Clipper. The current head-only runner does not test representation
-shaping. Its exact-gradient streaming check and one-seed GPU pilot must pass
-before expanding to the other three fixed seeds.
-Do not select a favorable cap or step from the completed validation grid. Keep
-the test split untouched until a fixed independent confirmation is justified.
+people selected among exact capped slots; no reliable gain over Null. The
+preregistered **end-to-end backbone constraint phase** is also complete:
+release `484f5a59cba978e61ac1f54e4a9f727a41cd21b3`, four seeds 1301–1304,
+three arms per seed, and all artifact/dose/snapshot/matched-warmup/metric audits
+passed. See `experiments/knee_end_to_end_result_20260924.md`. The count gradient
+reached the trainable ResNet18, but raw grade-3 calls fell to 26 on average
+versus 95.75 for Null. Under exact 76-slot capped-first output, TraLO's mean
+grade-3 F1 was 63.19% versus Null's 65.38%; the paired interval includes zero.
+This is not a reliable gain. The next fixed hypothesis is **training-label
+cutoff ranking** in `experiments/knee_cutoff_ranking_protocol_20260924.md`
+(specified, not yet run). First validate its derivative and label boundary,
+then commit, deploy and run the gated pilot. Do not select a favorable cap or
+step from the completed validation grid. Keep the test split untouched until a
+fixed independent confirmation is justified.
 
 ## Completed: 384-fit strength sweep, 24 September
 
