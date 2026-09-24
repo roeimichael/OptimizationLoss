@@ -16,8 +16,9 @@ def streamed_rank_count_step(model, train_chunks, training_labels, training_ids,
     images without labels. The top-K pair sets are selected at a fixed parameter
     state, and BatchNorm remains in eval mode until after the optimizer step.
     """
-    if (not isinstance(train_chunks,(list,tuple)) or not train_chunks or
-            not isinstance(development_chunks,(list,tuple)) or not development_chunks or
+    if (not hasattr(train_chunks,'__iter__') or not hasattr(train_chunks,'__len__') or
+            len(train_chunks)==0 or not isinstance(development_chunks,(list,tuple)) or
+            not development_chunks or
             type(use_rank) is not bool or type(use_count) is not bool or
             not (use_rank or use_count)):
         raise ValueError('nonempty replayable cohorts and an active objective required')

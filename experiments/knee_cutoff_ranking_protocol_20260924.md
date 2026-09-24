@@ -1,6 +1,6 @@
 # Proposed next mechanism test: training-label cutoff ranking
 
-**Status: specified, not implemented or run.** This follows the completed four-seed end-to-end count-loss study. The count update reached the trainable backbone but suppressed raw grade-3 predictions (26 on average versus 95.75 for Null), and its fixed 76-slot output did not reliably improve. This test changes *what the auxiliary update asks the model to learn*, not just its learning rate.
+**Status: implementation validated locally; no GPU experiment dispatched at this checkpoint.** This follows the completed four-seed end-to-end count-loss study. The count update reached the trainable backbone but suppressed raw grade-3 predictions (26 on average versus 95.75 for Null), and its fixed 76-slot output did not reliably improve. This test changes *what the auxiliary update asks the model to learn*, not just its learning rate.
 
 ## Objective and predicted signature
 
@@ -25,3 +25,5 @@ Prediction: relative to CE-only phase Null, rank-only updates should increase co
 ## Integrity gate and stop condition
 
 Before GPU use: independent mathematical gradient checks and chunk-size invariance, exact label provenance and split isolation, same initial/warm-up/batch hashes, BatchNorm and RNG observer neutrality, no skipped/nonfinite update, source byte parity and native tests on both DSI hosts. Check both hosts' actual GPU UUID/PID ownership; use exclusive receipts and immutable releases. Pilot must pass these gates regardless of performance. If rank-only and rank+count do not improve correct capped membership, preserve the negative result; do not optimize a broad hyperparameter grid against this repeatedly inspected development split. A further direction requires a new mechanistic hypothesis and eventually an untouched confirmation set.
+
+The runner is `python -m tralo.knee_cutoff_experiment DATA_ROOT experiments/configs/knee_cutoff_1401.json OUTPUT_DIR` with an exclusive output directory. Its rank cohorts are replayed in manifest order from training images; image chunks contain no labels. The existing `score_snapshots` receives validation labels only after all five fits complete. Source and run receipts determine whether any campaign actually happened; a passing local test alone does not.
