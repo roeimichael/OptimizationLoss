@@ -37,6 +37,13 @@ def source():
     return {p.name:digest(p) for p in sorted(Path(__file__).parent.glob('*.py'))}
 
 
+def knee_caps(config, n_items):
+    caps=config.get('knee_caps',[None,None,None,n_items//10,n_items//50])
+    if sum(k for k in caps if k is not None) > n_items:
+        raise ValueError('knee caps exceed available development items')
+    return caps
+
+
 def prepare(data_root, output, adaptation_seed=None):
     import torch
     from torchvision import models, transforms
@@ -110,7 +117,8 @@ def compare(cache, config_path, output):
     y=torch.tensor([r['label'] for r in training],dtype=torch.long,device='cuda')
     labels=[r['label'] for r in development]; ids=[r['sample_id'] for r in development]
     # Prespecified synthetic capacity fractions, independent of held-out labels.
-    caps=[None,None,None,len(u)//10,len(u)//50]
+    # Explicit overrides support separately registered budget interventions.
+    caps=knee_caps(config,len(u))
     output.mkdir(parents=True,exist_ok=False)
     with audited_arm_log(output/'events.jsonl') as log:
         save(output/'config.json',config); save(output/'caps.json',caps)

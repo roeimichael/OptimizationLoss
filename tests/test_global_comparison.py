@@ -1,6 +1,7 @@
 import copy
 import unittest
 from tralo.global_comparison import train_arm, validate_config
+from tralo.knee_experiment import knee_caps
 try:
     import torch
 except ImportError:
@@ -11,6 +12,16 @@ CFG = dict(seeds=[1], epochs=4, warmup_epochs=2, batch_size=3, lr=0.01,
            cache_events_sha256='0'*64)
 
 class ConfigTests(unittest.TestCase):
+    def test_explicit_knee_caps_and_capacity(self):
+        cfg=dict(CFG,knee_caps=[None,None,None,123,24])
+        validate_config(cfg)
+        self.assertEqual(knee_caps(cfg,826),[None,None,None,123,24])
+        self.assertEqual(knee_caps(CFG,826),[None,None,None,82,16])
+        for caps in ([None,None,None,123,24.0], [None,None,None,-1,24],
+                     [None,None,None,123], [None,1,None,123,24]):
+            with self.assertRaises(ValueError):validate_config(dict(CFG,knee_caps=caps))
+        with self.assertRaises(ValueError):knee_caps(dict(CFG,knee_caps=[None,None,None,800,30]),826)
+
     def test_constraint_optimizer_is_optional_and_named(self):
         validate_config(CFG)
         for mode in ('shared', 'separate'):

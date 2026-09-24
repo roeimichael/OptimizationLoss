@@ -14,11 +14,16 @@ from .global_report import evaluate_global
 def validate_config(config):
     keys = {'seeds', 'epochs', 'warmup_epochs', 'batch_size', 'lr',
             'lambda_initial', 'lambda_step', 'rho_initial', 'rho_target', 'cache_events_sha256'}
-    optional = {'constraint_optimizer','constraint_lr','supervised_auxiliary','auxiliary_weight','auxiliary_margin','constraint_anchor_weight','alm_rho','alm_lambda_initial','arms'}
+    optional = {'constraint_optimizer','constraint_lr','supervised_auxiliary','auxiliary_weight','auxiliary_margin','constraint_anchor_weight','alm_rho','alm_lambda_initial','arms','knee_caps'}
     if not keys <= set(config) or set(config) - keys - optional:
         raise ValueError('comparison config keys must match the declared contract')
     if 'arms' in config and (not isinstance(config['arms'],list) or not config['arms'] or len(set(config['arms']))!=len(config['arms']) or any(a not in ('clipper','tralo_null','tralo','alm','alm_null') for a in config['arms'])):
         raise ValueError('invalid arms')
+    if 'knee_caps' in config:
+        caps = config['knee_caps']
+        if (not isinstance(caps, list) or len(caps) != 5 or caps[:3] != [None, None, None]
+                or any(type(k) is not int or k < 0 for k in caps[3:])):
+            raise ValueError('knee_caps must be [null,null,null,K3,K4]')
     for key in ('alm_rho','alm_lambda_initial'):
         if key in config and (type(config[key]) not in (int,float) or not math.isfinite(config[key]) or config[key]<0 or (key=='alm_rho' and config[key]==0)):
             raise ValueError('invalid '+key)
@@ -308,6 +313,8 @@ def run(config_path, cache, caps_path, output):
                     raise ValueError('dataset identity mismatch: '+name)
             split=json.loads((cache/'split_indices.json').read_text())
             saved=json.loads((cache/'development_probabilities.json').read_text())
+            if 'knee_caps' in config:
+                raise ValueError('knee_caps is only valid for knee_experiment')
             caps=json.loads(Path(caps_path).read_text())['global_caps']
             dataset=CIFAR100(prior['data_root'],train=True,download=False)
             from .image_baseline import sample_ids
