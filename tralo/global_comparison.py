@@ -14,7 +14,7 @@ from .global_report import evaluate_global
 def validate_config(config):
     keys = {'seeds', 'epochs', 'warmup_epochs', 'batch_size', 'lr',
             'lambda_initial', 'lambda_step', 'rho_initial', 'rho_target', 'cache_events_sha256'}
-    optional = {'constraint_optimizer','constraint_lr','supervised_auxiliary','auxiliary_weight','auxiliary_margin','alm_rho','alm_lambda_initial','arms'}
+    optional = {'constraint_optimizer','constraint_lr','supervised_auxiliary','auxiliary_weight','auxiliary_margin','constraint_anchor_weight','alm_rho','alm_lambda_initial','arms'}
     if not keys <= set(config) or set(config) - keys - optional:
         raise ValueError('comparison config keys must match the declared contract')
     if 'arms' in config and (not isinstance(config['arms'],list) or not config['arms'] or len(set(config['arms']))!=len(config['arms']) or any(a not in ('clipper','tralo_null','tralo','alm','alm_null') for a in config['arms'])):
@@ -38,6 +38,12 @@ def validate_config(config):
             raise ValueError(key+' must be finite and nonnegative')
     if auxiliary == 'none' and config.get('auxiliary_weight',0.) != 0:
         raise ValueError('nonzero auxiliary weight requires a named term')
+    anchor=config.get('constraint_anchor_weight',0.)
+    if type(anchor) not in (int,float) or not math.isfinite(anchor) or anchor<0:
+        raise ValueError('constraint_anchor_weight must be finite and nonnegative')
+    if anchor and (config.get('constraint_optimizer')!='separate' or auxiliary!='far_error'
+                   or config.get('auxiliary_weight',0.)<=0):
+        raise ValueError('constraint anchor requires separate optimizer and far-error task term')
     if (type(config['cache_events_sha256']) is not str or len(config['cache_events_sha256'])!=64 or
             any(c not in '0123456789abcdef' for c in config['cache_events_sha256'])):
         raise ValueError('cache completion provenance must be pinned by SHA-256')
@@ -91,7 +97,7 @@ def train_arm(train_x, train_y, unlabelled_x, caps, config, seed, arm, emit, obs
             not torch.isfinite(train_x).all() or not torch.isfinite(unlabelled_x).all() or
             (train_y < 0).any() or (train_y >= len(caps)).any()):
         raise ValueError('invalid training features or labels')
-    if arm in ('alm','alm_null') and config.get('auxiliary_weight',0.) != 0:
+    if arm in ('alm','alm_null') and (config.get('auxiliary_weight',0.) != 0 or config.get('constraint_anchor_weight',0.) != 0):
         raise ValueError('ALM comparison does not mix supervised auxiliary terms')
     if arm in ('alm','alm_null') and not {'alm_rho','alm_lambda_initial'} <= set(config):
         raise ValueError('ALM settings must be explicit')
@@ -113,8 +119,8 @@ def train_arm(train_x, train_y, unlabelled_x, caps, config, seed, arm, emit, obs
     rho_step = (config['rho_target'] - rho) / (config['epochs'] - config['warmup_epochs'])
     dual = train_x.new_full((sum(k is not None for k in caps),),config.get('alm_lambda_initial',0.))
     joint_updates = dual_updates = 0
-    task_updates = constraint_updates = 0
-    task_attempts = constraint_attempts = 0
+    task_updates = constraint_updates = anchor_updates = 0
+    task_attempts = constraint_attempts = anchor_attempts = 0
     planned_task = config['epochs'] * math.ceil(len(train_x)/config['batch_size'])
     auxiliary = config.get('supervised_auxiliary','none')
     auxiliary_weight = config.get('auxiliary_weight',0.)
@@ -126,6 +132,7 @@ def train_arm(train_x, train_y, unlabelled_x, caps, config, seed, arm, emit, obs
           'constraint_lr':config.get('constraint_lr',config['lr']),
           'supervised_auxiliary':auxiliary if arm != 'clipper' else 'none',
           'auxiliary_weight':auxiliary_weight if arm != 'clipper' else 0.,
+          'constraint_anchor_weight':config.get('constraint_anchor_weight',0.) if arm != 'clipper' else 0.,
           'constraint_opportunities':config['epochs']-config['warmup_epochs'] if arm=='tralo' else 0})
     batch_hash = hashlib.sha256()
     warmup_hash = None
@@ -220,13 +227,29 @@ def train_arm(train_x, train_y, unlabelled_x, caps, config, seed, arm, emit, obs
                        constraint_applied=False, gradient_norm=0., displacement_norm=0.)
             # A zero-valued penalty gets no Adam step: existing momentum alone
             # must not move the model when the intervention is disabled/inactive.
-            if arm == 'tralo' and loss.item() > 0:
-                row['constraint_attempted'] = True
-                constraint_attempts += 1
-                norm, displacement = step(loss,'constraint',epoch,None,
+            anchor_weight=config.get('constraint_anchor_weight',0.)
+            anchor_loss=None
+            if arm in ('tralo','tralo_null') and anchor_weight:
+                train_logits=model(train_x)
+                anchor_loss=(torch.nn.functional.cross_entropy(train_logits,train_y)
+                             +auxiliary_weight*sample_loss(train_logits,train_y,caps,
+                                                           auxiliary,config.get('auxiliary_margin',1.)))
+                row['anchor_loss']=float(anchor_loss.detach())
+                row['anchor_applied']=False
+            active_count=arm=='tralo' and loss.item()>0
+            if active_count or anchor_loss is not None:
+                row['constraint_attempted'] = active_count
+                if active_count: constraint_attempts += 1
+                if anchor_loss is not None: anchor_attempts += 1
+                total=loss if active_count else loss*0.
+                if anchor_loss is not None: total=total+anchor_weight*anchor_loss
+                norm, displacement = step(total,'constraint',epoch,None,
                                           constraint_optimizer if constraint_optimizer is not None else optimizer)
-                constraint_updates += 1
-                row.update(constraint_applied=True, gradient_norm=norm, displacement_norm=displacement)
+                if active_count: constraint_updates += 1
+                if anchor_loss is not None:
+                    anchor_updates += 1
+                    row['anchor_applied']=True
+                row.update(constraint_applied=active_count, gradient_norm=norm, displacement_norm=displacement)
             if arm == 'tralo':
                 multipliers, rho, frozen = advance_controller(
                     hard,caps,multipliers,rho,rho_step,config['lambda_step'],frozen)
@@ -242,11 +265,14 @@ def train_arm(train_x, train_y, unlabelled_x, caps, config, seed, arm, emit, obs
     return {'state':{k:v.detach().cpu() for k,v in model.state_dict().items()},
             'probabilities':probabilities, 'warmup_sha256':warmup_hash,
             'batch_sha256':batch_hash.hexdigest(), 'task_updates':task_updates,
-            'constraint_updates':constraint_updates, 'joint_constraint_updates':joint_updates,
+            'constraint_updates':constraint_updates, 'anchor_updates':anchor_updates,
+            'joint_constraint_updates':joint_updates,
             'dual_updates':dual_updates, 'task_updates_planned':planned_task,
             'task_updates_attempted':task_attempts,'task_updates_skipped':task_attempts-task_updates,
             'constraint_updates_attempted':constraint_attempts,
-            'constraint_updates_skipped':constraint_attempts-constraint_updates}
+            'constraint_updates_skipped':constraint_attempts-constraint_updates,
+            'anchor_updates_attempted':anchor_attempts,
+            'anchor_updates_skipped':anchor_attempts-anchor_updates}
 
 
 def run(config_path, cache, caps_path, output):

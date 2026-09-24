@@ -70,6 +70,33 @@ class MatchedTrainingTests(unittest.TestCase):
             out=train_arm(x,y,u,[0,None],cfg,1,'tralo',lambda _:None)
             self.assertTrue(torch.equal(base['probabilities'],out['probabilities']))
 
+    def test_anchor_control_receives_same_extra_training_dose(self):
+        x,y,u=self.fixture()
+        cfg=dict(CFG,constraint_optimizer='separate',constraint_lr=.001,
+                 supervised_auxiliary='far_error',auxiliary_weight=.2,
+                 auxiliary_margin=0.,constraint_anchor_weight=.1)
+        null=train_arm(x,y,u,[0,None],cfg,1,'tralo_null',lambda _:None)
+        tralo=train_arm(x,y,u,[0,None],cfg,1,'tralo',lambda _:None)
+        self.assertEqual(null['anchor_updates'],2)
+        self.assertEqual(tralo['anchor_updates'],2)
+        self.assertEqual(null['constraint_updates'],0)
+        self.assertEqual(tralo['constraint_updates'],2)
+        self.assertEqual(null['anchor_updates_skipped'],0)
+        self.assertEqual(null['constraint_updates_skipped'],0)
+        self.assertEqual(null['warmup_sha256'],tralo['warmup_sha256'])
+        self.assertEqual(null['batch_sha256'],tralo['batch_sha256'])
+        zero=dict(cfg,lambda_initial=0.,lambda_step=0.)
+        a=train_arm(x,y,u,[0,None],zero,1,'tralo_null',lambda _:None)
+        b=train_arm(x,y,u,[0,None],zero,1,'tralo',lambda _:None)
+        self.assertTrue(torch.equal(a['probabilities'],b['probabilities']))
+
+    def test_anchor_requires_a_named_sample_term_and_separate_moments(self):
+        cfg=dict(CFG,constraint_anchor_weight=.1)
+        with self.assertRaises(ValueError):validate_config(cfg)
+        cfg.update(constraint_optimizer='separate',supervised_auxiliary='far_error',
+                   auxiliary_weight=.1)
+        validate_config(cfg)
+
     def fixture(self):
         x=torch.tensor([[1.,0.],[0.,1.],[-1.,0.],[0.,-1.]])
         return x,torch.tensor([0,1,1,0]),x[:3]
