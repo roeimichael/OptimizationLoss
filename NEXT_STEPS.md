@@ -20,12 +20,18 @@ passed. See `experiments/knee_end_to_end_result_20260924.md`. The count gradient
 reached the trainable ResNet18, but raw grade-3 calls fell to 26 on average
 versus 95.75 for Null. Under exact 76-slot capped-first output, TraLO's mean
 grade-3 F1 was 63.19% versus Null's 65.38%; the paired interval includes zero.
-This is not a reliable gain. The next fixed hypothesis is **training-label
-cutoff ranking** in `experiments/knee_cutoff_ranking_protocol_20260924.md`
-(specified, not yet run). First validate its derivative and label boundary,
-then commit, deploy and run the gated pilot. Do not select a favorable cap or
-step from the completed validation grid. Keep the test split untouched until a
-fixed independent confirmation is justified.
+This is not a reliable gain. The fixed **training-label occupancy-ranking**
+follow-up is also complete: 20 five-arm end-to-end fits across four seeds,
+audited under immutable release `ff080795ee29571b1f2f10a912705354a458bfb8`.
+See `experiments/knee_cutoff_ranking_result_20260924.md`. Its ranking term was
+active in only 2/20 rank-only and 1/20 combined opportunities because training
+top-532 occupancy was usually pure true grade 3. It did not reliably beat its
+phase Null or rank-only control. The next fixed hypothesis is a **hard-pair
+training rank term** in `experiments/knee_hard_pair_protocol_20260924.md` that
+remains active with pure training occupancy. Validate its derivative, label
+boundary and full streamed step before a gated pilot; do not tune cap or step
+against the repeatedly inspected development split. Keep the test split
+untouched until a fixed independent confirmation is justified.
 
 ## Completed: 384-fit strength sweep, 24 September
 

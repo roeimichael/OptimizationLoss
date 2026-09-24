@@ -30,9 +30,16 @@ class CutoffRunnerTests(unittest.TestCase):
             config = json.loads((base / f'knee_cutoff_{seed}.json').read_text())
             validate(config)
             self.assertEqual(config['train_capacity'], 532)
+        for seed in (1501, 1502, 1503, 1504):
+            hard = json.loads((base / f'knee_hard_pair_{seed}.json').read_text())
+            validate(hard)
+            self.assertEqual(hard['rank_objective'], 'hard_pairs')
         config['seed'] = 1301
         with self.assertRaises(ValueError):
             validate(config)
+        hard['seed'] = 1401
+        with self.assertRaises(ValueError):
+            validate(hard)
 
     def test_training_chunks_replay_same_order_without_labels(self):
         cohort = TinyTrainingImages()
@@ -79,6 +86,18 @@ class CutoffRunnerTests(unittest.TestCase):
         # Clipper retains task Adam moments; the phase Null deliberately resets
         # them at the shared boundary, so endpoint equality is not expected.
         self.assertEqual(results['tralo_null']['auxiliary_updates_applied'], 0)
+
+        events = []
+        hard_config = dict(config, seed=1501, rank_objective='hard_pairs')
+        hard = train_one(copy.deepcopy(base), cohort, ids, training_labels,
+                         development, hard_config, 'rank_count', events.append,
+                         lambda epoch, phase, values: None)
+        active = next(event for event in events if event['event'] == 'epoch'
+                      and event['epoch'] == 2)
+        self.assertGreater(active['active_pairs'], 0)
+        self.assertGreater(active['rank_logit_gradient_norm'], 0)
+        self.assertIn('training_weak_positive_count', active)
+        self.assertEqual(hard['auxiliary_updates_applied'], 1)
 
 
 if __name__ == '__main__':

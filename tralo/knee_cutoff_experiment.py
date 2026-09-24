@@ -26,9 +26,13 @@ def validate(config):
                 'development_batch_size', 'auxiliary_batch_size', 'task_lr',
                 'auxiliary_lr', 'caps', 'train_capacity', 'lambda_initial',
                 'lambda_step', 'rho_initial', 'rho_target'}
-    if set(config) != required:
+    if set(config) not in (required, required | {'rank_objective'}):
         raise ValueError('cutoff config keys differ from fixed protocol')
-    if config['seed'] not in (1401, 1402, 1403, 1404):
+    seed = config['seed']
+    objective = config.get('rank_objective', 'occupancy')
+    if ((seed in (1401, 1402, 1403, 1404) and objective != 'occupancy') or
+            (seed in (1501, 1502, 1503, 1504) and objective != 'hard_pairs') or
+            seed not in (*range(1401, 1405), *range(1501, 1505))):
         raise ValueError('seed outside fixed four-seed protocol')
     if (config['epochs'] != 10 or config['warmup_epochs'] != 5 or
             config['caps'] != [None, None, None, 76, None] or
@@ -150,18 +154,21 @@ def train_one(model, train_images, train_ids, train_labels, val_chunks,
                         model, train_chunks, train_labels, train_ids,
                         config['train_capacity'], val_chunks, config['caps'],
                         multipliers_tensor, rho, auxiliary,
-                        use_rank=True, use_count=use_count)
+                        use_rank=True, use_count=use_count,
+                        rank_objective=config.get('rank_objective', 'occupancy'))
                     rank = result['ranking']
-                    # Full ID lists are large; the source cohort and selected
-                    # correct count suffice to recompute the training quota.
                     row.update(rank_loss=result['rank_loss'],
                                count_loss=result['count_loss'],
                                active_pairs=rank['active_pairs'],
-                               training_selected_true=rank['selected_true_count'],
-                               training_missed_true=len(rank['missed_true_ids']),
-                               training_wrong_occupants=len(rank['wrong_occupant_ids']),
                                rank_logit_gradient_norm=result['rank_logit_gradient_norm'],
                                count_logit_gradient_norm=result['count_logit_gradient_norm'])
+                    if config.get('rank_objective', 'occupancy') == 'occupancy':
+                        row.update(training_selected_true=rank['selected_true_count'],
+                                   training_missed_true=len(rank['missed_true_ids']),
+                                   training_wrong_occupants=len(rank['wrong_occupant_ids']))
+                    else:
+                        row.update(training_weak_positive_count=len(rank['weak_positive_ids']),
+                                   training_hard_negative_count=len(rank['hard_negative_ids']))
                     replayed = result['development_probabilities'].cpu()
                 else:
                     result = streamed_step(model, val_chunks, config['caps'],

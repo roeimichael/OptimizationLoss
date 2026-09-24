@@ -3,13 +3,15 @@
 import torch
 
 from .cutoff_rank import cutoff_rank_gradient, cutoff_rank_loss
+from .hard_pair_rank import hard_pair_rank_gradient, hard_pair_rank_loss
 from .global_constraint import bounded_count_penalty
 from .streamed_constraint import count_logit_gradient
 
 
 def streamed_rank_count_step(model, train_chunks, training_labels, training_ids,
                              train_capacity, development_chunks, caps, multipliers,
-                             rho, optimizer, *, use_rank, use_count):
+                             rho, optimizer, *, use_rank, use_count,
+                             rank_objective='occupancy'):
     """Stream two populations, accumulate analytic logit derivatives, step once.
 
     Only `training_labels` enter the ranking objective. Development chunks carry
@@ -20,7 +22,8 @@ def streamed_rank_count_step(model, train_chunks, training_labels, training_ids,
             len(train_chunks)==0 or not isinstance(development_chunks,(list,tuple)) or
             not development_chunks or
             type(use_rank) is not bool or type(use_count) is not bool or
-            not (use_rank or use_count)):
+            not (use_rank or use_count) or
+            rank_objective not in ('occupancy','hard_pairs')):
         raise ValueError('nonempty replayable cohorts and an active objective required')
     was_training=model.training
     model.eval()
@@ -34,10 +37,13 @@ def streamed_rank_count_step(model, train_chunks, training_labels, training_ids,
         if not bool(torch.isfinite(train_logits).all()) or not bool(torch.isfinite(development_logits).all()):
             raise RuntimeError('nonfinite fixed-state logits')
         if use_rank:
-            rank_gradient,rank_details=cutoff_rank_gradient(train_logits,training_labels,
-                                                              training_ids,train_capacity)
-            rank_loss=float(cutoff_rank_loss(train_logits,training_labels,
-                                             training_ids,train_capacity)[0])
+            gradient_fn,loss_fn=(
+                (cutoff_rank_gradient,cutoff_rank_loss) if rank_objective=='occupancy'
+                else (hard_pair_rank_gradient,hard_pair_rank_loss))
+            rank_gradient,rank_details=gradient_fn(train_logits,training_labels,
+                                                    training_ids,train_capacity)
+            rank_loss=float(loss_fn(train_logits,training_labels,
+                                    training_ids,train_capacity)[0])
         else:
             rank_gradient=torch.zeros_like(train_logits)
             rank_details=None
