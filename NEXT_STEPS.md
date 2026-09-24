@@ -1,5 +1,26 @@
 # Rebuild work queue
 
+## Active research direction: paper-aligned single-grade knee study, 24 September
+
+The user requested sustained research and a working schedule. The two stale paused
+TraLO heartbeats were deleted; the unrelated monthly finance automation remains.
+The new active heartbeat is `tralo-knee-paper-match-research` every 30 minutes.
+The first stage is **complete**: 96 matched frozen-head fits across six
+training-prevalence-scaled grade-3-only caps and four fresh seeds. See
+`experiments/kassif_single_cap_protocol_20260924.md` and
+`experiments/kassif_single_cap_result_20260924.md`. Release
+`0c23b286eae61978c510899eb4ffa3ef1e2e9cd7` is immutable and verified on
+both hosts. No run queues remain; never duplicate. All raw evidence is retained.
+TraLO changed raw grade-3 counts substantially but rarely changed the correct
+people selected among exact capped slots; no reliable gain over Null. The next
+substantive experiment is a preregistered **end-to-end backbone constraint phase**
+with a matched Null and Clipper, using one cap first. The current head-only
+runner does not test representation shaping. Read the existing supervised
+adaptation and trajectory contracts, specify exact gradient/update schedule,
+independent mathematical checks and a bounded GPU pilot before implementation.
+Do not select a favorable cap or step from the completed validation grid. Keep
+the test split untouched until a fixed independent confirmation is justified.
+
 ## Completed: 384-fit strength sweep, 24 September
 
 Runtime bf00a7fbfe7c2cdf8e27b53e51b37992e82386ca, unchanged method math.
