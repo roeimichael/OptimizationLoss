@@ -1,6 +1,6 @@
 # ALM / TraLO comparison: knee and CIFAR-100
 
-Status: implementation locally validated; server access currently times out.
+Status: all 48 fits completed and audited on dsisco01; see alm_two_dataset_result_20260924.md.
 User authorized both datasets, four seeds, ALM and its null on 2026-09-24.
 This is a new method comparison, not a repeat of the trajectory diagnosis.
 
@@ -87,4 +87,4 @@ Pilot seed901 all five arms per dataset; inspect completion, finite updates,
 identical warmup/batches, null exactness, exact slot counts, independent metrics.
 Only then expand 902-904 and the registered TraLO .001 sensitivity. Exclusive
 receipts; never retry an ambiguous launch without inspecting existing artifacts.
-Preserve all failed attempts. No server result is currently claimed by this file.
+Preserve all failed attempts. The linked result report records completed runs and their limits.

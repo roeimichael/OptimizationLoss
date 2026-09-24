@@ -4,10 +4,12 @@
 
 User confirmed knee + CIFAR-100, four seeds, Clipper/TraLO/TraLO Null/ALM/ALM Null.
 See experiments/alm_two_dataset_20260924.md for the fixed design.
-ALM primitives and shared-engine integration implemented; local tests pass.
-SSH to BOTH hosts failed during banner exchange at 08:05 UTC. No new GPU runs
-launched. Next: restore access, deploy committed bytes, native tests, audited
-seed901 pilots, then remaining three seeds and registered TraLO step sensitivity.
+ALM integration deployed as 6411f2b2db81cb7b071a09441cd26d7f82347e98; 90 tests
+passed locally and natively on both hosts, source parity and Quadro smoke passed.
+All 48 fits completed: knee/CIFAR, 4 seeds, 5 arms plus TraLO .001 sensitivity.
+Artifact/dose/metrics/null/quotas audits passed. Results and paired intervals:
+experiments/alm_two_dataset_result_20260924.md/json. No reliable TraLO-over-null
+advantage; initial ALM harms knee cc-F1. Do not launch duplicate runs.
 Old overnight automation is paused. Do not duplicate the completed traces.
 
 
