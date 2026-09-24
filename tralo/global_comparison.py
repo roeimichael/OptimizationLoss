@@ -22,8 +22,9 @@ def validate_config(config):
     if 'knee_caps' in config:
         caps = config['knee_caps']
         if (not isinstance(caps, list) or len(caps) != 5 or caps[:3] != [None, None, None]
-                or any(type(k) is not int or k < 0 for k in caps[3:])):
-            raise ValueError('knee_caps must be [null,null,null,K3,K4]')
+                or all(k is None for k in caps[3:])
+                or any(k is not None and (type(k) is not int or k < 0) for k in caps[3:])):
+            raise ValueError('knee_caps must constrain grade 3 and/or grade 4')
     for key in ('alm_rho','alm_lambda_initial'):
         if key in config and (type(config[key]) not in (int,float) or not math.isfinite(config[key]) or config[key]<0 or (key=='alm_rho' and config[key]==0)):
             raise ValueError('invalid '+key)

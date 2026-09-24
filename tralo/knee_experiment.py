@@ -145,10 +145,11 @@ def compare(cache, config_path, output):
                     probabilities=result['probabilities'].tolist()
                     report=evaluate_global(probabilities,labels,caps,ids)
                     if 'alm' in config.get('arms',[]): check_report(report,labels,caps)
+                    constrained=[c for c, cap in enumerate(caps) if cap is not None]
                     for policy, score in report.items():
                         predictions=score['predictions']
                         expected=f1_score(labels,predictions,labels=list(range(5)),average='macro',zero_division=0)
-                        expected_cc=f1_score(labels,predictions,labels=[3,4],average='macro',zero_division=0)
+                        expected_cc=f1_score(labels,predictions,labels=constrained,average='macro',zero_division=0)
                         if (abs(expected-score['metrics']['macro_f1'])>1e-12 or
                             abs(expected_cc-score['metrics']['cc_f1'])>1e-12 or
                             abs(accuracy_score(labels,predictions)-score['metrics']['accuracy'])>1e-12):

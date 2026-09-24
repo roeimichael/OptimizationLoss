@@ -1,0 +1,36 @@
+{
+  "seeds": [
+    1201,
+    1202,
+    1203,
+    1204
+  ],
+  "epochs": 20,
+  "warmup_epochs": 5,
+  "batch_size": 256,
+  "lr": 0.001,
+  "lambda_initial": 0.01,
+  "lambda_step": 0.05,
+  "rho_initial": 0.5,
+  "rho_target": 0.5,
+  "cache_events_sha256": "9d055f303ddda617f9e54dda635c7d55b837533448bea708481ba2fe524a7e5e",
+  "constraint_optimizer": "separate",
+  "constraint_lr": 0.0003,
+  "supervised_auxiliary": "none",
+  "auxiliary_weight": 0.0,
+  "alm_rho": 0.05,
+  "alm_lambda_initial": 0.0,
+  "arms": [
+    "clipper",
+    "tralo_null",
+    "tralo",
+    "alm"
+  ],
+  "knee_caps": [
+    null,
+    null,
+    null,
+    43,
+    null
+  ]
+}

@@ -16,9 +16,13 @@ class ConfigTests(unittest.TestCase):
         cfg=dict(CFG,knee_caps=[None,None,None,123,24])
         validate_config(cfg)
         self.assertEqual(knee_caps(cfg,826),[None,None,None,123,24])
+        single=dict(CFG,knee_caps=[None,None,None,89,None])
+        validate_config(single)
+        self.assertEqual(knee_caps(single,826),[None,None,None,89,None])
         self.assertEqual(knee_caps(CFG,826),[None,None,None,82,16])
         for caps in ([None,None,None,123,24.0], [None,None,None,-1,24],
-                     [None,None,None,123], [None,1,None,123,24]):
+                     [None,None,None,123], [None,1,None,123,24],
+                     [None,None,None,None,None]):
             with self.assertRaises(ValueError):validate_config(dict(CFG,knee_caps=caps))
         with self.assertRaises(ValueError):knee_caps(dict(CFG,knee_caps=[None,None,None,800,30]),826)
 
