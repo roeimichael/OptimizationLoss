@@ -1,6 +1,17 @@
 # Rebuild work queue
 
-## Active overnight diagnosis, 23–24 September
+## Active: two-dataset ALM comparison, 24 September
+
+User confirmed knee + CIFAR-100, four seeds, Clipper/TraLO/TraLO Null/ALM/ALM Null.
+See experiments/alm_two_dataset_20260924.md for the fixed design.
+ALM primitives and shared-engine integration implemented; local tests pass.
+SSH to BOTH hosts failed during banner exchange at 08:05 UTC. No new GPU runs
+launched. Next: restore access, deploy committed bytes, native tests, audited
+seed901 pilots, then remaining three seeds and registered TraLO step sensitivity.
+Old overnight automation is paused. Do not duplicate the completed traces.
+
+
+## Completed overnight diagnosis, 23–24 September
 
 User requests per-image mid-training mechanism analysis through the night.
 See experiments/knee_trace_protocol_20260923.md. Instrumented replay saves

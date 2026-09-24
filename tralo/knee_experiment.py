@@ -7,6 +7,7 @@ import hashlib
 import json
 from pathlib import Path
 import sys
+import time
 from .events import EventLog
 from .knee_data import audit
 from .global_comparison import train_arm, audited_arm_log, validate_config
@@ -119,15 +120,23 @@ def compare(cache, config_path, output):
         summary=[]
         for seed in config['seeds']:
             identities=[]
-            for arm in ('clipper','tralo_null','tralo'):
+            null_probabilities=None
+            for arm in config.get('arms',('clipper','tralo_null','tralo')):
                 directory=output/f'{seed}_{arm}'; directory.mkdir()
+                started=time.monotonic()
                 with audited_arm_log(directory/'events.jsonl') as arm_log:
                     result=train_arm(x,y,u,caps,config,seed,arm,
                         lambda row:arm_log.emit(row['event'],**{k:v for k,v in row.items() if k!='event'}))
                     if result['task_updates_skipped'] or result['constraint_updates_skipped']:
                         raise RuntimeError('skipped update')
+                    from .comparison_checks import check_dose, check_report
+                    check_dose(result,config,arm)
+                    if arm=='tralo_null': null_probabilities=result['probabilities'].clone()
+                    if arm=='alm_null' and null_probabilities is not None and not torch.equal(null_probabilities,result['probabilities']):
+                        raise RuntimeError('matched null predictions differ')
                     probabilities=result['probabilities'].tolist()
                     report=evaluate_global(probabilities,labels,caps,ids)
+                    if 'alm' in config.get('arms',[]): check_report(report,labels,caps)
                     for policy, score in report.items():
                         predictions=score['predictions']
                         expected=f1_score(labels,predictions,labels=list(range(5)),average='macro',zero_division=0)
@@ -139,7 +148,7 @@ def compare(cache, config_path, output):
                     save(directory/'predictions.json',dict(sample_ids=ids,labels=labels,probabilities=probabilities))
                     save(directory/'report.json',report); torch.save(result['state'],directory/'head.pt')
                     row={k:v for k,v in result.items() if k not in ('state','probabilities')}
-                    row.update(seed=seed,arm=arm,scores={k:{a:v['metrics'][a] for a in ('accuracy','macro_f1','cc_f1')} for k,v in report.items()})
+                    row.update(seed=seed,arm=arm,seconds=time.monotonic()-started,scores={k:{a:v['metrics'][a] for a in ('accuracy','macro_f1','cc_f1')} for k,v in report.items()})
                     identities.append((result['warmup_sha256'],result['batch_sha256']))
                     arm_log.emit('completed',**row,artifacts={p.name:digest(p) for p in directory.iterdir() if p.name!='events.jsonl'})
                     summary.append(row)

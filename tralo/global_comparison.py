@@ -14,9 +14,14 @@ from .global_report import evaluate_global
 def validate_config(config):
     keys = {'seeds', 'epochs', 'warmup_epochs', 'batch_size', 'lr',
             'lambda_initial', 'lambda_step', 'rho_initial', 'rho_target', 'cache_events_sha256'}
-    optional = {'constraint_optimizer','constraint_lr','supervised_auxiliary','auxiliary_weight','auxiliary_margin'}
+    optional = {'constraint_optimizer','constraint_lr','supervised_auxiliary','auxiliary_weight','auxiliary_margin','alm_rho','alm_lambda_initial','arms'}
     if not keys <= set(config) or set(config) - keys - optional:
         raise ValueError('comparison config keys must match the declared contract')
+    if 'arms' in config and (not isinstance(config['arms'],list) or not config['arms'] or len(set(config['arms']))!=len(config['arms']) or any(a not in ('clipper','tralo_null','tralo','alm','alm_null') for a in config['arms'])):
+        raise ValueError('invalid arms')
+    for key in ('alm_rho','alm_lambda_initial'):
+        if key in config and (type(config[key]) not in (int,float) or not math.isfinite(config[key]) or config[key]<0 or (key=='alm_rho' and config[key]==0)):
+            raise ValueError('invalid '+key)
     if config.get('constraint_optimizer', 'shared') not in ('shared', 'separate'):
         raise ValueError('constraint_optimizer must be shared or separate')
     if 'constraint_lr' in config:
@@ -77,7 +82,7 @@ def train_arm(train_x, train_y, unlabelled_x, caps, config, seed, arm, emit, obs
     from .global_constraint import bounded_count_penalty, advance_controller
     from .sample_losses import sample_loss
     validate_config(config)
-    if arm not in ('clipper', 'tralo_null', 'tralo'):
+    if arm not in ('clipper', 'tralo_null', 'tralo', 'alm', 'alm_null'):
         raise ValueError('unknown arm')
     if (train_x.ndim != 2 or unlabelled_x.ndim != 2 or
             train_x.shape[1] != unlabelled_x.shape[1] or
@@ -86,6 +91,11 @@ def train_arm(train_x, train_y, unlabelled_x, caps, config, seed, arm, emit, obs
             not torch.isfinite(train_x).all() or not torch.isfinite(unlabelled_x).all() or
             (train_y < 0).any() or (train_y >= len(caps)).any()):
         raise ValueError('invalid training features or labels')
+    if arm in ('alm','alm_null') and config.get('auxiliary_weight',0.) != 0:
+        raise ValueError('ALM comparison does not mix supervised auxiliary terms')
+    if arm in ('alm','alm_null') and not {'alm_rho','alm_lambda_initial'} <= set(config):
+        raise ValueError('ALM settings must be explicit')
+    from .alm import augmented_penalty, residuals, update_dual
     device = train_x.device
     devices = [torch.cuda.current_device()] if device.type == 'cuda' else []
     with torch.random.fork_rng(devices=devices):
@@ -101,12 +111,17 @@ def train_arm(train_x, train_y, unlabelled_x, caps, config, seed, arm, emit, obs
     multipliers = [float(config['lambda_initial'])] * len(caps)
     rho, frozen = float(config['rho_initial']), False
     rho_step = (config['rho_target'] - rho) / (config['epochs'] - config['warmup_epochs'])
+    dual = train_x.new_full((sum(k is not None for k in caps),),config.get('alm_lambda_initial',0.))
+    joint_updates = dual_updates = 0
     task_updates = constraint_updates = 0
     task_attempts = constraint_attempts = 0
     planned_task = config['epochs'] * math.ceil(len(train_x)/config['batch_size'])
     auxiliary = config.get('supervised_auxiliary','none')
     auxiliary_weight = config.get('auxiliary_weight',0.)
     emit({'event':'started','seed':seed,'arm':arm,'task_updates_planned':planned_task,
+          'method_definition':'joint inequality PHR ALM' if arm=='alm' else arm,
+          'alm_rho':config.get('alm_rho'), 'alm_lambda_initial':config.get('alm_lambda_initial'),
+          'joint_constraint_updates_planned':(config['epochs']-config['warmup_epochs'])*math.ceil(len(train_x)/config['batch_size']) if arm=='alm' else 0,
           'constraint_optimizer':constraint_optimizer_mode,
           'constraint_lr':config.get('constraint_lr',config['lr']),
           'supervised_auxiliary':auxiliary if arm != 'clipper' else 'none',
@@ -149,6 +164,7 @@ def train_arm(train_x, train_y, unlabelled_x, caps, config, seed, arm, emit, obs
         batch_hash.update(order.numpy().tobytes())
         loss_sum = ce_sum = auxiliary_sum = 0.0
         task_gradient_max = task_displacement_max = 0.0
+        alm_sum = 0.0
         for start in range(0,len(order),config['batch_size']):
             indices = order[start:start+config['batch_size']].to(device)
             logits = model(train_x[indices])
@@ -159,15 +175,32 @@ def train_arm(train_x, train_y, unlabelled_x, caps, config, seed, arm, emit, obs
                 extra = sample_loss(logits,train_y[indices],caps,auxiliary,
                                     config.get('auxiliary_margin',1.))
                 loss = ce+auxiliary_weight*extra
+            if arm == 'alm' and epoch >= config['warmup_epochs']:
+                term=augmented_penalty(residuals(model(unlabelled_x),caps),dual,config['alm_rho'])
+                loss=loss+term
+                alm_sum += float(term.detach())*len(indices)
             task_attempts += 1
             grad_norm, displacement = step(loss,'task',epoch,start//config['batch_size'],optimizer)
             task_gradient_max = max(task_gradient_max,grad_norm)
             task_displacement_max = max(task_displacement_max,displacement)
             task_updates += 1
+            if arm == 'alm' and epoch >= config['warmup_epochs']:
+                joint_updates += 1
             loss_sum += float(loss.item())*len(indices)
             ce_sum += float(ce.item())*len(indices)
             auxiliary_sum += (float(extra.detach().item())
                               if isinstance(extra,torch.Tensor) else float(extra))*len(indices)
+        alm_row={}
+        if arm in ('alm','alm_null') and epoch >= config['warmup_epochs']:
+            with torch.no_grad():
+                g=residuals(model(unlabelled_x),caps)
+                previous=dual.tolist()
+                if arm=='alm':
+                    dual=update_dual(g,dual,config['alm_rho'])
+                    dual_updates += 1
+            alm_row=dict(alm_penalty=alm_sum/len(train_x),alm_signed_residuals=g.tolist(),
+                         alm_multipliers_before=previous,alm_multipliers_after=dual.tolist(),
+                         alm_rho=config['alm_rho'],joint_constraint_updates_cumulative=joint_updates)
         if epoch+1 == config['warmup_epochs']:
             warmup_hash = _state_hash(model)
         row = {'event':'epoch', 'epoch':epoch+1, 'task_loss':loss_sum/len(train_x),
@@ -182,6 +215,7 @@ def train_arm(train_x, train_y, unlabelled_x, caps, config, seed, arm, emit, obs
                     torch.tensor(multipliers,device=device,dtype=logits.dtype),rho)
             row.update(soft_counts_before=probs.detach().sum(dim=0).cpu().tolist(),
                        hard_counts_before=hard, penalty=float(loss.item()), rho=rho,
+                       penalty_definition='TraLO bounded-count diagnostic; not ALM objective',
                        multipliers=list(multipliers), constraint_attempted=False,
                        constraint_applied=False, gradient_norm=0., displacement_norm=0.)
             # A zero-valued penalty gets no Adam step: existing momentum alone
@@ -201,13 +235,15 @@ def train_arm(train_x, train_y, unlabelled_x, caps, config, seed, arm, emit, obs
                 after = model(unlabelled_x).softmax(dim=1)
                 row['hard_counts_after'] = torch.bincount(after.argmax(dim=1),minlength=len(caps)).tolist()
             row['constraint_updates_cumulative'] = constraint_updates
+        row.update(alm_row)
         emit(row)
     with torch.no_grad():
         probabilities = model(unlabelled_x).softmax(dim=1).cpu()
     return {'state':{k:v.detach().cpu() for k,v in model.state_dict().items()},
             'probabilities':probabilities, 'warmup_sha256':warmup_hash,
             'batch_sha256':batch_hash.hexdigest(), 'task_updates':task_updates,
-            'constraint_updates':constraint_updates, 'task_updates_planned':planned_task,
+            'constraint_updates':constraint_updates, 'joint_constraint_updates':joint_updates,
+            'dual_updates':dual_updates, 'task_updates_planned':planned_task,
             'task_updates_attempted':task_attempts,'task_updates_skipped':task_attempts-task_updates,
             'constraint_updates_attempted':constraint_attempts,
             'constraint_updates_skipped':constraint_attempts-constraint_updates}
@@ -264,17 +300,24 @@ def run(config_path, cache, caps_path, output):
             results=[]
             for seed in config['seeds']:
                 identities=[]
-                for arm in ('clipper','tralo_null','tralo'):
+                null_probabilities=None
+                for arm in config.get('arms',('clipper','tralo_null','tralo')):
                     directory=output/f'{seed}_{arm}'; directory.mkdir()
                     started=time.monotonic()
                     with audited_arm_log(directory/'events.jsonl') as arm_log:
                         result=train_arm(train_x,train_y,unlabelled_x,caps,config,seed,arm,
                                          lambda row:arm_log.emit(row['event'],**{k:v for k,v in row.items() if k!='event'}))
+                        from .comparison_checks import check_dose, check_report
+                        check_dose(result,config,arm)
+                        if arm=='tralo_null': null_probabilities=result['probabilities'].clone()
+                        if arm=='alm_null' and null_probabilities is not None and not torch.equal(null_probabilities,result['probabilities']):
+                            raise RuntimeError('matched null predictions differ')
                         predictions={'sample_ids':saved['sample_ids'],'labels':saved['labels'],
                                      'probabilities':result['probabilities'].tolist()}
                         (directory/'predictions.json').write_text(json.dumps(predictions,allow_nan=False))
                         torch.save(result['state'],directory/'head.pt')
                         scores=evaluate_global(predictions['probabilities'],predictions['labels'],caps,predictions['sample_ids'])
+                        if 'alm' in config.get('arms',[]): check_report(scores,predictions['labels'],caps)
                         (directory/'report.json').write_text(json.dumps(scores,allow_nan=False))
                         identities.append((result['warmup_sha256'],result['batch_sha256']))
                         row={k:v for k,v in result.items() if k not in ('state','probabilities')}
