@@ -1,5 +1,18 @@
 # Rebuild work queue
 
+## Completed: 384-fit strength sweep, 24 September
+
+Runtime bf00a7fbfe7c2cdf8e27b53e51b37992e82386ca, unchanged method math.
+All384 fits passed across knee/CIFAR, seeds1001-1012,7TraLO rates,7ALM rhos,
+Clipper/common-null. No positive Holm-adjusted primary contrast (family28).
+Earlier .0001 knee optimum did not reproduce; weak/moderate range near null,
+stronger settings can harm. See experiments/constraint_sweep_result_20260924.md,
+JSON, seedCSV and plot. All run artifacts retained remotely and in local archive.
+No sweep queues remain active. Do not duplicate or silently extend the grid.
+Next informative direction: separate objective from update schedule; frozen-head
+sweep does not answer end-to-end constrained backbone learning.
+
+
 ## Active: two-dataset ALM comparison, 24 September
 
 User confirmed knee + CIFAR-100, four seeds, Clipper/TraLO/TraLO Null/ALM/ALM Null.
