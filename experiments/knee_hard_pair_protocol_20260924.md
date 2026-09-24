@@ -11,6 +11,16 @@ Rank-plus-count minus rank-only was −1.10 points, exploratory 95% paired t
 interval [−7.48,+5.29]. This closes that *specific* ranking formulation; it
 does not test a consistently active supervised ranking term.
 
+First implementation release `3ac900f4a3b188d2ee798fb1614e22a51448927a`
+was **not approved for a GPU pilot**: the dsisco01 native oracle test failed
+at a `1e-12` parameter tolerance while dsisco02 and local tests passed.
+An independent host-side reproduction found parameter max difference
+`5.55e-12` on one near-zero Adam bias coordinate, originating from a
+`5.55e-17` gradient-reduction difference; the strict gradient check remains
+within `1e-12`. The replacement oracle explicitly checks gradients at
+`1e-12` and parameters at `1e-10`, a bound covering that measured
+Adam-epsilon amplification. The failed receipt and release remain preserved.
+
 ## New objective and reason
 
 For each training image, use the same grade-3 log odds

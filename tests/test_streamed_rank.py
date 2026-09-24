@@ -28,6 +28,7 @@ class StreamedRankTests(unittest.TestCase):
         rank,_=hard_pair_rank_loss(oracle(train),labels,ids,2)
         count=bounded_count_penalty(oracle(val),caps,multipliers,.5)
         (rank+count).backward()
+        expected_grads=[p.grad.clone() for p in oracle.parameters()]
         expected_optim.step()
         model=copy.deepcopy(base)
         optimizer=torch.optim.Adam(model.parameters(),lr=.001)
@@ -37,8 +38,12 @@ class StreamedRankTests(unittest.TestCase):
         self.assertTrue(result['applied'])
         self.assertEqual(result['ranking']['active_pairs'],4)
         self.assertGreater(result['rank_logit_gradient_norm'],0)
-        for actual,expected in zip(model.parameters(),oracle.parameters()):
-            self.assertTrue(torch.allclose(actual,expected,atol=1e-12,rtol=1e-12))
+        for actual,expected,gradient in zip(model.parameters(),oracle.parameters(),expected_grads):
+            self.assertTrue(torch.allclose(actual.grad,gradient,atol=1e-12,rtol=1e-12))
+            # dsisco01 differs by 5.55e-12 on one near-zero bias gradient:
+            # a 5.55e-17 reduction difference is amplified by Adam's epsilon.
+            # The gradient oracle above remains strict across both hosts.
+            self.assertTrue(torch.allclose(actual,expected,atol=1e-10,rtol=1e-10))
 
     def test_combined_gradient_and_adam_step_match_unchunked(self):
         from tralo.streamed_rank import streamed_rank_count_step
