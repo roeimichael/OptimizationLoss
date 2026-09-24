@@ -178,3 +178,19 @@ First36 knee fits COMPLETE; see experiments/knee_first_stage_20260923.md. Next f
 Smallstep12fits COMPLETE, hashes/dose audited, baseline/null byte-identical. RawccF1mean37.24vsnull38.00; capped-first42.19vsnull41.08,paired95%CI delta[-0.74,+2.96]points. No established benefit. Next: experiments/knee_adaptation_protocol_20260923.md prespecifies5training-only epochs perseed then base smallstep comparisons. Newprepare optionalADAPTATION_SEED; deploybeforelaunch, pilot901gate then902-904.
 
 2026-09-23 10:27Israel: All4adaptations+12adaptedhead fits COMPLETE and audited. See knee_adapted_result_20260923.md/json. No jobs remain from these campaigns. CappedccF1TraLO68.827vsnull68.694,pairedmean+.133CI[-.290,+.556]. Continue consolidate/audit60headfits+4backbones; no arbitrary extra sweeps. Scheduled17:00report remainsactive.
+
+## 2026-09-24: sample-aware loss and achieved-count evaluation
+
+The user stopped adaptive hyperparameter search before any such campaign ran.
+The abandoned untracked test was archived outside the worktree. Two new
+matched studies are complete: 24 head fits with a squared far-error training
+term, followed by 16 fits testing a training-label anchor in the count step.
+See experiments/sample_aware_result_20260924.md and its two JSON analyses.
+Both studies used knee plus CIFAR, four shared seeds, original fixed global
+caps, a named exact-slot output comparison, and no test-split scoring.
+The count term showed no reliable gain over its matched sample-aware Null.
+Offline TraLO-achieved caps were also compared for all eight dataset/seed
+pairs; they underfilled knee's original caps but often relaxed CIFAR's caps.
+The candidate direction to specify next is quota-cutoff-aware ranking trained
+with training labels, with its own matched null and original output budgets.
+This candidate has **not** been implemented or tested. No new GPU jobs remain.
