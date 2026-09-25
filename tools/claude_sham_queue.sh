@@ -10,6 +10,9 @@ REL=/home/dsi/michaer8/tralo-rebuild/releases/$SHA
 PY=/home/dsi/michaer8/anaconda3/envs/optloss/bin/python
 DATA=/home/dsi/michaer8/tralo-rebuild/data/knee-chen-v1/KneeXrayData/ClsKLData/kneeKL224
 OUT=/home/dsi/michaer8/tralo-rebuild/runs/claude-sham-20260925
+# dsisco01 runs another user's ~60 niced CPU jobs; an uncapped torch process spins ~44 threads and
+# slowed epochs 10x (24 s -> 4 min). Thread count only touches CPU image preprocessing, not results.
+export OMP_NUM_THREADS=8 MKL_NUM_THREADS=8
 say() { echo "[$(date '+%F %T')] gpu$GPU $*"; }
 cd "$REL" || exit 2
 for SEED in "$@"; do
