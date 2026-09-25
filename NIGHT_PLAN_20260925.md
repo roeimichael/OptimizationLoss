@@ -10,11 +10,14 @@ scratchpad/runs (sweep 384 fits, ALM 48, anchor/far-error 40 -- all with per-sam
 ## Stages, in order
 
 1. CODE AUDIT -- workflow wf_1c6808f3-0cf (9 reviewers, 2 skeptics per medium+ finding, tiebreak).
-   STATUS: running -- 31/38 agents returned at heartbeat 1; confirmed so far include the
-   separate-Adam controller being scale-invariant (lambda/rho inert) and the knee soft/hard gap.
+   STATUS: DONE -- analysis/CODE_AUDIT_20260925.md. Arithmetic correct by execution; design
+   findings D1-D7 (D1 separate Adam scale-invariant, D2 soft/hard gap, D3 knee caps never bind,
+   D4 frozen head, D5 momentum confound, D6 oscillating endpoint, D7 test-label path).
 2. FIX every confirmed finding on this branch, each with a test that FAILS before the fix
    (mutation-proven), full suite green, commit + push. Low-severity findings: fix if cheap.
-   STATUS: pending
+   STATUS: DONE for D1 (tralo/constraint_optimizers.py CalibratedSGD), sham control, D3 (cap 76
+   binds on hard count), D4 (end-to-end ResNet18), D7 (knee_data drops path/label). 127 tests
+   green. D2/D5/D6 open, not blocking the study. Release ff2e8c7c.
 3. LOG ANALYSIS on stored per-sample probabilities: does the constraint change WHICH items
    occupy the capped slots beyond what a reseed changes? Slot-turnover vs reseed floor, TraLO
    vs Null item-level agreement, where along the cut the moved items sit, correct-in/correct-out.
@@ -25,10 +28,13 @@ scratchpad/runs (sweep 384 fits, ALM 48, anchor/far-error 40 -- all with per-sam
    Priority candidates (to be confirmed by 2+3, not assumed):
    a. local/group constraints -- the user's actual problem; the rebuild never ran them.
    b. whatever 3 shows is the regime where the constraint moves items at all.
-   STATUS: pending
+   STATUS: DONE -- experiments/claude_controller_sham_protocol_20260925.md (C1 sgd-null, C2 sgd-sham,
+   Holm; n=24 seeds 1701-1724; MDE ~4.5 F1 pts). Scorer analysis/score_sham.py.
 5. RUN on the servers (ssh dsisco01/dsisco02). Check GPU owners first; never share a card.
    Kill bad runs at the first integrity check. Score against the pre-registration.
-   STATUS: dsisco01 UP (4 GPUs free), dsisco02 banner-hang. Shared NFS, so 02's files are readable via 01.
+   STATUS (checked 2026-09-25 ~21:12): pilot seed1701 running on dsisco01 GPU0 (pid 2121373,
+   ~20 min/seed). On pilot gate PASS: queue 1702-1706 gpu0, 1707-1712 gpu1, 1713-1718 gpu2,
+   1719-1724 gpu3 via runs/claude-sham-20260925/claude_sham_queue.sh (setsid nohup, ssh -n).
 6. ALSO: score the unread augfin_a/augfin_b campaign on the MAIN branch
    (~/optloss-rank/augfin_*, 168 runs, pre-registered in docs/MISSION.md) once ssh is back.
    STATUS: DONE -- outcome 2 AMBIGUOUS (decisive +0.0011/+0.0033, t<1). Recorded in MISSION, pushed.
