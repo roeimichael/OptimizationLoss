@@ -98,11 +98,12 @@ class ShamOptimizer:
         # after the swap would count more nonzero coordinates and change the dose.
         self.inner.calibrate()
         for p in _grads(self.params):
-            norm = p.grad.double().norm()
-            if norm == 0:
+            # a python float: the seeded CPU noise must not meet a CUDA norm tensor
+            norm = float(p.grad.double().norm())
+            if norm == 0.0:
                 continue
             noise = torch.randn(p.grad.shape, generator=self.generator, dtype=torch.float64)
-            noise = noise * (norm / noise.norm())
+            noise = noise * (norm / float(noise.norm()))
             p.grad.copy_(noise.to(dtype=p.grad.dtype, device=p.grad.device))
         self.inner.step()
 

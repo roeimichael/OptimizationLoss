@@ -1,6 +1,7 @@
 import copy
 import math
 
+import pytest
 import torch
 
 from tralo.constraint_optimizers import CalibratedSGD, ShamOptimizer
@@ -96,3 +97,17 @@ def test_inactive_constraint_takes_no_step():
     opt = CalibratedSGD(model.parameters(), 1e-3)
     out = streamed_step(model, chunks, [None, None, None, 10_000, None], torch.full((5,), 0.01), 0.5, opt)
     assert not out['applied'] and opt.lr is None and displacement(start, model) == 0.0
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason='needs a GPU; run natively on the server')
+def test_sham_and_sgd_step_a_cuda_model_like_a_cpu_one():
+    """The pilot died here: seeded CPU noise met a CUDA norm tensor."""
+    def run(device, sham):
+        model, chunks = model_and_chunks()
+        model = model.to(device)
+        inner = CalibratedSGD(model.parameters(), 1e-3)
+        opt = ShamOptimizer(inner, seed=3) if sham else inner
+        streamed_step(model, chunks, CAPS, torch.full((5,), 0.01, device=device), 0.5, opt)
+        return torch.cat([p.detach().cpu().flatten() for p in model.parameters()])
+    for sham in (False, True):
+        assert torch.allclose(run('cuda', sham), run('cpu', sham), atol=1e-5)
