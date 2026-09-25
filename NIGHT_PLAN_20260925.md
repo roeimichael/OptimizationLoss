@@ -32,12 +32,16 @@ scratchpad/runs (sweep 384 fits, ALM 48, anchor/far-error 40 -- all with per-sam
    Holm; n=24 seeds 1701-1724; MDE ~4.5 F1 pts). Scorer analysis/score_sham.py.
 5. RUN on the servers (ssh dsisco01/dsisco02). Check GPU owners first; never share a card.
    Kill bad runs at the first integrity check. Score against the pre-registration.
-   STATUS (checked 2026-09-25 22:22): pilot #1 (ff2e8c7c) DIED in sham_sgd (CPU noise x CUDA norm);
-   fixed + CUDA test, release 8337a39e. Pilot #2 ran 10x slow (4 min/epoch): another user's ~60
-   niced CPU jobs + our uncapped ~44 torch threads. Stopped by PID, kept in failed/. Queue now sets
-   OMP_NUM_THREADS=8 (probe: 40 s/epoch). Probe runs/.../probe_threads8 (clipper only, gpu1) checks
-   thread count is byte-neutral vs pilot #1/#2 clipper. Pilot #3 launched gpu0 ~22:21.
-   On pilot gate PASS: queue 1702-1706 gpu0, 1707-1712 gpu1, 1713-1718 gpu2, 1719-1724 gpu3.
+   STATUS (checked 2026-09-25 22:56): v1 (controller/sham) STOPPED at its pilot gate, as its protocol
+   requires: first-epoch hard count 74 <= cap 76. Recorded in
+   experiments/claude_controller_sham_protocol_20260925_result.md. Pilot finding (n=1): ONE
+   published step moves the grade-3 soft count 82.6 -> 8.2 (sgd 0.2); a same-norm sham moves it
+   +4.7. The dose overshoots ~10x; the controller froze at check 1.
+   v3 PREREGISTERED (experiments/claude_targeted_step_protocol_20260925.md): TraLO's direction,
+   bisected to the smallest radius meeting the hard cap, plus a same-radius sham. Release
+   7c7cd3b7, 140 native tests. Pilot seed 1801 on gpu0 pid 2277349 since 22:55.
+   On pilot gate PASS: runs/claude-target-20260925/claude_target_queue.sh with 1802-1806 gpu0,
+   1807-1812 gpu1, 1813-1818 gpu2, 1819-1824 gpu3. Score: analysis/score_sham.py RUN_ROOT.
 6. ALSO: score the unread augfin_a/augfin_b campaign on the MAIN branch
    (~/optloss-rank/augfin_*, 168 runs, pre-registered in docs/MISSION.md) once ssh is back.
    STATUS: DONE -- outcome 2 AMBIGUOUS (decisive +0.0011/+0.0033, t<1). Recorded in MISSION, pushed.
