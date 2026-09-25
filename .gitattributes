@@ -1,1 +1,2 @@
 * text=auto eol=lf
+tools/*.sh text eol=lf
