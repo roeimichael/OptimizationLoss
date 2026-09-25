@@ -32,17 +32,16 @@ scratchpad/runs (sweep 384 fits, ALM 48, anchor/far-error 40 -- all with per-sam
    Holm; n=24 seeds 1701-1724; MDE ~4.5 F1 pts). Scorer analysis/score_sham.py.
 5. RUN on the servers (ssh dsisco01/dsisco02). Check GPU owners first; never share a card.
    Kill bad runs at the first integrity check. Score against the pre-registration.
-   STATUS (checked 2026-09-25 22:56): v1 (controller/sham) STOPPED at its pilot gate, as its protocol
-   requires: first-epoch hard count 74 <= cap 76. Recorded in
-   experiments/claude_controller_sham_protocol_20260925_result.md. Pilot finding (n=1): ONE
-   published step moves the grade-3 soft count 82.6 -> 8.2 (sgd 0.2); a same-norm sham moves it
-   +4.7. The dose overshoots ~10x; the controller froze at check 1.
-   v3 PREREGISTERED (experiments/claude_targeted_step_protocol_20260925.md): TraLO's direction,
-   bisected to the smallest radius meeting the hard cap, plus a same-radius sham. Release
-   7c7cd3b7, 140 native tests. Pilot seed 1801 PASSED its gate 23:20 (23.5 min; target steps land
-   91->76, 107->76, radius 0.0025-0.010 vs the published 0.10). Seeds 1802-1824 LAUNCHED 23:20:
-   gpu0 1802-1806, gpu1 1807-1812, gpu2 1813-1818, gpu3 1819-1824 (queue_gpu*.log). ETA ~02:00-02:30.
-   Score when done: cd ~/tralo-rebuild/runs && python claude-target-20260925/score_sham.py claude-target-20260925
+   STATUS (checked 2026-09-26 01:46):
+   v1 (controller/sham): STOPPED at its pilot gate. Pilot showed the published dose overshoots
+   ~10x (experiments/claude_controller_sham_protocol_20260925_result.md).
+   v3 (targeted step, cap 76, seeds 1801-1824): DONE, READING 2 -- bounded null.
+   C1 target-null +0.96 [-0.96,+2.88]; C2 target-sham +0.14 [-1.21,+1.48]; target-adam
+   +2.98 [+1.24,+4.71] (the published damage is the dose).
+   (experiments/claude_targeted_step_protocol_20260925_result.md)
+   v3b (cap 50, seeds 1901-1924): PREREGISTERED (experiments/claude_targeted_step_cap50_protocol_20260926.md),
+   release cd6a205a. Pilot 1901 on gpu0 since 01:44. On gate PASS: claude_target50_queue.sh with
+   1902-1906 gpu0, 1907-1912 gpu1, 1913-1918 gpu2, 1919-1924 gpu3. ETA ~04:45.
 6. ALSO: score the unread augfin_a/augfin_b campaign on the MAIN branch
    (~/optloss-rank/augfin_*, 168 runs, pre-registered in docs/MISSION.md) once ssh is back.
    STATUS: DONE -- outcome 2 AMBIGUOUS (decisive +0.0011/+0.0033, t<1). Recorded in MISSION, pushed.
