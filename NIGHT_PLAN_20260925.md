@@ -32,9 +32,11 @@ scratchpad/runs (sweep 384 fits, ALM 48, anchor/far-error 40 -- all with per-sam
    Holm; n=24 seeds 1701-1724; MDE ~4.5 F1 pts). Scorer analysis/score_sham.py.
 5. RUN on the servers (ssh dsisco01/dsisco02). Check GPU owners first; never share a card.
    Kill bad runs at the first integrity check. Score against the pre-registration.
-   STATUS (checked 2026-09-25 ~21:12): pilot seed1701 running on dsisco01 GPU0 (pid 2121373,
-   ~20 min/seed). On pilot gate PASS: queue 1702-1706 gpu0, 1707-1712 gpu1, 1713-1718 gpu2,
-   1719-1724 gpu3 via runs/claude-sham-20260925/claude_sham_queue.sh (setsid nohup, ssh -n).
+   STATUS (checked 2026-09-25 21:28): first pilot (release ff2e8c7c) DIED in sham_sgd -- CPU noise x
+   CUDA norm. Fixed + CUDA test (mutation-proven), release 8337a39e, 128 native tests pass. Dead
+   pilot kept in runs/claude-sham-20260925/failed/. Pilot 1701 relaunched gpu0 pid 2155756 21:27.
+   On pilot gate PASS: queue 1702-1706 gpu0, 1707-1712 gpu1, 1713-1718 gpu2, 1719-1724 gpu3
+   via runs/claude-sham-20260925/claude_sham_queue.sh (setsid nohup, ssh -n -f, cwd $HOME).
 6. ALSO: score the unread augfin_a/augfin_b campaign on the MAIN branch
    (~/optloss-rank/augfin_*, 168 runs, pre-registered in docs/MISSION.md) once ssh is back.
    STATUS: DONE -- outcome 2 AMBIGUOUS (decisive +0.0011/+0.0033, t<1). Recorded in MISSION, pushed.
