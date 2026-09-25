@@ -80,3 +80,27 @@ Slot turnover against the null (null reseed floor 0.301):
    - the test-label path (D7);
    - the 10x overshoot.
    It is a single cell (knee, grade-3 cap 76, ResNet18, 5+5 epochs).
+
+## Post-hoc analysis (not preregistered): WHO each step evicts
+
+`analysis/eviction_precision.py` runs offline with development labels, after training. It
+compares each applied step's raw grade-3 evictions with the evictions capped_first makes from
+the SAME pre-step probabilities. That post-hoc cut is the baseline any step must beat.
+
+| arm | steps | items evicted by the step | not truly grade 3 | overlap with the post-hoc cut | post-hoc cut: not grade 3 | correct capped slots per step |
+|---|---|---|---|---|---|---|
+| tralo_target | 96 | 1966 | 57.3% | 83.0% | 58.6% | +0.12 (sd 1.20) |
+| sham_target | 94 | 6 | -- | -- | 59.4% | -0.01 (sd 0.18) |
+| tralo_adam | 104 | 8017 | 36.3% | 27.3% | 57.7% | -2.94 (sd 4.25) |
+
+Grade 3 is 12.8% of the development items, so any eviction rule scores well above chance.
+
+**The targeted constraint step IS the post-hoc clipper, carried out through the weights.**
+- It evicts nearly the same items (83% overlap), with slightly LOWER precision (57.3% vs 58.6%).
+- That is why it cannot beat the allocator that already scores the endpoint: the soft-count
+  gradient ranks items by the same probabilities the allocator cuts on.
+- The published dose evicts ~4x the needed number and, past the uncertain items, reaches into
+  the true grade 3 (36% precision): that is its damage.
+
+This is the end-to-end, trainable-backbone counterpart of settled result #3
+(eviction given the probabilities is already ~optimal).
