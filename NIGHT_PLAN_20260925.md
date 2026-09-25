@@ -40,8 +40,8 @@ scratchpad/runs (sweep 384 fits, ALM 48, anchor/far-error 40 -- all with per-sam
    +2.98 [+1.24,+4.71] (the published damage is the dose).
    (experiments/claude_targeted_step_protocol_20260925_result.md)
    v3b (cap 50, seeds 1901-1924): PREREGISTERED (experiments/claude_targeted_step_cap50_protocol_20260926.md),
-   release cd6a205a. Pilot 1901 on gpu0 since 01:44. On gate PASS: claude_target50_queue.sh with
-   1902-1906 gpu0, 1907-1912 gpu1, 1913-1918 gpu2, 1919-1924 gpu3. ETA ~04:45.
+   release cd6a205a. Pilot 1901 PASSED 02:08 (23.6 min). Seeds LAUNCHED 02:09 via claude_target50_queue.sh:
+   1902-1906 gpu0, 1907-1912 gpu1, 1913-1918 gpu2, 1919-1924 gpu3. ETA ~04:35.
 6. ALSO: score the unread augfin_a/augfin_b campaign on the MAIN branch
    (~/optloss-rank/augfin_*, 168 runs, pre-registered in docs/MISSION.md) once ssh is back.
    STATUS: DONE -- outcome 2 AMBIGUOUS (decisive +0.0011/+0.0033, t<1). Recorded in MISSION, pushed.
