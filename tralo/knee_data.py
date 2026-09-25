@@ -28,9 +28,14 @@ def audit(root):
                 digest = hashlib.sha256(str(rgb.size).encode()+rgb.tobytes()).hexdigest()
                 size = list(image.size)
             subjects[split].add(match[1]); pixels[split].add(digest)
-            rows.append(dict(path=relative.as_posix(), split=split, label=int(relative.parts[1]),
-                             subject=match[1], sample_id=p.stem, size=size,
-                             sha256=hashlib.sha256(p.read_bytes()).hexdigest(), pixel_sha256=digest))
+            row = dict(split=split, subject=match[1], sample_id=p.stem, size=size,
+                       sha256=hashlib.sha256(p.read_bytes()).hexdigest(), pixel_sha256=digest)
+            # Test rows keep identity only. Chen stores images as split/GRADE/file.png, so the
+            # path is itself a label: recording either would put test-label information into
+            # every manifest (audit finding D7). Overlap checks above need only the hashes.
+            if split != 'test':
+                row.update(path=relative.as_posix(), label=int(relative.parts[1]))
+            rows.append(row)
         counts[split] = len(paths)
     for a,b in [('train','val'),('train','test'),('val','test')]:
         if subjects[a]&subjects[b]: raise ValueError('subject overlap: '+a+'/'+b)

@@ -31,3 +31,17 @@ class KneeDataTests(unittest.TestCase):
             root = Path(d); self.fixture(root)
             Image.new('L', (8, 8), 10).save(root/'val'/'0'/'9999999L.png')
             with self.assertRaisesRegex(ValueError, 'pixel overlap'): audit(root)
+
+    def test_test_rows_carry_no_label_information(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d); self.fixture(root)
+            result = audit(root)
+            test_rows = [r for r in result['rows'] if r['split'] == 'test']
+            self.assertEqual(len(test_rows), 5)
+            for r in test_rows:
+                self.assertNotIn('label', r)
+                self.assertNotIn('path', r)          # the Chen path encodes the grade
+                self.assertTrue(r['sha256'] and r['sample_id'])
+            for r in result['rows']:
+                if r['split'] != 'test':
+                    self.assertEqual(r['label'], int(r['path'].split('/')[1]))
