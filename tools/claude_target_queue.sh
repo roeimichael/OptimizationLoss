@@ -5,7 +5,7 @@
 # re-runs a seed whose output directory already exists (the runner refuses too).
 set -u
 GPU="$1"; shift
-SHA="${SHA:?set SHA}"
+SHA=7c7cd3b7db9ac5730815796d21d8a803973525dd
 REL=/home/dsi/michaer8/tralo-rebuild/releases/$SHA
 PY=/home/dsi/michaer8/anaconda3/envs/optloss/bin/python
 DATA=/home/dsi/michaer8/tralo-rebuild/data/knee-chen-v1/KneeXrayData/ClsKLData/kneeKL224
