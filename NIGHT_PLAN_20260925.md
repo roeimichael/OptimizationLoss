@@ -10,14 +10,17 @@ scratchpad/runs (sweep 384 fits, ALM 48, anchor/far-error 40 -- all with per-sam
 ## Stages, in order
 
 1. CODE AUDIT -- workflow wf_1c6808f3-0cf (9 reviewers, 2 skeptics per medium+ finding, tiebreak).
-   STATUS: running
+   STATUS: running -- 31/38 agents returned at heartbeat 1; confirmed so far include the
+   separate-Adam controller being scale-invariant (lambda/rho inert) and the knee soft/hard gap.
 2. FIX every confirmed finding on this branch, each with a test that FAILS before the fix
    (mutation-proven), full suite green, commit + push. Low-severity findings: fix if cheap.
    STATUS: pending
 3. LOG ANALYSIS on stored per-sample probabilities: does the constraint change WHICH items
    occupy the capped slots beyond what a reseed changes? Slot-turnover vs reseed floor, TraLO
    vs Null item-level agreement, where along the cut the moved items sit, correct-in/correct-out.
-   STATUS: pending
+   STATUS: A1-A3 DONE (analysis/FINDINGS_20260925.md). Below the reseed floor the constraint is
+   indistinguishable from noise; above it, it evicts correct items. fmow2 reseed floor is 50% of slots.
+   Missing control identified: a SHAM constraint of equal step norm.
 4. DECIDE the night's GPU experiments from 2+3. Pre-register each in experiments/ BEFORE launch.
    Priority candidates (to be confirmed by 2+3, not assumed):
    a. local/group constraints -- the user's actual problem; the rebuild never ran them.
@@ -25,10 +28,10 @@ scratchpad/runs (sweep 384 fits, ALM 48, anchor/far-error 40 -- all with per-sam
    STATUS: pending
 5. RUN on the servers (ssh dsisco01/dsisco02). Check GPU owners first; never share a card.
    Kill bad runs at the first integrity check. Score against the pre-registration.
-   STATUS: blocked -- ssh jump host dsihead timing out since ~2026-09-25 day
+   STATUS: dsisco01 UP (4 GPUs free), dsisco02 banner-hang. Shared NFS, so 02's files are readable via 01.
 6. ALSO: score the unread augfin_a/augfin_b campaign on the MAIN branch
    (~/optloss-rank/augfin_*, 168 runs, pre-registered in docs/MISSION.md) once ssh is back.
-   STATUS: blocked on ssh
+   STATUS: DONE -- outcome 2 AMBIGUOUS (decisive +0.0011/+0.0033, t<1). Recorded in MISSION, pushed.
 7. MORNING REPORT for the user: verified / unverified / what ran / what is next.
 
 ## Rules that bite tonight
