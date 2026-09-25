@@ -39,9 +39,10 @@ scratchpad/runs (sweep 384 fits, ALM 48, anchor/far-error 40 -- all with per-sam
    +4.7. The dose overshoots ~10x; the controller froze at check 1.
    v3 PREREGISTERED (experiments/claude_targeted_step_protocol_20260925.md): TraLO's direction,
    bisected to the smallest radius meeting the hard cap, plus a same-radius sham. Release
-   7c7cd3b7, 140 native tests. Pilot seed 1801 on gpu0 pid 2277349 since 22:55.
-   On pilot gate PASS: runs/claude-target-20260925/claude_target_queue.sh with 1802-1806 gpu0,
-   1807-1812 gpu1, 1813-1818 gpu2, 1819-1824 gpu3. Score: analysis/score_sham.py RUN_ROOT.
+   7c7cd3b7, 140 native tests. Pilot seed 1801 PASSED its gate 23:20 (23.5 min; target steps land
+   91->76, 107->76, radius 0.0025-0.010 vs the published 0.10). Seeds 1802-1824 LAUNCHED 23:20:
+   gpu0 1802-1806, gpu1 1807-1812, gpu2 1813-1818, gpu3 1819-1824 (queue_gpu*.log). ETA ~02:00-02:30.
+   Score when done: cd ~/tralo-rebuild/runs && python claude-target-20260925/score_sham.py claude-target-20260925
 6. ALSO: score the unread augfin_a/augfin_b campaign on the MAIN branch
    (~/optloss-rank/augfin_*, 168 runs, pre-registered in docs/MISSION.md) once ssh is back.
    STATUS: DONE -- outcome 2 AMBIGUOUS (decisive +0.0011/+0.0033, t<1). Recorded in MISSION, pushed.
