@@ -2,7 +2,8 @@
 
 Usage: python -m tralo.knee_e2e_v3 DATA_ROOT CONFIG_JSON OUTPUT_DIRECTORY [ARM ...]
 
-Protocol: experiments/claude_targeted_step_protocol_20260925.md (fixed before launch).
+Protocol: experiments/claude_targeted_step_protocol_20260925.md (fixed before launch);
+seeds 1901-1924 at cap 50: experiments/claude_targeted_step_cap50_protocol_20260926.md.
 Why: the v1 pilot (seed 1701) showed the published step overshoots ~10x (grade-3 soft count
 82.6 -> 8.2 in one step against a cap of 76) and its controller froze at the first check.
 
@@ -33,7 +34,8 @@ from .targeted_step import targeted_step
 ARMS = ('clipper', 'tralo_null', 'tralo_adam', 'tralo_target', 'sham_target')
 CONSTRAINED = ('tralo_adam', 'tralo_target', 'sham_target')
 TARGETED = ('tralo_target', 'sham_target')
-SEEDS = tuple(range(1801, 1825))
+# preregistered seed block -> grade-3 cap (v3: 76; v3b deeper cut: 50)
+STUDY_CAPS = {**{s: 76 for s in range(1801, 1825)}, **{s: 50 for s in range(1901, 1925)}}
 
 
 def validate(config):
@@ -42,10 +44,10 @@ def validate(config):
                 'rho_initial', 'rho_target', 'development_batch_size'}
     if set(config) != expected:
         raise ValueError('config keys differ from the declared experiment')
-    if config['seed'] not in SEEDS:
-        raise ValueError('seed is outside the preregistered set 1801-1824')
-    if config['caps'] != [None, None, None, 76, None]:
-        raise ValueError('this preregistered study has only the grade-3 cap of 76')
+    if config['seed'] not in STUDY_CAPS:
+        raise ValueError('seed is outside the preregistered sets 1801-1824 and 1901-1924')
+    if config['caps'] != [None, None, None, STUDY_CAPS[config['seed']], None]:
+        raise ValueError('the grade-3 cap does not match the seed block (1801-1824: 76, 1901-1924: 50)')
     for key in ('epochs', 'warmup_epochs', 'batch_size', 'development_batch_size'):
         if type(config[key]) is not int or config[key] <= 0:
             raise ValueError(key + ' must be a positive integer')

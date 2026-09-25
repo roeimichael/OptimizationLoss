@@ -24,7 +24,7 @@ STUDIES = {
                    secondary=[('tralo_adam', 'tralo_null'), ('sham_target', 'tralo_null'), ('clipper', 'tralo_null'),
                               ('tralo_target', 'tralo_adam')]),
 }
-GRADE, CAP = 3, 76
+GRADE, CAP = 3, None  # CAP is read from the runs' config.json
 
 
 def load(root):
@@ -34,7 +34,11 @@ def load(root):
             continue
         summary = {r['arm']: r for r in json.loads((d / 'summary.json').read_text())}
         if study is None:
+            global CAP
             study = STUDIES['target' if 'tralo_target' in summary else 'sgd']
+            CAP = json.loads((d / 'config.json').read_text())['caps'][GRADE]
+        if json.loads((d / 'config.json').read_text())['caps'][GRADE] != CAP:
+            raise ValueError('mixed caps under one run root')
         if set(summary) != set(study['arms']):
             continue
         arms = {}

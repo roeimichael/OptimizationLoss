@@ -62,3 +62,8 @@ def test_validate_rejects_seeds_outside_the_v3_preregistration():
     validate(good)
     with pytest.raises(ValueError):
         validate(dict(good, seed=1701))
+    validate(dict(good, seed=1901, caps=[None, None, None, 50, None]))
+    with pytest.raises(ValueError):
+        validate(dict(good, seed=1901))           # cap 76 on a cap-50 seed
+    with pytest.raises(ValueError):
+        validate(dict(good, caps=[None, None, None, 50, None]))   # cap 50 on a cap-76 seed
