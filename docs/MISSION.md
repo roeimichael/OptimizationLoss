@@ -135,7 +135,34 @@ hashes, no re-runs counted as seeds). **Verdict taken once against the mapping
 fixed at 130/252: outcome 3, REFUTED, on both primary endpoints.** Full numbers
 and the mechanism in LEDGER PART 4.
 
-### LIVE: the augmentation cell -- checked 2026-09-21 13:23 IDT (server clock)
+### DONE: the augmentation cell -- scored 2026-09-25, OUTCOME 2 (AMBIGUOUS), as pre-registered
+
+168/168 runs, 12 seeds/cell, balanced, 168 distinct prediction hashes, dsisco02/bf16.
+`scripts/score_augfin.py`.
+
+| cc_f1 | L25_G25 | L75_G75 |
+|---|---|---|
+| **decisive** `aug_tralo` - `aug_clip` | +0.0011 (t +0.3) | +0.0033 (t +0.6) |
+| **attributable** `aug_tralo` - `aug_tralo_null` | +0.0011 (t +0.4) | +0.0028 (t +0.8) |
+
+F1 (Macro) against `aug_clip`: -0.0016 / -0.0031. The large `aug_tralo` - `focal_clip`
+margins (t +2.2 / +2.5) are the AUGMENTATION and, per the pre-registration, are not a
+TraLO result. **First TraLO arm non-negative against both its matched rival and its own
+null at both caps under the corrected cap -- and every interval crosses zero.** At
+~0.2 seed-SD, resolving it would take ~250 seeds; more seeds are not the path.
+
+Gates: `gate:saturation` FAILS at 41% live (4.1 of 10 epochs) against the gate's 50%;
+the pre-registered kill threshold was 33%, so the cell stands, flagged.
+`feasibility_check` FAILS identically in every arm and seed (e.g. g5/c2 33 > 3): the
+checker recomputes PREVALENCE caps and ignores `group_budget_shares`; the deployed
+counts equal the configured POLICY caps exactly. A checker bug, not a run defect --
+fixed on `codex/tralo-decision-20260921` (`e8a3bacc`), not yet merged here.
+
+Mechanism note from the training logs: `aug_tralo`'s hard count for c2 ROSE 653 -> 718
+against K=136 over the constraint phase (satisfied 0/120 epochs). One constraint step
+per epoch against ~276 task steps per epoch does not move the count.
+
+### (superseded) LIVE: the augmentation cell -- checked 2026-09-21 13:23 IDT (server clock)
 
 | campaign | host | GPU | runner | caps | seeds | runs | budget |
 |---|---|---|---|---|---|---|---|
