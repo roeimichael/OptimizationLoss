@@ -1,0 +1,18 @@
+claude-target-20260925
+  ENS  tralo_target - sham_target +0.00 [-0.79, +0.79] slots p=1.000
+  BASE tralo_target - sham_target +0.12 [-1.10, +1.35] slots p=0.834
+  ENS  tralo_target - clipper     +0.25 [-0.69, +1.19] slots p=0.588
+  BASE tralo_target - clipper     +1.08 [-0.31, +2.48] slots p=0.121
+  ENS  tralo_null   - clipper     -0.04 [-1.30, +1.22] slots p=0.946
+  BASE tralo_null   - clipper     +0.21 [-1.34, +1.76] slots p=0.783
+  ENS  tralo_adam   - clipper     -2.00 [-3.05, -0.95] slots p=0.001
+  BASE tralo_adam   - clipper     -1.62 [-3.29, +0.04] slots p=0.055
+claude-target50-20260926
+  ENS  tralo_target - sham_target +0.42 [-0.26, +1.10] slots p=0.218
+  BASE tralo_target - sham_target -0.58 [-1.91, +0.75] slots p=0.373
+  ENS  tralo_target - clipper     +0.79 [+0.08, +1.51] slots p=0.032
+  BASE tralo_target - clipper     +0.33 [-1.35, +2.02] slots p=0.687
+  ENS  tralo_null   - clipper     +0.00 [-0.60, +0.60] slots p=1.000
+  BASE tralo_null   - clipper     -0.42 [-2.24, +1.40] slots p=0.640
+  ENS  tralo_adam   - clipper     -0.17 [-0.81, +0.48] slots p=0.597
+  BASE tralo_adam   - clipper     +0.71 [-1.17, +2.59] slots p=0.444
