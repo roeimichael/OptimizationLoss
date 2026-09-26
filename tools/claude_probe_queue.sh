@@ -14,6 +14,6 @@ for SEED in "$@"; do
   if [ -e "$OUT/seed$SEED" ]; then echo "SKIP $SEED"; continue; fi
   echo "[$(date '+%F %T')] gpu$GPU START $SEED"
   CUDA_VISIBLE_DEVICES="$GPU" "$PY" -u -m tralo.step_probe "$DATA" "experiments/configs/claude_probe_$SEED.json" "$OUT/seed$SEED" > "$OUT/seed$SEED.log" 2>&1 < /dev/null
-  echo "[$(date '+%F %T')] gpu$GPU END $SEED exit $?"
+  rc=$?; echo "[$(date "+%F %T")] gpu$GPU END $SEED exit $rc"
 done
 echo QUEUE DONE
