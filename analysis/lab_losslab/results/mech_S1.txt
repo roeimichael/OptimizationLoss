@@ -1,0 +1,27 @@
+=== S1 n=24
+  clip                         +0.7953 [+0.7459,+0.8447]
+  band_dist3_true3             +2.9353 [+2.8972,+2.9734]
+  band_dist3_non3              +3.2267 [+3.1670,+3.2865]
+  bias3_prec                   +0.7950 [+0.7458,+0.8441]
+  bias3_overlap                +0.9892 [+0.9859,+0.9925]
+  bias3_who_auc                +0.4606 [+0.4326,+0.4886]
+  bias3_pcorr_push_dist3       -0.0724 [-0.1244,-0.0203]
+  bias3_pcorr_push_dens        +0.0505 [-0.0185,+0.1194]
+  bias3_pcorr_push_bayes       +0.1395 [+0.0717,+0.2074]
+  head_prec                    +0.7907 [+0.7423,+0.8391]
+  head_overlap                 +0.9577 [+0.9522,+0.9632]
+  head_who_auc                 +0.4211 [+0.3763,+0.4659]
+  head_pcorr_push_dist3        +0.3582 [+0.3112,+0.4053]
+  head_pcorr_push_dens         -0.4219 [-0.4906,-0.3531]
+  head_pcorr_push_bayes        +0.2335 [+0.1416,+0.3254]
+  full_prec                    +0.7897 [+0.7408,+0.8385]
+  full_overlap                 +0.9501 [+0.9421,+0.9580]
+  full_who_auc                 +0.4183 [+0.3784,+0.4581]
+  full_pcorr_push_dist3        +0.2190 [+0.1657,+0.2724]
+  full_pcorr_push_dens         -0.2699 [-0.3415,-0.1984]
+  full_pcorr_push_bayes        +0.2436 [+0.1696,+0.3177]
+  pcorr_dens_bayes             -0.0791 [-0.1551,-0.0031]
+  pcorr_dist3_bayes            -0.2146 [-0.2751,-0.1541]
+  PAIR bias3-clip   -0.0003 [-0.0029,+0.0022] W/L/T 5/6/13
+  PAIR head-clip    -0.0046 [-0.0098,+0.0006] W/L/T 2/11/11
+  PAIR full-clip    -0.0056 [-0.0119,+0.0006] W/L/T 6/12/6
