@@ -53,3 +53,36 @@ there is one fixed ratio, chosen a priori, with no search.
      applied.
 
 Any failure stops the study and is recorded.
+
+## Pilot 2400 result and DECLARED DEVIATION D-A1 (written 2026-09-26, before any study seed ran)
+
+Release c5634488, 26 min.
+
+**Items that passed:**
+- matched hashes;
+- 1810 updates in every arm;
+- band sizes = 24;
+- the realised dose ratio is 0.1 at every epoch in all three bandcons arms (mean and max);
+- band disagreement stays at or below 4.52, against the kill bound of 10 (91.1 before the amendment).
+
+**Item that FAILED:** the natural-count kill bound [cap/3, 400] = [16.7, 400].
+- bandcons natural grade-3 counts at epochs 6-10: 106, 55, 111, **0**, 76.
+- bandcons_unc: 106, 57, **9**, 191, 27.
+- bandcons_rand: 106, 24, 35, 137, 181.
+- The null stays within 68-112, so the bound is informative: the consistency term, even at 10% of
+  the CE gradient norm, swings the grade-3 argmax count. (Adam normalises per coordinate, so a
+  coherent 10% direction still takes full-size steps.)
+
+Under the preregistered rule this stops the study, and it is recorded as a gate failure.
+
+**Deviation D-A1: the study proceeds anyway, flagged.**
+- **What the failed bound measures.** It detects a global shift of the grade-3 log-odds. The primary
+  endpoint, capped_first, takes the top-50 items by p3 whatever the argmax count is, so it is
+  invariant to such a shift.
+- **The collapse signal that matters is controlled.** Explosive view disagreement, the failure seen
+  at beta = 1, is now bounded at 4.5 against 91.
+- **Seeds.** Blocks 2401-2424 (cap 50) and 2501-2524 (cap 76) are unchanged and unrun.
+- **Reporting.** Every result from this study carries the flag "run under deviation D-A1: the
+  natural-count gate item failed in the pilot". The per-seed natural counts are reported.
+- **Disclosure.** The pilot's capped F1 was seen: clipper 53.8, null 53.8, aug_clip 56.4,
+  bandcons 55.1, bandcons_unc 51.3, bandcons_rand 60.3 (n = 1).
