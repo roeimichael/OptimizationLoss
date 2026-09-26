@@ -79,7 +79,13 @@ def main():
         w = a['bandcons']['summary']['band_half_width']
         row = dict(seed=s, matched=len(ids) == 1, updates=sorted(updates),
                    band_sizes_ok=all(r['band_size'] == 2 * w for r in logs),
-                   disagreement_epoch6=logs[0]['band_disagreement_start'] if logs else None)
+                   disagreement_epoch6=logs[0]['band_disagreement_start'] if logs else None,
+                   max_disagreement=max(r['band_disagreement_start'] for x in ARMS if x.startswith('bandcons')
+                                        for r in a[x]['summary']['band_logs']),
+                   dose_ok=all(abs(r.get('realised_ratio_mean', 0.1) - 0.1) < 1e-6 and abs(r.get('realised_ratio_max', 0.1) - 0.1) < 1e-6
+                               for x in ARMS if x.startswith('bandcons') for r in a[x]['summary']['band_logs']
+                               if r.get('consistency_terms', 1)),
+                   natural_counts={x: a[x]['summary'].get('natural_counts_start') for x in ARMS})
         out['integrity'].append(row)
         print('  ' + ' '.join('%s=%s' % kv for kv in row.items()))
     print('\nARM MEANS (capped_first grade-3 F1: clean / tta)')
