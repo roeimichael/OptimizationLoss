@@ -1,0 +1,137 @@
+{
+  "epochs": [
+    {
+      "epoch": 6,
+      "train_accuracy_proxy": 0.9603669089650398,
+      "counts": [
+        {
+          "cap": 50,
+          "tau": 0.5229366686448377,
+          "n_act": 17,
+          "p_act": 427,
+          "positives_above": 298,
+          "positives_far_below": 32,
+          "negatives_far_below": 5004
+        },
+        {
+          "cap": 76,
+          "tau": -0.6183725152338354,
+          "n_act": 65,
+          "p_act": 268,
+          "positives_above": 481,
+          "positives_far_below": 8,
+          "negatives_far_below": 4956
+        }
+      ]
+    },
+    {
+      "epoch": 7,
+      "train_accuracy_proxy": 0.9750778816199377,
+      "counts": [
+        {
+          "cap": 50,
+          "tau": 1.3689710008749367,
+          "n_act": 16,
+          "p_act": 401,
+          "positives_above": 320,
+          "positives_far_below": 36,
+          "negatives_far_below": 5005
+        },
+        {
+          "cap": 76,
+          "tau": 0.12848116961335873,
+          "n_act": 63,
+          "p_act": 228,
+          "positives_above": 519,
+          "positives_far_below": 10,
+          "negatives_far_below": 4958
+        }
+      ]
+    },
+    {
+      "epoch": 8,
+      "train_accuracy_proxy": 0.9631360332294912,
+      "counts": [
+        {
+          "cap": 50,
+          "tau": 0.2803216527511424,
+          "n_act": 13,
+          "p_act": 395,
+          "positives_above": 344,
+          "positives_far_below": 18,
+          "negatives_far_below": 5008
+        },
+        {
+          "cap": 76,
+          "tau": -0.7376884975799921,
+          "n_act": 47,
+          "p_act": 252,
+          "positives_above": 503,
+          "positives_far_below": 2,
+          "negatives_far_below": 4974
+        }
+      ]
+    },
+    {
+      "epoch": 9,
+      "train_accuracy_proxy": 0.9719626168224299,
+      "counts": [
+        {
+          "cap": 50,
+          "tau": 0.2507525370371237,
+          "n_act": 31,
+          "p_act": 323,
+          "positives_above": 427,
+          "positives_far_below": 7,
+          "negatives_far_below": 4990
+        },
+        {
+          "cap": 76,
+          "tau": -0.5099230410185223,
+          "n_act": 96,
+          "p_act": 220,
+          "positives_above": 536,
+          "positives_far_below": 1,
+          "negatives_far_below": 4925
+        }
+      ]
+    },
+    {
+      "epoch": 10,
+      "train_accuracy_proxy": 0.9762893734856352,
+      "counts": [
+        {
+          "cap": 50,
+          "tau": 1.3369842100369247,
+          "n_act": 15,
+          "p_act": 365,
+          "positives_above": 367,
+          "positives_far_below": 25,
+          "negatives_far_below": 5006
+        },
+        {
+          "cap": 76,
+          "tau": -0.45484291287794876,
+          "n_act": 98,
+          "p_act": 159,
+          "positives_above": 593,
+          "positives_far_below": 5,
+          "negatives_far_below": 4923
+        }
+      ]
+    }
+  ],
+  "verdict": {
+    "50": {
+      "mean_n_act": 18.4,
+      "mean_p_act": 382.2,
+      "alive": false
+    },
+    "76": {
+      "mean_n_act": 73.8,
+      "mean_p_act": 225.4,
+      "alive": true
+    }
+  },
+  "augment": true
+}

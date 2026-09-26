@@ -83,3 +83,18 @@ in epochs 8-10, against 0.03-0.10 without augmentation. So augmentation does bre
 with the same augmentation. It is preregistered against aug_clip as its null and a shifted-anchor
 twin as its control, on fresh seeds. **If it is dead:** training-label information at the cut is
 closed with and without augmentation.
+
+### FALLBACK GATE RESULT (2026-09-26): ALIVE AT CAP 76, dead at cap 50
+
+Release 5099411c, dsisco01 GPU 0 (a second process of ours beside the live study), seed 2000.
+Output: `analysis/cutpair_gate_aug_20260926.json`.
+
+| cap | mean N_act | mean P_act | clean training accuracy proxy | verdict |
+|---|---|---|---|---|
+| 50 | 18.4 | 382.2 | 0.96-0.98 | dead (N_act < 20, by 1.6) |
+| 76 | **73.8** | 225.4 | 0.96-0.98 | **alive** |
+
+Augmentation lowers clean training accuracy from ~0.998 to ~0.97. At cap 76 it puts 60-100
+training negatives near the development cut, against 13.4 without augmentation. Per the rule
+above, CUTPAIR is implemented on top of aug_clip at cap 76 only (runner v5, seeds 2700-2724) and
+preregistered before launch.

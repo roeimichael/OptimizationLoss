@@ -101,7 +101,7 @@ def main():
     print('\nSECONDARY: same contrasts on TTA probabilities')
     out['tta'] = table(seeds, PRIMARY, 'tta', False)
     print('\nSECONDARY: other clean contrasts')
-    out['secondary'] = table(seeds, [('S', a, b) for a, b in SECONDARY], 'clean', False)
+    out['secondary'] = table(seeds, [('S%d' % (i + 1), a, b) for i, (a, b) in enumerate(SECONDARY)], 'clean', False)
     print('\nSECONDARY: bandcons_tta - clipper_tta')
     tt = {s: {'x': {'v': v['arms']['bandcons']['tta']}, 'y': {'v': v['arms']['clipper']['tta']}} for s, v in seeds.items()}
     r = paired(tt, 'x', 'y', 'v')
