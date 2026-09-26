@@ -1,0 +1,21 @@
+{
+  "seed": 3020,
+  "backbone": "mobilenet_v3_large",
+  "epochs": 10,
+  "warmup_epochs": 5,
+  "batch_size": 32,
+  "development_batch_size": 16,
+  "task_lr": 0.0001,
+  "constraint_lr": 3e-05,
+  "caps": [
+    null,
+    null,
+    null,
+    76,
+    null
+  ],
+  "lambda_initial": 0.01,
+  "lambda_step": 0.05,
+  "rho_initial": 0.5,
+  "rho_target": 0.5
+}
