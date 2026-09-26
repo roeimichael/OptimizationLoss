@@ -959,6 +959,7 @@ comparison against it is available until it is restored.
 
 ### Directional, not settled
 
+- **The final-epoch p3 is a noisy score at the cut; a snapshot ensemble beats the cut by 2-3.4 slots** (2026-09-26, post hoc, knee, the two #9 studies, n=24 per cap). capped_first on the mean of the epoch 6-10 dev probability snapshots, minus capped_first on the final ones: tralo_null +3.17 [+1.92, +4.46] slots (cap 76), +2.46 [+1.46, +3.58] (cap 50); clipper +3.42 [+2.54, +4.29], +2.04 [+1.08, +3.04]. A label-free gate found epoch history predicts wrong occupants beyond p3 (residual AUC 0.66-0.74); the plain ensemble is the stronger form of it. This exceeds every training-time effect measured, and it helps the clipper as much as TraLO: it is a stronger POST-HOC bar, and TraLO must be compared at equal ensembling. Chosen after seeing the data -> preregistered confirmation on fresh seeds (BANDCONS 2401-2424, CUTPAIR 2701-2724): `experiments/claude_snapshot_ensemble_prereg_20260926.md` on `claude/bandcons-20260926`.
 - **Shorter budgets stop the damage.** gAP effect by live fraction,
   de-duplicated: 10.3% -> -0.0174, 13.8% -> -0.0274, 30.0% -> -0.0089,
   60.0% -> **+0.0079**. Monotone on a fixed backbone, 3 of 3, but Spearman p = 0.20
