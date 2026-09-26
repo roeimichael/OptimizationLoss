@@ -113,7 +113,19 @@ trade as a trade, and retract in place.**
 
 ---
 
-## RUN STATE -- checked 2026-09-16 22:57 IDT (server clock)
+## RUN STATE -- checked 2026-09-26 12:45 IDT (server clock)
+
+All live work is on **dsisco01**, under `~/tralo-rebuild/runs/`. Releases are immutable clones by SHA in `~/tralo-rebuild/releases/`, and the code is on branch `claude/bandcons-20260926`. dsisco02 is fully held by another user. All four dsisco01 GPUs are ours only.
+
+| run | release | seeds | state | scored by |
+|---|---|---|---|---|
+| `claude-bandcons-a1cap50` (BANDCONS, cap 50, deviation D-A1) | c5634488 | 2401-2424 | 5/24 | `analysis/score_bandcons.py`, then the snapshot-ensemble prereg |
+| `claude-step-probe-20260926` (targeted step at depths f) | e7e02085 | 2601-2624 | 12/24 | `analysis/score_step_probe.py` (fixed 615d55eb) under amendment 1 |
+| `claude-cutpair-cap76` (CUTPAIR, cap 76) | 6fb21e48 | 2701-2724 | launched 12:42; the pilot 2700 passed its gate | `analysis/score_cutpair.py` under amendment 1, then the snapshot-ensemble prereg |
+
+Queued: the BANDCONS cap-76 block (2501-2524). It is decided after the cap-50 result.
+
+## RUN STATE (superseded) -- checked 2026-09-16 22:57 IDT (server clock)
 
 🛑 **ALL SEVEN PREVIOUS CAMPAIGNS WERE STOPPED 2026-09-16 22:30** by explicit PID
 (runners first, then INT on each trainer), on the user's instruction. Every one
