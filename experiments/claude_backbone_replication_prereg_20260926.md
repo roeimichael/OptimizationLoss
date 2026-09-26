@@ -73,7 +73,7 @@ Any failure stops that block and is recorded.
   study cannot test the constraint on that backbone.
 - The seed finishes in at most 60 minutes.
 
-## Amendment 1 (2026-09-26 17:0x, both pilots still running, no pilot output read)
+## Amendment 1 (2026-09-26 by 16:52 IDT, both pilots still running, no pilot output read)
 
 The gate item "natural grade-3 count at the first post-warm-up check exceeds 76" is withdrawn. Tested
 on a valid seed of the original ResNet18 study (1801), it fails: the count there is exactly 76 at the
