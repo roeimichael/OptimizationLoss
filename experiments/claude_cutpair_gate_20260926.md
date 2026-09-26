@@ -62,3 +62,24 @@ Release 5193051f, dsisco01 GPU 0, seed 2000. Full output: `analysis/cutpair_gate
 - **Conclusion:** train-label information at the development cut is exhausted by memorisation.
   This closes CUTPAIR and PREC@K-RAMP on this cell without spending a study. The remaining
   information source is the unlabeled development IMAGES (BANDCONS).
+
+## FALLBACK GATE, with augmentation -- PREREGISTERED 2026-09-26, before it ran
+
+The CUTPAIR design in the research workflow carried a preregistered fallback that this file omitted:
+if the gate fails, re-run it with train-time augmentation. Settled finding #1 says augmentation
+roughly doubles the live window.
+
+The live BANDCONS logs, which are label-free, show the aug_clip arm keeping training CE at 0.70-0.77
+in epochs 8-10, against 0.03-0.10 without augmentation. So augmentation does break memorisation here.
+
+**Fallback gate:**
+- same code, `--augment`;
+- schedule: v4 aug_clip, strong augmentation of train images in epochs 6-10;
+- measured on the CLEAN eval-mode training bank at the end of each epoch 6-10;
+- seed 2000;
+- same m, W and kill rule (mean N_act >= 20 AND mean P_act >= 20, per cap).
+
+**If it is alive at a cap:** CUTPAIR is implemented ON TOP OF aug_clip, so every CUTPAIR arm trains
+with the same augmentation. It is preregistered against aug_clip as its null and a shifted-anchor
+twin as its control, on fresh seeds. **If it is dead:** training-label information at the cut is
+closed with and without augmentation.

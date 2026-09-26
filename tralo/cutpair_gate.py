@@ -1,6 +1,10 @@
 """Liveness gate for CUTPAIR, run BEFORE any CUTPAIR code is trusted with a study seed.
 
-Usage: python -m tralo.cutpair_gate DATA_ROOT CONFIG_JSON OUTPUT_DIRECTORY
+Usage: python -m tralo.cutpair_gate DATA_ROOT CONFIG_JSON OUTPUT_DIRECTORY [--augment]
+
+--augment (the design's preregistered fallback, claude_cutpair_gate_20260926.md): train the v4 aug_clip
+schedule instead (strong augmentation of TRAIN images in epochs 6-10, which keeps training CE ~0.7 instead of
+~0.05) and measure the clean eval-mode training bank at the END of each epoch 6-10.
 
 CUTPAIR (a supervised hinge on the grade-3 log-odds of TRAIN items, anchored at the score
 where capped_first cuts the unlabeled development pool) can only act on training items
@@ -64,7 +68,7 @@ def gate_counts(dev_p3, train_s, train_y, cap):
                 negatives_far_below=int((neg & (train_s <= tau - MARGIN)).sum()))
 
 
-def run(data_root, config_path, output):
+def run(data_root, config_path, output, augment=False):
     import torch
     from torchvision import models
     from .supervised_adaptation import TrainingImages
@@ -84,8 +88,11 @@ def run(data_root, config_path, output):
     model = model.cuda()
     rows = []
 
+    # v3 snapshots 'before_constraint' at the end of each epoch; v4 names the end of epoch 'after_constraint'
+    measured_phase = 'after_constraint' if augment else 'before_constraint'
+
     def snapshot(epoch, phase, values):
-        if phase != 'before_constraint':
+        if phase != measured_phase:
             return
         s, y = training_log_odds(model, train_images)
         row = dict(epoch=epoch, train_accuracy_proxy=float(((s > 0) == (y == 3)).double().mean()),
@@ -93,17 +100,21 @@ def run(data_root, config_path, output):
         rows.append(row)
         print(json.dumps(row), flush=True)
 
-    train_one(model, train_images, val_chunks, config, 'tralo_null', lambda row: None, snapshot)
+    if augment:
+        from .knee_e2e_v4 import train_one as train_v4
+        train_v4(model, train_images, val_chunks, config, 'aug_clip', lambda row: None, snapshot)
+    else:
+        train_one(model, train_images, val_chunks, config, 'tralo_null', lambda row: None, snapshot)
     verdict = {}
     for k, cap in enumerate(CAPS):
         n = sum(r['counts'][k]['n_act'] for r in rows) / len(rows)
         p = sum(r['counts'][k]['p_act'] for r in rows) / len(rows)
         verdict[str(cap)] = dict(mean_n_act=n, mean_p_act=p, alive=bool(n >= 20 and p >= 20))
-    save(output / 'gate.json', dict(epochs=rows, verdict=verdict))
+    save(output / 'gate.json', dict(epochs=rows, verdict=verdict, augment=augment))
     print(json.dumps(verdict), flush=True)
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 4:
+    if len(sys.argv) not in (4, 5) or (len(sys.argv) == 5 and sys.argv[4] != '--augment'):
         raise SystemExit(__doc__)
-    run(*sys.argv[1:])
+    run(*sys.argv[1:4], augment=len(sys.argv) == 5)
