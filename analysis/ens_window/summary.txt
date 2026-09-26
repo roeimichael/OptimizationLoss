@@ -1,0 +1,107 @@
+Q1 window: correct slots minus BASE, mean [95% t-CI] W/T/L
+claude-target-20260925     clipper            win2 +1.46 [+0.60,+2.31] 16/ 6/ 2 | win3 +3.00 [+2.06,+3.94] 20/ 2/ 2 | win4 +3.17 [+2.20,+4.13] 23/ 0/ 1 | win5 +3.42 [+2.48,+4.36] 21/ 3/ 0 | all10 +3.42 [+2.48,+4.36] 21/ 3/ 0
+claude-target-20260925     tralo_null         win2 +1.17 [+0.26,+2.07] 11/ 7/ 6 | win3 +2.54 [+1.33,+3.76] 18/ 3/ 3 | win4 +2.67 [+1.45,+3.88] 20/ 0/ 4 | win5 +3.17 [+1.78,+4.56] 20/ 1/ 3 | all10 +3.17 [+1.78,+4.56] 20/ 1/ 3
+claude-target-20260925     tralo_adam         win2 +1.58 [+0.71,+2.45] 16/ 5/ 3 | win3 +2.83 [+1.58,+4.08] 18/ 2/ 4 | win4 +2.83 [+1.69,+3.98] 19/ 2/ 3 | win5 +3.04 [+1.84,+4.25] 20/ 1/ 3 | all10 +4.75 [+3.24,+6.26] 21/ 0/ 3
+claude-target-20260925     tralo_target       win2 +1.54 [+0.46,+2.62] 15/ 4/ 5 | win3 +2.08 [+1.14,+3.03] 19/ 2/ 3 | win4 +2.42 [+1.15,+3.68] 17/ 3/ 4 | win5 +2.58 [+1.36,+3.81] 19/ 1/ 4 | all10 +2.75 [+1.48,+4.02] 21/ 0/ 3
+claude-target-20260925     sham_target        win2 +1.00 [-0.27,+2.27] 14/ 2/ 8 | win3 +1.96 [+0.79,+3.13] 18/ 1/ 5 | win4 +2.04 [+0.80,+3.28] 19/ 1/ 4 | win5 +2.71 [+1.53,+3.89] 20/ 3/ 1 | all10 +2.71 [+1.53,+3.89] 20/ 3/ 1
+claude-target50-20260926   clipper            win2 +0.96 [+0.11,+1.81] 15/ 5/ 4 | win3 +1.42 [+0.43,+2.40] 17/ 5/ 2 | win4 +2.04 [+0.94,+3.14] 18/ 2/ 4 | win5 +2.04 [+0.96,+3.12] 17/ 2/ 5 | all10 +2.04 [+0.96,+3.12] 17/ 2/ 5
+claude-target50-20260926   tralo_null         win2 +1.29 [+0.46,+2.12] 13/ 9/ 2 | win3 +1.46 [+0.60,+2.31] 18/ 2/ 4 | win4 +2.04 [+0.96,+3.12] 18/ 4/ 2 | win5 +2.46 [+1.32,+3.60] 20/ 3/ 1 | all10 +2.46 [+1.32,+3.60] 20/ 3/ 1
+claude-target50-20260926   tralo_adam         win2 +0.79 [+0.07,+1.52]  8/14/ 2 | win3 +1.00 [+0.27,+1.73] 13/ 8/ 3 | win4 +1.08 [+0.15,+2.01] 13/ 6/ 5 | win5 +1.17 [+0.21,+2.12] 15/ 4/ 5 | all10 +1.88 [+0.86,+2.89] 16/ 6/ 2
+claude-target50-20260926   tralo_target       win2 +1.42 [+0.54,+2.30] 15/ 5/ 4 | win3 +1.62 [+0.51,+2.74] 14/ 5/ 5 | win4 +2.29 [+1.12,+3.46] 16/ 5/ 3 | win5 +2.50 [+1.16,+3.84] 18/ 3/ 3 | all10 +2.21 [+0.95,+3.47] 17/ 4/ 3
+claude-target50-20260926   sham_target        win2 +0.42 [-0.59,+1.42] 12/ 1/11 | win3 +1.04 [+0.02,+2.06] 14/ 4/ 6 | win4 +1.46 [+0.23,+2.69] 15/ 4/ 5 | win5 +1.50 [+0.27,+2.73] 14/ 3/ 7 | all10 +1.50 [+0.27,+2.73] 14/ 3/ 7
+claude-bandcons-a1cap50    clipper            win2 -0.12 [-1.08,+0.83] 11/ 4/ 9 | win3 +0.62 [-0.50,+1.75] 14/ 2/ 8 | win4 +1.67 [+0.57,+2.76] 17/ 3/ 4 | win5 +1.62 [+0.53,+2.72] 18/ 1/ 5 | all10 +2.00 [+0.87,+3.13] 19/ 0/ 5
+claude-bandcons-a1cap50    tralo_null         win2 -0.50 [-1.58,+0.58]  6/ 5/13 | win3 +0.12 [-0.91,+1.16]  8/ 7/ 9 | win4 +0.67 [-0.15,+1.48] 12/ 6/ 6 | win5 +0.96 [+0.02,+1.89] 14/ 5/ 5 | all10 +0.83 [-0.17,+1.83] 12/ 7/ 5
+claude-bandcons-a1cap50    aug_clip           win2 +0.92 [-0.08,+1.91] 12/ 5/ 7 | win3 +1.38 [+0.31,+2.44] 16/ 3/ 5 | win4 +1.50 [+0.50,+2.50] 17/ 2/ 5 | win5 +1.58 [+0.60,+2.56] 16/ 3/ 5 | all10 +1.54 [+0.49,+2.60] 15/ 2/ 7
+claude-bandcons-a1cap50    bandcons           win2 +1.58 [+0.27,+2.90] 13/ 6/ 5 | win3 +2.46 [+0.97,+3.94] 15/ 4/ 5 | win4 +2.21 [+0.70,+3.72] 17/ 0/ 7 | win5 +2.71 [+1.25,+4.17] 18/ 1/ 5 | all10 +3.12 [+1.66,+4.59] 18/ 2/ 4
+claude-bandcons-a1cap50    bandcons_unc       win2 +1.83 [+0.39,+3.28] 11/ 9/ 4 | win3 +2.04 [+0.69,+3.40] 16/ 3/ 5 | win4 +2.79 [+1.23,+4.35] 17/ 3/ 4 | win5 +2.96 [+1.42,+4.50] 18/ 3/ 3 | all10 +3.21 [+1.53,+4.88] 18/ 3/ 3
+claude-bandcons-a1cap50    bandcons_rand      win2 +1.92 [+1.01,+2.82] 19/ 3/ 2 | win3 +2.42 [+1.35,+3.48] 16/ 6/ 2 | win4 +2.67 [+1.72,+3.61] 20/ 2/ 2 | win5 +2.79 [+1.84,+3.74] 19/ 3/ 2 | all10 +3.17 [+2.11,+4.22] 21/ 2/ 1
+claude-cutpair-cap76       clipper            win2 +1.21 [-0.07,+2.48] 14/ 3/ 7 | win3 +2.17 [+0.96,+3.38] 16/ 3/ 5 | win4 +2.08 [+0.86,+3.30] 15/ 3/ 6 | win5 +2.58 [+1.22,+3.95] 15/ 3/ 6 | all10 +2.62 [+1.27,+3.98] 16/ 4/ 4
+claude-cutpair-cap76       tralo_null         win2 +0.92 [+0.14,+1.69] 15/ 5/ 4 | win3 +1.62 [+0.51,+2.74] 14/ 3/ 7 | win4 +2.17 [+1.09,+3.24] 17/ 4/ 3 | win5 +2.88 [+1.65,+4.10] 17/ 4/ 3 | all10 +2.92 [+1.45,+4.38] 17/ 2/ 5
+claude-cutpair-cap76       aug_clip           win2 +1.00 [+0.04,+1.96] 13/ 6/ 5 | win3 +1.54 [+0.68,+2.40] 17/ 5/ 2 | win4 +1.75 [+0.68,+2.82] 16/ 7/ 1 | win5 +2.00 [+0.88,+3.12] 15/ 6/ 3 | all10 +2.88 [+1.64,+4.11] 17/ 4/ 3
+claude-cutpair-cap76       cutpair_aug        win2 +0.83 [+0.11,+1.56] 12/ 7/ 5 | win3 +1.50 [+0.70,+2.30] 18/ 2/ 4 | win4 +2.08 [+1.16,+3.01] 19/ 1/ 4 | win5 +2.21 [+1.34,+3.08] 19/ 4/ 1 | all10 +2.58 [+1.56,+3.60] 17/ 6/ 1
+claude-cutpair-cap76       cutpair_aug_shift  win2 +0.96 [+0.15,+1.77] 13/ 6/ 5 | win3 +1.71 [+0.83,+2.58] 17/ 2/ 5 | win4 +2.12 [+1.28,+2.97] 19/ 1/ 4 | win5 +2.25 [+1.38,+3.12] 18/ 3/ 3 | all10 +3.04 [+2.10,+3.99] 20/ 2/ 2
+
+Q1 arm-averaged per seed (mean over arms within seed, then CI over seeds)
+claude-target-20260925     win2 +1.35 [+0.87,+1.83] | win3 +2.48 [+1.92,+3.05] | win4 +2.62 [+1.98,+3.27] | win5 +2.98 [+2.30,+3.67] | all10 +3.36 [+2.63,+4.09]
+claude-target50-20260926   win2 +0.97 [+0.58,+1.37] | win3 +1.31 [+0.87,+1.74] | win4 +1.78 [+1.28,+2.29] | win5 +1.93 [+1.34,+2.53] | all10 +2.02 [+1.42,+2.61]
+claude-bandcons-a1cap50    win2 +0.94 [+0.51,+1.36] | win3 +1.51 [+1.07,+1.94] | win4 +1.92 [+1.49,+2.34] | win5 +2.10 [+1.72,+2.48] | all10 +2.31 [+1.89,+2.74]
+claude-cutpair-cap76       win2 +0.98 [+0.55,+1.42] | win3 +1.71 [+1.18,+2.24] | win4 +2.04 [+1.45,+2.63] | win5 +2.38 [+1.79,+2.97] | all10 +2.81 [+2.13,+3.49]
+
+Q2 averaging space (epochs 6-10): gain vs BASE, and paired t vs prob-mean (win5)
+claude-target-20260925     clipper            win5 +3.42 | geo +2.75 | logodds +3.08 | rank +2.71 || vs prob: geo -0.67 p=0.001 logodds -0.33 p=0.103 rank -0.71 p=0.021
+claude-target-20260925     tralo_null         win5 +3.17 | geo +2.75 | logodds +3.04 | rank +2.79 || vs prob: geo -0.42 p=0.179 logodds -0.12 p=0.601 rank -0.38 p=0.142
+claude-target-20260925     tralo_adam         win5 +3.04 | geo +2.17 | logodds +2.75 | rank +1.88 || vs prob: geo -0.88 p=0.092 logodds -0.29 p=0.543 rank -1.17 p=0.047
+claude-target-20260925     tralo_target       win5 +2.58 | geo +2.12 | logodds +2.75 | rank +1.88 || vs prob: geo -0.46 p=0.024 logodds +0.17 p=0.382 rank -0.71 p=0.014
+claude-target-20260925     sham_target        win5 +2.71 | geo +2.50 | logodds +2.75 | rank +2.54 || vs prob: geo -0.21 p=0.496 logodds +0.04 p=0.888 rank -0.17 p=0.567
+claude-target50-20260926   clipper            win5 +2.04 | geo +1.79 | logodds +2.12 | rank +2.17 || vs prob: geo -0.25 p=0.185 logodds +0.08 p=0.604 rank +0.12 p=0.417
+claude-target50-20260926   tralo_null         win5 +2.46 | geo +2.29 | logodds +2.46 | rank +2.38 || vs prob: geo -0.17 p=0.477 logodds +0.00 p=1.000 rank -0.08 p=0.575
+claude-target50-20260926   tralo_adam         win5 +1.17 | geo +1.58 | logodds +1.96 | rank +1.33 || vs prob: geo +0.42 p=0.253 logodds +0.79 p=0.023 rank +0.17 p=0.652
+claude-target50-20260926   tralo_target       win5 +2.50 | geo +2.12 | logodds +2.21 | rank +1.79 || vs prob: geo -0.38 p=0.059 logodds -0.29 p=0.129 rank -0.71 p=0.001
+claude-target50-20260926   sham_target        win5 +1.50 | geo +1.50 | logodds +1.62 | rank +1.46 || vs prob: geo +0.00 p=1.000 logodds +0.12 p=0.622 rank -0.04 p=0.846
+claude-bandcons-a1cap50    clipper            win5 +1.62 | geo +1.46 | logodds +1.58 | rank +1.42 || vs prob: geo -0.17 p=0.528 logodds -0.04 p=0.857 rank -0.21 p=0.307
+claude-bandcons-a1cap50    tralo_null         win5 +0.96 | geo +0.67 | logodds +0.88 | rank +0.42 || vs prob: geo -0.29 p=0.183 logodds -0.08 p=0.679 rank -0.54 p=0.034
+claude-bandcons-a1cap50    aug_clip           win5 +1.58 | geo +1.38 | logodds +1.50 | rank +1.62 || vs prob: geo -0.21 p=0.203 logodds -0.08 p=0.647 rank +0.04 p=0.788
+claude-bandcons-a1cap50    bandcons           win5 +2.71 | geo +2.88 | logodds +2.88 | rank +2.29 || vs prob: geo +0.17 p=0.652 logodds +0.17 p=0.672 rank -0.42 p=0.337
+claude-bandcons-a1cap50    bandcons_unc       win5 +2.96 | geo +3.04 | logodds +2.83 | rank +2.62 || vs prob: geo +0.08 p=0.809 logodds -0.12 p=0.726 rank -0.33 p=0.400
+claude-bandcons-a1cap50    bandcons_rand      win5 +2.79 | geo +2.75 | logodds +2.88 | rank +2.67 || vs prob: geo -0.04 p=0.857 logodds +0.08 p=0.753 rank -0.12 p=0.641
+claude-cutpair-cap76       clipper            win5 +2.58 | geo +2.12 | logodds +2.54 | rank +1.92 || vs prob: geo -0.46 p=0.094 logodds -0.04 p=0.877 rank -0.67 p=0.036
+claude-cutpair-cap76       tralo_null         win5 +2.88 | geo +2.67 | logodds +3.04 | rank +2.38 || vs prob: geo -0.21 p=0.347 logodds +0.17 p=0.426 rank -0.50 p=0.069
+claude-cutpair-cap76       aug_clip           win5 +2.00 | geo +2.04 | logodds +2.25 | rank +2.08 || vs prob: geo +0.04 p=0.814 logodds +0.25 p=0.162 rank +0.08 p=0.723
+claude-cutpair-cap76       cutpair_aug        win5 +2.21 | geo +2.04 | logodds +2.29 | rank +2.38 || vs prob: geo -0.17 p=0.328 logodds +0.08 p=0.647 rank +0.17 p=0.257
+claude-cutpair-cap76       cutpair_aug_shift  win5 +2.25 | geo +2.54 | logodds +2.46 | rank +2.58 || vs prob: geo +0.29 p=0.070 logodds +0.21 p=0.233 rank +0.33 p=0.148
+claude-target-20260925     ARMAVG             win5 +2.98 | geo +2.46 | logodds +2.88 | rank +2.36 || vs prob: geo -0.53 p=0.002 logodds -0.11 p=0.358 rank -0.63 p=0.001
+claude-target50-20260926   ARMAVG             win5 +1.93 | geo +1.86 | logodds +2.07 | rank +1.82 || vs prob: geo -0.07 p=0.561 logodds +0.14 p=0.226 rank -0.11 p=0.297
+claude-bandcons-a1cap50    ARMAVG             win5 +2.10 | geo +2.03 | logodds +2.09 | rank +1.84 || vs prob: geo -0.08 p=0.467 logodds -0.01 p=0.879 rank -0.26 p=0.025
+claude-cutpair-cap76       ARMAVG             win5 +2.38 | geo +2.28 | logodds +2.52 | rank +2.27 || vs prob: geo -0.10 p=0.213 logodds +0.13 p=0.201 rank -0.12 p=0.304
+
+Q3 Spearman(per-seed gain win5-base, near-cut log-odds std); per-epoch correct slots (mean)
+claude-target-20260925     pooled n=120 rho=+0.016 p=0.864 mean_std=2.540
+   clipper            rho=+0.003 p=0.989 std=2.352  ep06 60.04 ep07 60.88 ep08 59.88 ep09 59.08 ep10 59.12 win5 62.54  ep10 rank(0=worst) 1.21
+   tralo_null         rho=+0.185 p=0.387 std=2.594  ep06 59.58 ep07 60.08 ep08 59.21 ep09 59.38 ep10 59.33 win5 62.50  ep10 rank(0=worst) 1.71
+   tralo_adam         rho=-0.097 p=0.653 std=2.930  ep06 56.04 ep07 56.38 ep08 58.12 ep09 56.96 ep10 57.50 win5 60.54  ep10 rank(0=worst) 2.04
+   tralo_target       rho=+0.090 p=0.674 std=2.272  ep06 59.75 ep07 60.17 ep08 59.62 ep09 59.58 ep10 60.21 win5 62.79  ep10 rank(0=worst) 1.83
+   sham_target        rho=-0.095 p=0.658 std=2.554  ep06 59.58 ep07 59.42 ep08 59.71 ep09 59.67 ep10 60.08 win5 62.79  ep10 rank(0=worst) 1.88
+claude-target50-20260926   pooled n=120 rho=-0.099 p=0.280 mean_std=2.501
+   clipper            rho=-0.115 p=0.594 std=2.342  ep06 43.58 ep07 44.50 ep08 43.54 ep09 43.71 ep10 43.42 win5 45.46  ep10 rank(0=worst) 1.54
+   tralo_null         rho=-0.248 p=0.243 std=2.540  ep06 43.54 ep07 44.29 ep08 42.96 ep09 44.08 ep10 43.00 win5 45.46  ep10 rank(0=worst) 1.46
+   tralo_adam         rho=-0.082 p=0.702 std=2.608  ep06 42.96 ep07 44.17 ep08 43.75 ep09 43.75 ep10 44.12 win5 45.29  ep10 rank(0=worst) 2.08
+   tralo_target       rho=+0.097 p=0.651 std=2.352  ep06 44.67 ep07 44.96 ep08 43.83 ep09 44.25 ep10 43.75 win5 46.25  ep10 rank(0=worst) 1.75
+   sham_target        rho=+0.219 p=0.305 std=2.665  ep06 43.54 ep07 44.54 ep08 43.33 ep09 44.25 ep10 44.33 win5 45.83  ep10 rank(0=worst) 1.92
+claude-bandcons-a1cap50    pooled n=144 rho=+0.183 p=0.028 mean_std=3.886
+   clipper            rho=+0.098 p=0.647 std=2.358  ep06 44.46 ep07 44.12 ep08 43.08 ep09 42.46 ep10 43.46 win5 45.08  ep10 rank(0=worst) 1.54
+   tralo_null         rho=+0.325 p=0.122 std=2.733  ep06 43.75 ep07 43.96 ep08 43.75 ep09 42.38 ep10 44.62 win5 45.58  ep10 rank(0=worst) 2.33
+   aug_clip           rho=+0.053 p=0.805 std=1.418  ep06 44.00 ep07 43.71 ep08 44.83 ep09 43.67 ep10 44.17 win5 45.75  ep10 rank(0=worst) 2.00
+   bandcons           rho=-0.265 p=0.210 std=6.002  ep06 40.46 ep07 41.62 ep08 42.33 ep09 41.71 ep10 41.92 win5 44.62  ep10 rank(0=worst) 1.71
+   bandcons_unc       rho=+0.327 p=0.118 std=6.597  ep06 39.83 ep07 42.62 ep08 40.83 ep09 42.21 ep10 42.46 win5 45.42  ep10 rank(0=worst) 2.29
+   bandcons_rand      rho=-0.218 p=0.307 std=4.204  ep06 43.00 ep07 43.33 ep08 42.42 ep09 43.08 ep10 42.33 win5 45.12  ep10 rank(0=worst) 1.33
+claude-cutpair-cap76       pooled n=120 rho=+0.152 p=0.097 mean_std=1.865
+   clipper            rho=+0.309 p=0.142 std=2.364  ep06 58.33 ep07 59.04 ep08 59.54 ep09 59.12 ep10 59.62 win5 62.21  ep10 rank(0=worst) 2.04
+   tralo_null         rho=+0.324 p=0.122 std=2.763  ep06 58.92 ep07 58.96 ep08 58.42 ep09 58.75 ep10 59.21 win5 62.08  ep10 rank(0=worst) 1.96
+   aug_clip           rho=+0.313 p=0.136 std=1.305  ep06 62.17 ep07 63.04 ep08 63.25 ep09 62.79 ep10 62.38 win5 64.38  ep10 rank(0=worst) 1.54
+   cutpair_aug        rho=+0.203 p=0.341 std=1.327  ep06 61.83 ep07 62.42 ep08 62.58 ep09 63.04 ep10 62.38 win5 64.58  ep10 rank(0=worst) 1.50
+   cutpair_aug_shift  rho=-0.032 p=0.881 std=1.565  ep06 62.62 ep07 62.75 ep08 62.54 ep09 63.00 ep10 62.04 win5 64.29  ep10 rank(0=worst) 1.21
+
+Q4 turnover (1 - |overlap|/cap), mean: ENS vs BASE | ep09 vs ep10 | BASE seed-vs-seed (same val ids only)
+claude-target-20260925     clipper            0.151 | 0.238 | 0.301 (276 pairs)
+claude-target-20260925     tralo_null         0.161 | 0.230 | 0.301 (276 pairs)
+claude-target-20260925     tralo_adam         0.194 | 0.263 | 0.319 (276 pairs)
+claude-target-20260925     tralo_target       0.144 | 0.235 | 0.295 (276 pairs)
+claude-target-20260925     sham_target        0.143 | 0.230 | 0.292 (276 pairs)
+claude-target50-20260926   clipper            0.185 | 0.255 | 0.334 (276 pairs)
+claude-target50-20260926   tralo_null         0.179 | 0.245 | 0.340 (276 pairs)
+claude-target50-20260926   tralo_adam         0.167 | 0.257 | 0.324 (276 pairs)
+claude-target50-20260926   tralo_target       0.167 | 0.267 | 0.329 (276 pairs)
+claude-target50-20260926   sham_target        0.185 | 0.243 | 0.317 (276 pairs)
+claude-bandcons-a1cap50    clipper            0.188 | 0.276 | 0.343 (276 pairs)
+claude-bandcons-a1cap50    tralo_null         0.186 | 0.290 | 0.329 (276 pairs)
+claude-bandcons-a1cap50    aug_clip           0.193 | 0.276 | 0.322 (276 pairs)
+claude-bandcons-a1cap50    bandcons           0.228 | 0.342 | 0.396 (276 pairs)
+claude-bandcons-a1cap50    bandcons_unc       0.256 | 0.347 | 0.397 (276 pairs)
+claude-bandcons-a1cap50    bandcons_rand      0.227 | 0.312 | 0.400 (276 pairs)
+claude-cutpair-cap76       clipper            0.167 | 0.245 | 0.300 (276 pairs)
+claude-cutpair-cap76       tralo_null         0.172 | 0.248 | 0.314 (276 pairs)
+claude-cutpair-cap76       aug_clip           0.135 | 0.196 | 0.237 (276 pairs)
+claude-cutpair-cap76       cutpair_aug        0.137 | 0.213 | 0.240 (276 pairs)
+claude-cutpair-cap76       cutpair_aug_shift  0.132 | 0.211 | 0.237 (276 pairs)
+
+before==after snapshots (seeds of 24): {'claude-target-20260925/clipper': 24, 'claude-target-20260925/tralo_null': 24, 'claude-target-20260925/tralo_adam': 0, 'claude-target-20260925/tralo_target': 0, 'claude-target-20260925/sham_target': 0, 'claude-target50-20260926/clipper': 24, 'claude-target50-20260926/tralo_null': 24, 'claude-target50-20260926/tralo_adam': 0, 'claude-target50-20260926/tralo_target': 0, 'claude-target50-20260926/sham_target': 0, 'claude-bandcons-a1cap50/clipper': 0, 'claude-bandcons-a1cap50/tralo_null': 0, 'claude-bandcons-a1cap50/aug_clip': 0, 'claude-bandcons-a1cap50/bandcons': 0, 'claude-bandcons-a1cap50/bandcons_unc': 0, 'claude-bandcons-a1cap50/bandcons_rand': 0, 'claude-cutpair-cap76/clipper': 0, 'claude-cutpair-cap76/tralo_null': 0, 'claude-cutpair-cap76/aug_clip': 0, 'claude-cutpair-cap76/cutpair_aug': 0, 'claude-cutpair-cap76/cutpair_aug_shift': 0}
