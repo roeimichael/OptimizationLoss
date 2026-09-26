@@ -57,6 +57,14 @@ a real moderator; under the corrected cap it is not -- the one exception reverse
   the corpus). The best arm measured anywhere is **`aug_clip` at budget 6** -- a
   post-hoc clipper with flip-and-crop and early stopping.
 
+- 🔑 **The strongest objection is now closed too (2026-09-26, LEDGER settled #9).** On the
+  rebuild branch, end-to-end knee (trainable ResNet18), two preregistered studies of 24 seeds
+  each: with the controller, trigger, binding and dose all fixed, TraLO's direction stepped
+  to the exact radius that meets the hard cap is **no better than a random move of the same
+  size**. target-sham is +0.14 [-1.21, +1.48] at cap 76 and -0.75 [-2.45, +0.96] at cap 50.
+  The step evicts 83-87% the same items as the post-hoc cut. The published arm's extra damage
+  is a 10x overshoot of the step size.
+
 **The mechanism is proved, not guessed** (LEDGER PART 2). The loss is a function
 of the multiset of test probabilities while the allocator is a function of their
 ranks (M1), so nothing in the objective can prefer a correct ordering over the
