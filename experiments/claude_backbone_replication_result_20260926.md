@@ -79,5 +79,8 @@ It is not a different mechanism.
    the endpoint keeps roughly one step's worth.
 3. **It does not beat the post-hoc bar.** At equal ensembling, tralo_target - clipper is +0.29 (ns) on
    MobileNetV3 and -0.25 on RegNetY. Ensembling the clipper alone gains +1.8 to +2.0 slots.
-4. **Design implication, untested:** a schedule that applies the step AFTER the last CE epoch (step-last)
-   would keep one step's worth, about +0.5 slots, by construction. That is below the ensemble's gain.
+4. **Design implication:** the schedule already ends with a step. The epoch-10 check runs after the last
+   CE epoch, which is why the final step survives. So "step last" is what was measured, not an untried
+   fix. Keeping more than one step's worth would require stopping CE from erasing the earlier steps,
+   which is the wash-out problem itself. The reachable gain is therefore about one step's worth, below
+   what ensembling gives the clipper for free.
