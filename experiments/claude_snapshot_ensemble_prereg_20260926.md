@@ -57,3 +57,17 @@ before use. Raw output: `analysis/ens_bandcons_a1cap50.txt`.
   ENS vs ENS.
 
 Set 2 (CUTPAIR 2701-2724) is scored after the CUTPAIR primary write-up.
+
+## RESULT, set 2 (CUTPAIR 2701-2724, cap 76), scored 2026-09-26 after the CUTPAIR primary write-up
+
+Raw output: `analysis/ens_cutpair_cap76.txt`.
+
+| arm | ENS - BASE, correct slots | p | Holm | W/T/L |
+|---|---|---|---|---|
+| clipper (primary) | **+2.58 [+1.22, +3.95]** | 0.0007 | **0.0007** | 15/3/6 |
+| tralo_null (primary) | **+2.88 [+1.65, +4.10]** | 0.0001 | **0.0001** | 17/4/3 |
+| aug_clip | +2.00 [+0.88, +3.12] | 0.001 | | 15/6/3 |
+| cutpair_aug | +2.21 [+1.34, +3.08] | <1e-4 | | 19/4/1 |
+| cutpair_aug_shift | +2.25 [+1.38, +3.12] | <1e-4 | | 18/3/3 |
+
+**CONFIRMED again, at cap 76.** Two independent fresh confirmation sets, both caps, both primaries Holm-significant in each.

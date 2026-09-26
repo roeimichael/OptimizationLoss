@@ -1,0 +1,3807 @@
+{
+ "n_seeds": 24,
+ "seeds": [
+  2701,
+  2702,
+  2703,
+  2704,
+  2705,
+  2706,
+  2707,
+  2708,
+  2709,
+  2710,
+  2711,
+  2712,
+  2713,
+  2714,
+  2715,
+  2716,
+  2717,
+  2718,
+  2719,
+  2720,
+  2721,
+  2722,
+  2723,
+  2724
+ ],
+ "missing_seeds": [],
+ "cap": 76,
+ "integrity": [
+  {
+   "seed": 2701,
+   "matched": true,
+   "updates": [
+    1810
+   ],
+   "dose_ok": true,
+   "anchor_ranks": {
+    "cutpair_aug": [
+     76,
+     76,
+     76,
+     76,
+     76
+    ],
+    "cutpair_aug_shift": [
+     25,
+     228,
+     25,
+     228,
+     25
+    ]
+   },
+   "n_act": {
+    "cutpair_aug": [
+     25,
+     102,
+     81,
+     109,
+     57
+    ],
+    "cutpair_aug_shift": [
+     0,
+     1489,
+     2,
+     1262,
+     0
+    ]
+   },
+   "p_act": {
+    "cutpair_aug": [
+     77,
+     198,
+     264,
+     202,
+     220
+    ],
+    "cutpair_aug_shift": [
+     477,
+     12,
+     531,
+     10,
+     542
+    ]
+   },
+   "active_batches": {
+    "cutpair_aug": [
+     84,
+     149,
+     160,
+     154,
+     144
+    ],
+    "cutpair_aug_shift": [
+     167,
+     181,
+     172,
+     181,
+     170
+    ]
+   },
+   "dosed_batches": {
+    "cutpair_aug": [
+     50,
+     106,
+     120,
+     119,
+     121
+    ],
+    "cutpair_aug_shift": [
+     162,
+     179,
+     160,
+     180,
+     160
+    ]
+   },
+   "natural_counts": {
+    "clipper": [
+     101,
+     72,
+     60,
+     74,
+     77
+    ],
+    "tralo_null": [
+     101,
+     121,
+     57,
+     90,
+     89
+    ],
+    "aug_clip": [
+     101,
+     48,
+     65,
+     79,
+     89
+    ],
+    "cutpair_aug": [
+     101,
+     50,
+     73,
+     93,
+     88
+    ],
+    "cutpair_aug_shift": [
+     101,
+     60,
+     68,
+     90,
+     84
+    ]
+   }
+  },
+  {
+   "seed": 2702,
+   "matched": true,
+   "updates": [
+    1810
+   ],
+   "dose_ok": true,
+   "anchor_ranks": {
+    "cutpair_aug": [
+     76,
+     76,
+     76,
+     76,
+     76
+    ],
+    "cutpair_aug_shift": [
+     25,
+     228,
+     25,
+     228,
+     228
+    ]
+   },
+   "n_act": {
+    "cutpair_aug": [
+     11,
+     105,
+     82,
+     70,
+     85
+    ],
+    "cutpair_aug_shift": [
+     0,
+     1394,
+     9,
+     1286,
+     1327
+    ]
+   },
+   "p_act": {
+    "cutpair_aug": [
+     52,
+     244,
+     257,
+     226,
+     215
+    ],
+    "cutpair_aug_shift": [
+     466,
+     24,
+     501,
+     6,
+     6
+    ]
+   },
+   "active_batches": {
+    "cutpair_aug": [
+     57,
+     154,
+     154,
+     147,
+     144
+    ],
+    "cutpair_aug_shift": [
+     174,
+     181,
+     171,
+     181,
+     181
+    ]
+   },
+   "dosed_batches": {
+    "cutpair_aug": [
+     44,
+     106,
+     116,
+     113,
+     109
+    ],
+    "cutpair_aug_shift": [
+     166,
+     181,
+     133,
+     180,
+     181
+    ]
+   },
+   "natural_counts": {
+    "clipper": [
+     118,
+     57,
+     120,
+     100,
+     77
+    ],
+    "tralo_null": [
+     118,
+     48,
+     142,
+     92,
+     92
+    ],
+    "aug_clip": [
+     118,
+     77,
+     50,
+     76,
+     69
+    ],
+    "cutpair_aug": [
+     118,
+     70,
+     55,
+     92,
+     75
+    ],
+    "cutpair_aug_shift": [
+     118,
+     69,
+     54,
+     91,
+     72
+    ]
+   }
+  },
+  {
+   "seed": 2703,
+   "matched": true,
+   "updates": [
+    1810
+   ],
+   "dose_ok": true,
+   "anchor_ranks": {
+    "cutpair_aug": [
+     76,
+     76,
+     76,
+     76,
+     76
+    ],
+    "cutpair_aug_shift": [
+     25,
+     25,
+     228,
+     25,
+     228
+    ]
+   },
+   "n_act": {
+    "cutpair_aug": [
+     2,
+     76,
+     90,
+     80,
+     70
+    ],
+    "cutpair_aug_shift": [
+     0,
+     1,
+     1518,
+     5,
+     1262
+    ]
+   },
+   "p_act": {
+    "cutpair_aug": [
+     28,
+     198,
+     178,
+     213,
+     185
+    ],
+    "cutpair_aug_shift": [
+     278,
+     424,
+     7,
+     436,
+     6
+    ]
+   },
+   "active_batches": {
+    "cutpair_aug": [
+     26,
+     142,
+     140,
+     146,
+     143
+    ],
+    "cutpair_aug_shift": [
+     144,
+     168,
+     181,
+     167,
+     181
+    ]
+   },
+   "dosed_batches": {
+    "cutpair_aug": [
+     17,
+     115,
+     125,
+     119,
+     114
+    ],
+    "cutpair_aug_shift": [
+     134,
+     158,
+     180,
+     142,
+     180
+    ]
+   },
+   "natural_counts": {
+    "clipper": [
+     73,
+     86,
+     100,
+     99,
+     70
+    ],
+    "tralo_null": [
+     73,
+     81,
+     69,
+     111,
+     114
+    ],
+    "aug_clip": [
+     73,
+     81,
+     104,
+     82,
+     98
+    ],
+    "cutpair_aug": [
+     73,
+     79,
+     95,
+     84,
+     95
+    ],
+    "cutpair_aug_shift": [
+     73,
+     75,
+     103,
+     71,
+     86
+    ]
+   }
+  },
+  {
+   "seed": 2704,
+   "matched": true,
+   "updates": [
+    1810
+   ],
+   "dose_ok": true,
+   "anchor_ranks": {
+    "cutpair_aug": [
+     76,
+     76,
+     76,
+     76,
+     76
+    ],
+    "cutpair_aug_shift": [
+     228,
+     25,
+     228,
+     25,
+     25
+    ]
+   },
+   "n_act": {
+    "cutpair_aug": [
+     26,
+     78,
+     122,
+     90,
+     72
+    ],
+    "cutpair_aug_shift": [
+     633,
+     2,
+     1467,
+     6,
+     1
+    ]
+   },
+   "p_act": {
+    "cutpair_aug": [
+     51,
+     187,
+     244,
+     276,
+     162
+    ],
+    "cutpair_aug_shift": [
+     0,
+     473,
+     14,
+     565,
+     469
+    ]
+   },
+   "active_batches": {
+    "cutpair_aug": [
+     67,
+     143,
+     161,
+     157,
+     135
+    ],
+    "cutpair_aug_shift": [
+     172,
+     166,
+     181,
+     170,
+     171
+    ]
+   },
+   "dosed_batches": {
+    "cutpair_aug": [
+     44,
+     115,
+     131,
+     122,
+     108
+    ],
+    "cutpair_aug_shift": [
+     169,
+     156,
+     181,
+     143,
+     159
+    ]
+   },
+   "natural_counts": {
+    "clipper": [
+     98,
+     76,
+     133,
+     85,
+     113
+    ],
+    "tralo_null": [
+     98,
+     119,
+     116,
+     114,
+     94
+    ],
+    "aug_clip": [
+     98,
+     100,
+     77,
+     58,
+     89
+    ],
+    "cutpair_aug": [
+     98,
+     88,
+     83,
+     64,
+     82
+    ],
+    "cutpair_aug_shift": [
+     98,
+     95,
+     78,
+     71,
+     92
+    ]
+   }
+  },
+  {
+   "seed": 2705,
+   "matched": true,
+   "updates": [
+    1810
+   ],
+   "dose_ok": true,
+   "anchor_ranks": {
+    "cutpair_aug": [
+     76,
+     76,
+     76,
+     76,
+     76
+    ],
+    "cutpair_aug_shift": [
+     228,
+     228,
+     25,
+     25,
+     25
+    ]
+   },
+   "n_act": {
+    "cutpair_aug": [
+     16,
+     137,
+     88,
+     68,
+     76
+    ],
+    "cutpair_aug_shift": [
+     809,
+     1333,
+     10,
+     4,
+     1
+    ]
+   },
+   "p_act": {
+    "cutpair_aug": [
+     22,
+     229,
+     259,
+     212,
+     172
+    ],
+    "cutpair_aug_shift": [
+     0,
+     22,
+     430,
+     473,
+     412
+    ]
+   },
+   "active_batches": {
+    "cutpair_aug": [
+     32,
+     160,
+     153,
+     140,
+     147
+    ],
+    "cutpair_aug_shift": [
+     180,
+     181,
+     161,
+     171,
+     162
+    ]
+   },
+   "dosed_batches": {
+    "cutpair_aug": [
+     22,
+     126,
+     122,
+     120,
+     99
+    ],
+    "cutpair_aug_shift": [
+     177,
+     181,
+     154,
+     163,
+     129
+    ]
+   },
+   "natural_counts": {
+    "clipper": [
+     94,
+     124,
+     80,
+     110,
+     63
+    ],
+    "tralo_null": [
+     94,
+     127,
+     71,
+     87,
+     55
+    ],
+    "aug_clip": [
+     94,
+     67,
+     96,
+     81,
+     42
+    ],
+    "cutpair_aug": [
+     94,
+     73,
+     97,
+     91,
+     39
+    ],
+    "cutpair_aug_shift": [
+     94,
+     67,
+     103,
+     102,
+     52
+    ]
+   }
+  },
+  {
+   "seed": 2706,
+   "matched": true,
+   "updates": [
+    1810
+   ],
+   "dose_ok": true,
+   "anchor_ranks": {
+    "cutpair_aug": [
+     76,
+     76,
+     76,
+     76,
+     76
+    ],
+    "cutpair_aug_shift": [
+     228,
+     25,
+     228,
+     228,
+     228
+    ]
+   },
+   "n_act": {
+    "cutpair_aug": [
+     19,
+     107,
+     263,
+     82,
+     80
+    ],
+    "cutpair_aug_shift": [
+     484,
+     5,
+     1443,
+     1458,
+     1323
+    ]
+   },
+   "p_act": {
+    "cutpair_aug": [
+     17,
+     212,
+     276,
+     229,
+     245
+    ],
+    "cutpair_aug_shift": [
+     0,
+     461,
+     44,
+     7,
+     5
+    ]
+   },
+   "active_batches": {
+    "cutpair_aug": [
+     33,
+     153,
+     173,
+     154,
+     153
+    ],
+    "cutpair_aug_shift": [
+     171,
+     171,
+     181,
+     181,
+     181
+    ]
+   },
+   "dosed_batches": {
+    "cutpair_aug": [
+     18,
+     124,
+     131,
+     118,
+     108
+    ],
+    "cutpair_aug_shift": [
+     163,
+     160,
+     179,
+     181,
+     181
+    ]
+   },
+   "natural_counts": {
+    "clipper": [
+     72,
+     106,
+     83,
+     65,
+     68
+    ],
+    "tralo_null": [
+     72,
+     94,
+     108,
+     54,
+     63
+    ],
+    "aug_clip": [
+     72,
+     94,
+     41,
+     73,
+     67
+    ],
+    "cutpair_aug": [
+     72,
+     103,
+     44,
+     60,
+     66
+    ],
+    "cutpair_aug_shift": [
+     72,
+     110,
+     55,
+     66,
+     61
+    ]
+   }
+  },
+  {
+   "seed": 2707,
+   "matched": true,
+   "updates": [
+    1810
+   ],
+   "dose_ok": true,
+   "anchor_ranks": {
+    "cutpair_aug": [
+     76,
+     76,
+     76,
+     76,
+     76
+    ],
+    "cutpair_aug_shift": [
+     228,
+     228,
+     228,
+     25,
+     25
+    ]
+   },
+   "n_act": {
+    "cutpair_aug": [
+     3,
+     51,
+     59,
+     49,
+     69
+    ],
+    "cutpair_aug_shift": [
+     595,
+     1347,
+     1263,
+     1,
+     4
+    ]
+   },
+   "p_act": {
+    "cutpair_aug": [
+     53,
+     198,
+     259,
+     275,
+     373
+    ],
+    "cutpair_aug_shift": [
+     0,
+     6,
+     2,
+     432,
+     484
+    ]
+   },
+   "active_batches": {
+    "cutpair_aug": [
+     49,
+     139,
+     150,
+     149,
+     169
+    ],
+    "cutpair_aug_shift": [
+     176,
+     180,
+     181,
+     166,
+     170
+    ]
+   },
+   "dosed_batches": {
+    "cutpair_aug": [
+     43,
+     110,
+     124,
+     127,
+     136
+    ],
+    "cutpair_aug_shift": [
+     174,
+     180,
+     181,
+     151,
+     148
+    ]
+   },
+   "natural_counts": {
+    "clipper": [
+     92,
+     124,
+     87,
+     72,
+     97
+    ],
+    "tralo_null": [
+     92,
+     108,
+     106,
+     58,
+     82
+    ],
+    "aug_clip": [
+     92,
+     68,
+     77,
+     101,
+     82
+    ],
+    "cutpair_aug": [
+     92,
+     79,
+     78,
+     102,
+     102
+    ],
+    "cutpair_aug_shift": [
+     92,
+     76,
+     62,
+     99,
+     101
+    ]
+   }
+  },
+  {
+   "seed": 2708,
+   "matched": true,
+   "updates": [
+    1810
+   ],
+   "dose_ok": true,
+   "anchor_ranks": {
+    "cutpair_aug": [
+     76,
+     76,
+     76,
+     76,
+     76
+    ],
+    "cutpair_aug_shift": [
+     25,
+     25,
+     228,
+     25,
+     25
+    ]
+   },
+   "n_act": {
+    "cutpair_aug": [
+     43,
+     77,
+     87,
+     78,
+     65
+    ],
+    "cutpair_aug_shift": [
+     0,
+     2,
+     1285,
+     5,
+     4
+    ]
+   },
+   "p_act": {
+    "cutpair_aug": [
+     33,
+     271,
+     221,
+     201,
+     252
+    ],
+    "cutpair_aug_shift": [
+     452,
+     465,
+     10,
+     485,
+     533
+    ]
+   },
+   "active_batches": {
+    "cutpair_aug": [
+     62,
+     156,
+     156,
+     142,
+     147
+    ],
+    "cutpair_aug_shift": [
+     165,
+     166,
+     181,
+     168,
+     174
+    ]
+   },
+   "dosed_batches": {
+    "cutpair_aug": [
+     32,
+     127,
+     122,
+     126,
+     113
+    ],
+    "cutpair_aug_shift": [
+     162,
+     152,
+     181,
+     155,
+     159
+    ]
+   },
+   "natural_counts": {
+    "clipper": [
+     121,
+     93,
+     112,
+     91,
+     92
+    ],
+    "tralo_null": [
+     121,
+     96,
+     120,
+     75,
+     79
+    ],
+    "aug_clip": [
+     121,
+     59,
+     70,
+     80,
+     89
+    ],
+    "cutpair_aug": [
+     121,
+     55,
+     59,
+     93,
+     89
+    ],
+    "cutpair_aug_shift": [
+     121,
+     69,
+     69,
+     95,
+     98
+    ]
+   }
+  },
+  {
+   "seed": 2709,
+   "matched": true,
+   "updates": [
+    1810
+   ],
+   "dose_ok": true,
+   "anchor_ranks": {
+    "cutpair_aug": [
+     76,
+     76,
+     76,
+     76,
+     76
+    ],
+    "cutpair_aug_shift": [
+     228,
+     25,
+     25,
+     25,
+     228
+    ]
+   },
+   "n_act": {
+    "cutpair_aug": [
+     31,
+     57,
+     133,
+     89,
+     90
+    ],
+    "cutpair_aug_shift": [
+     825,
+     4,
+     7,
+     4,
+     1577
+    ]
+   },
+   "p_act": {
+    "cutpair_aug": [
+     23,
+     187,
+     220,
+     206,
+     259
+    ],
+    "cutpair_aug_shift": [
+     3,
+     440,
+     495,
+     530,
+     1
+    ]
+   },
+   "active_batches": {
+    "cutpair_aug": [
+     43,
+     129,
+     158,
+     152,
+     149
+    ],
+    "cutpair_aug_shift": [
+     180,
+     166,
+     172,
+     168,
+     181
+    ]
+   },
+   "dosed_batches": {
+    "cutpair_aug": [
+     27,
+     112,
+     122,
+     122,
+     111
+    ],
+    "cutpair_aug_shift": [
+     173,
+     152,
+     155,
+     154,
+     181
+    ]
+   },
+   "natural_counts": {
+    "clipper": [
+     56,
+     95,
+     73,
+     58,
+     75
+    ],
+    "tralo_null": [
+     56,
+     76,
+     106,
+     93,
+     86
+    ],
+    "aug_clip": [
+     56,
+     79,
+     65,
+     71,
+     63
+    ],
+    "cutpair_aug": [
+     56,
+     74,
+     71,
+     72,
+     44
+    ],
+    "cutpair_aug_shift": [
+     56,
+     74,
+     63,
+     67,
+     55
+    ]
+   }
+  },
+  {
+   "seed": 2710,
+   "matched": true,
+   "updates": [
+    1810
+   ],
+   "dose_ok": true,
+   "anchor_ranks": {
+    "cutpair_aug": [
+     76,
+     76,
+     76,
+     76,
+     76
+    ],
+    "cutpair_aug_shift": [
+     25,
+     25,
+     25,
+     25,
+     228
+    ]
+   },
+   "n_act": {
+    "cutpair_aug": [
+     18,
+     129,
+     70,
+     96,
+     60
+    ],
+    "cutpair_aug_shift": [
+     0,
+     8,
+     4,
+     1,
+     1246
+    ]
+   },
+   "p_act": {
+    "cutpair_aug": [
+     47,
+     225,
+     221,
+     193,
+     267
+    ],
+    "cutpair_aug_shift": [
+     397,
+     411,
+     430,
+     422,
+     5
+    ]
+   },
+   "active_batches": {
+    "cutpair_aug": [
+     51,
+     153,
+     142,
+     144,
+     157
+    ],
+    "cutpair_aug_shift": [
+     160,
+     169,
+     162,
+     171,
+     181
+    ]
+   },
+   "dosed_batches": {
+    "cutpair_aug": [
+     33,
+     119,
+     120,
+     127,
+     139
+    ],
+    "cutpair_aug_shift": [
+     149,
+     156,
+     155,
+     165,
+     178
+    ]
+   },
+   "natural_counts": {
+    "clipper": [
+     55,
+     93,
+     97,
+     125,
+     100
+    ],
+    "tralo_null": [
+     55,
+     71,
+     109,
+     97,
+     137
+    ],
+    "aug_clip": [
+     55,
+     71,
+     85,
+     110,
+     103
+    ],
+    "cutpair_aug": [
+     55,
+     68,
+     85,
+     109,
+     107
+    ],
+    "cutpair_aug_shift": [
+     55,
+     83,
+     91,
+     111,
+     105
+    ]
+   }
+  },
+  {
+   "seed": 2711,
+   "matched": true,
+   "updates": [
+    1810
+   ],
+   "dose_ok": true,
+   "anchor_ranks": {
+    "cutpair_aug": [
+     76,
+     76,
+     76,
+     76,
+     76
+    ],
+    "cutpair_aug_shift": [
+     25,
+     25,
+     228,
+     25,
+     228
+    ]
+   },
+   "n_act": {
+    "cutpair_aug": [
+     0,
+     63,
+     78,
+     89,
+     64
+    ],
+    "cutpair_aug_shift": [
+     0,
+     1,
+     1472,
+     2,
+     1188
+    ]
+   },
+   "p_act": {
+    "cutpair_aug": [
+     22,
+     219,
+     231,
+     199,
+     181
+    ],
+    "cutpair_aug_shift": [
+     334,
+     412,
+     10,
+     456,
+     8
+    ]
+   },
+   "active_batches": {
+    "cutpair_aug": [
+     21,
+     138,
+     149,
+     148,
+     138
+    ],
+    "cutpair_aug_shift": [
+     158,
+     162,
+     181,
+     169,
+     181
+    ]
+   },
+   "dosed_batches": {
+    "cutpair_aug": [
+     17,
+     125,
+     129,
+     120,
+     114
+    ],
+    "cutpair_aug_shift": [
+     151,
+     154,
+     181,
+     147,
+     181
+    ]
+   },
+   "natural_counts": {
+    "clipper": [
+     82,
+     110,
+     67,
+     101,
+     124
+    ],
+    "tralo_null": [
+     82,
+     106,
+     64,
+     107,
+     97
+    ],
+    "aug_clip": [
+     82,
+     96,
+     84,
+     71,
+     99
+    ],
+    "cutpair_aug": [
+     82,
+     101,
+     89,
+     74,
+     98
+    ],
+    "cutpair_aug_shift": [
+     82,
+     96,
+     87,
+     72,
+     101
+    ]
+   }
+  },
+  {
+   "seed": 2712,
+   "matched": true,
+   "updates": [
+    1810
+   ],
+   "dose_ok": true,
+   "anchor_ranks": {
+    "cutpair_aug": [
+     76,
+     76,
+     76,
+     76,
+     76
+    ],
+    "cutpair_aug_shift": [
+     25,
+     25,
+     25,
+     228,
+     228
+    ]
+   },
+   "n_act": {
+    "cutpair_aug": [
+     11,
+     70,
+     85,
+     61,
+     76
+    ],
+    "cutpair_aug_shift": [
+     0,
+     1,
+     5,
+     1510,
+     1461
+    ]
+   },
+   "p_act": {
+    "cutpair_aug": [
+     14,
+     216,
+     260,
+     180,
+     262
+    ],
+    "cutpair_aug_shift": [
+     405,
+     494,
+     495,
+     7,
+     5
+    ]
+   },
+   "active_batches": {
+    "cutpair_aug": [
+     24,
+     141,
+     164,
+     130,
+     156
+    ],
+    "cutpair_aug_shift": [
+     157,
+     171,
+     175,
+     181,
+     181
+    ]
+   },
+   "dosed_batches": {
+    "cutpair_aug": [
+     17,
+     98,
+     123,
+     106,
+     119
+    ],
+    "cutpair_aug_shift": [
+     156,
+     151,
+     162,
+     181,
+     181
+    ]
+   },
+   "natural_counts": {
+    "clipper": [
+     97,
+     117,
+     73,
+     115,
+     91
+    ],
+    "tralo_null": [
+     97,
+     104,
+     73,
+     71,
+     104
+    ],
+    "aug_clip": [
+     97,
+     47,
+     66,
+     67,
+     73
+    ],
+    "cutpair_aug": [
+     97,
+     44,
+     66,
+     63,
+     78
+    ],
+    "cutpair_aug_shift": [
+     97,
+     51,
+     82,
+     67,
+     58
+    ]
+   }
+  },
+  {
+   "seed": 2713,
+   "matched": true,
+   "updates": [
+    1810
+   ],
+   "dose_ok": true,
+   "anchor_ranks": {
+    "cutpair_aug": [
+     76,
+     76,
+     76,
+     76,
+     76
+    ],
+    "cutpair_aug_shift": [
+     228,
+     228,
+     25,
+     25,
+     228
+    ]
+   },
+   "n_act": {
+    "cutpair_aug": [
+     16,
+     82,
+     65,
+     155,
+     64
+    ],
+    "cutpair_aug_shift": [
+     852,
+     1491,
+     2,
+     6,
+     1346
+    ]
+   },
+   "p_act": {
+    "cutpair_aug": [
+     38,
+     235,
+     191,
+     238,
+     242
+    ],
+    "cutpair_aug_shift": [
+     0,
+     12,
+     482,
+     486,
+     6
+    ]
+   },
+   "active_batches": {
+    "cutpair_aug": [
+     44,
+     150,
+     141,
+     165,
+     147
+    ],
+    "cutpair_aug_shift": [
+     180,
+     181,
+     166,
+     167,
+     181
+    ]
+   },
+   "dosed_batches": {
+    "cutpair_aug": [
+     34,
+     107,
+     122,
+     134,
+     102
+    ],
+    "cutpair_aug_shift": [
+     179,
+     181,
+     158,
+     167,
+     181
+    ]
+   },
+   "natural_counts": {
+    "clipper": [
+     79,
+     101,
+     155,
+     84,
+     59
+    ],
+    "tralo_null": [
+     79,
+     105,
+     69,
+     96,
+     63
+    ],
+    "aug_clip": [
+     79,
+     45,
+     84,
+     123,
+     56
+    ],
+    "cutpair_aug": [
+     79,
+     47,
+     99,
+     114,
+     62
+    ],
+    "cutpair_aug_shift": [
+     79,
+     36,
+     84,
+     129,
+     61
+    ]
+   }
+  },
+  {
+   "seed": 2714,
+   "matched": true,
+   "updates": [
+    1810
+   ],
+   "dose_ok": true,
+   "anchor_ranks": {
+    "cutpair_aug": [
+     76,
+     76,
+     76,
+     76,
+     76
+    ],
+    "cutpair_aug_shift": [
+     228,
+     228,
+     25,
+     25,
+     25
+    ]
+   },
+   "n_act": {
+    "cutpair_aug": [
+     18,
+     62,
+     59,
+     84,
+     76
+    ],
+    "cutpair_aug_shift": [
+     640,
+     1501,
+     3,
+     6,
+     9
+    ]
+   },
+   "p_act": {
+    "cutpair_aug": [
+     29,
+     222,
+     264,
+     230,
+     284
+    ],
+    "cutpair_aug_shift": [
+     0,
+     7,
+     443,
+     427,
+     446
+    ]
+   },
+   "active_batches": {
+    "cutpair_aug": [
+     44,
+     143,
+     152,
+     152,
+     152
+    ],
+    "cutpair_aug_shift": [
+     176,
+     181,
+     162,
+     167,
+     168
+    ]
+   },
+   "dosed_batches": {
+    "cutpair_aug": [
+     25,
+     119,
+     119,
+     118,
+     123
+    ],
+    "cutpair_aug_shift": [
+     159,
+     181,
+     139,
+     156,
+     156
+    ]
+   },
+   "natural_counts": {
+    "clipper": [
+     90,
+     104,
+     73,
+     99,
+     95
+    ],
+    "tralo_null": [
+     90,
+     145,
+     62,
+     75,
+     79
+    ],
+    "aug_clip": [
+     90,
+     72,
+     73,
+     72,
+     99
+    ],
+    "cutpair_aug": [
+     90,
+     68,
+     79,
+     76,
+     99
+    ],
+    "cutpair_aug_shift": [
+     90,
+     65,
+     78,
+     97,
+     102
+    ]
+   }
+  },
+  {
+   "seed": 2715,
+   "matched": true,
+   "updates": [
+    1810
+   ],
+   "dose_ok": true,
+   "anchor_ranks": {
+    "cutpair_aug": [
+     76,
+     76,
+     76,
+     76,
+     76
+    ],
+    "cutpair_aug_shift": [
+     25,
+     228,
+     228,
+     25,
+     25
+    ]
+   },
+   "n_act": {
+    "cutpair_aug": [
+     1,
+     90,
+     80,
+     81,
+     81
+    ],
+    "cutpair_aug_shift": [
+     0,
+     1476,
+     1378,
+     4,
+     3
+    ]
+   },
+   "p_act": {
+    "cutpair_aug": [
+     54,
+     148,
+     182,
+     222,
+     211
+    ],
+    "cutpair_aug_shift": [
+     437,
+     4,
+     5,
+     448,
+     434
+    ]
+   },
+   "active_batches": {
+    "cutpair_aug": [
+     43,
+     136,
+     144,
+     148,
+     146
+    ],
+    "cutpair_aug_shift": [
+     161,
+     181,
+     181,
+     163,
+     167
+    ]
+   },
+   "dosed_batches": {
+    "cutpair_aug": [
+     43,
+     97,
+     115,
+     111,
+     115
+    ],
+    "cutpair_aug_shift": [
+     159,
+     180,
+     180,
+     138,
+     148
+    ]
+   },
+   "natural_counts": {
+    "clipper": [
+     134,
+     88,
+     67,
+     73,
+     74
+    ],
+    "tralo_null": [
+     134,
+     104,
+     81,
+     134,
+     95
+    ],
+    "aug_clip": [
+     134,
+     65,
+     74,
+     62,
+     66
+    ],
+    "cutpair_aug": [
+     134,
+     66,
+     72,
+     57,
+     68
+    ],
+    "cutpair_aug_shift": [
+     134,
+     83,
+     69,
+     53,
+     72
+    ]
+   }
+  },
+  {
+   "seed": 2716,
+   "matched": true,
+   "updates": [
+    1810
+   ],
+   "dose_ok": true,
+   "anchor_ranks": {
+    "cutpair_aug": [
+     76,
+     76,
+     76,
+     76,
+     76
+    ],
+    "cutpair_aug_shift": [
+     228,
+     228,
+     25,
+     228,
+     228
+    ]
+   },
+   "n_act": {
+    "cutpair_aug": [
+     15,
+     128,
+     106,
+     74,
+     114
+    ],
+    "cutpair_aug_shift": [
+     545,
+     1447,
+     5,
+     1130,
+     1540
+    ]
+   },
+   "p_act": {
+    "cutpair_aug": [
+     29,
+     186,
+     216,
+     257,
+     339
+    ],
+    "cutpair_aug_shift": [
+     0,
+     17,
+     518,
+     3,
+     18
+    ]
+   },
+   "active_batches": {
+    "cutpair_aug": [
+     39,
+     153,
+     155,
+     152,
+     169
+    ],
+    "cutpair_aug_shift": [
+     173,
+     181,
+     170,
+     181,
+     181
+    ]
+   },
+   "dosed_batches": {
+    "cutpair_aug": [
+     27,
+     124,
+     121,
+     132,
+     128
+    ],
+    "cutpair_aug_shift": [
+     159,
+     181,
+     154,
+     177,
+     181
+    ]
+   },
+   "natural_counts": {
+    "clipper": [
+     80,
+     81,
+     110,
+     99,
+     76
+    ],
+    "tralo_null": [
+     80,
+     92,
+     117,
+     100,
+     85
+    ],
+    "aug_clip": [
+     80,
+     54,
+     70,
+     107,
+     48
+    ],
+    "cutpair_aug": [
+     80,
+     52,
+     58,
+     107,
+     61
+    ],
+    "cutpair_aug_shift": [
+     80,
+     49,
+     65,
+     114,
+     57
+    ]
+   }
+  },
+  {
+   "seed": 2717,
+   "matched": true,
+   "updates": [
+    1810
+   ],
+   "dose_ok": true,
+   "anchor_ranks": {
+    "cutpair_aug": [
+     76,
+     76,
+     76,
+     76,
+     76
+    ],
+    "cutpair_aug_shift": [
+     25,
+     25,
+     25,
+     25,
+     228
+    ]
+   },
+   "n_act": {
+    "cutpair_aug": [
+     9,
+     113,
+     87,
+     149,
+     89
+    ],
+    "cutpair_aug_shift": [
+     0,
+     2,
+     3,
+     1,
+     1302
+    ]
+   },
+   "p_act": {
+    "cutpair_aug": [
+     18,
+     163,
+     168,
+     167,
+     180
+    ],
+    "cutpair_aug_shift": [
+     288,
+     449,
+     469,
+     506,
+     8
+    ]
+   },
+   "active_batches": {
+    "cutpair_aug": [
+     25,
+     141,
+     143,
+     154,
+     144
+    ],
+    "cutpair_aug_shift": [
+     144,
+     165,
+     167,
+     173,
+     181
+    ]
+   },
+   "dosed_batches": {
+    "cutpair_aug": [
+     19,
+     105,
+     117,
+     119,
+     108
+    ],
+    "cutpair_aug_shift": [
+     141,
+     135,
+     156,
+     156,
+     179
+    ]
+   },
+   "natural_counts": {
+    "clipper": [
+     83,
+     151,
+     69,
+     78,
+     78
+    ],
+    "tralo_null": [
+     83,
+     89,
+     58,
+     110,
+     57
+    ],
+    "aug_clip": [
+     83,
+     48,
+     74,
+     74,
+     53
+    ],
+    "cutpair_aug": [
+     83,
+     47,
+     95,
+     69,
+     47
+    ],
+    "cutpair_aug_shift": [
+     83,
+     46,
+     81,
+     73,
+     83
+    ]
+   }
+  },
+  {
+   "seed": 2718,
+   "matched": true,
+   "updates": [
+    1810
+   ],
+   "dose_ok": true,
+   "anchor_ranks": {
+    "cutpair_aug": [
+     76,
+     76,
+     76,
+     76,
+     76
+    ],
+    "cutpair_aug_shift": [
+     25,
+     228,
+     228,
+     228,
+     228
+    ]
+   },
+   "n_act": {
+    "cutpair_aug": [
+     7,
+     93,
+     81,
+     79,
+     59
+    ],
+    "cutpair_aug_shift": [
+     0,
+     1234,
+     1605,
+     1439,
+     1227
+    ]
+   },
+   "p_act": {
+    "cutpair_aug": [
+     36,
+     192,
+     204,
+     206,
+     250
+    ],
+    "cutpair_aug_shift": [
+     332,
+     5,
+     10,
+     1,
+     4
+    ]
+   },
+   "active_batches": {
+    "cutpair_aug": [
+     40,
+     148,
+     155,
+     148,
+     149
+    ],
+    "cutpair_aug_shift": [
+     152,
+     181,
+     181,
+     181,
+     181
+    ]
+   },
+   "dosed_batches": {
+    "cutpair_aug": [
+     27,
+     125,
+     124,
+     121,
+     117
+    ],
+    "cutpair_aug_shift": [
+     144,
+     181,
+     181,
+     181,
+     180
+    ]
+   },
+   "natural_counts": {
+    "clipper": [
+     88,
+     80,
+     88,
+     80,
+     85
+    ],
+    "tralo_null": [
+     88,
+     99,
+     60,
+     76,
+     93
+    ],
+    "aug_clip": [
+     88,
+     90,
+     74,
+     68,
+     84
+    ],
+    "cutpair_aug": [
+     88,
+     91,
+     70,
+     59,
+     88
+    ],
+    "cutpair_aug_shift": [
+     88,
+     100,
+     58,
+     69,
+     83
+    ]
+   }
+  },
+  {
+   "seed": 2719,
+   "matched": true,
+   "updates": [
+    1810
+   ],
+   "dose_ok": true,
+   "anchor_ranks": {
+    "cutpair_aug": [
+     76,
+     76,
+     76,
+     76,
+     76
+    ],
+    "cutpair_aug_shift": [
+     228,
+     25,
+     228,
+     25,
+     25
+    ]
+   },
+   "n_act": {
+    "cutpair_aug": [
+     26,
+     61,
+     77,
+     132,
+     89
+    ],
+    "cutpair_aug_shift": [
+     653,
+     0,
+     1442,
+     8,
+     5
+    ]
+   },
+   "p_act": {
+    "cutpair_aug": [
+     36,
+     195,
+     246,
+     211,
+     176
+    ],
+    "cutpair_aug_shift": [
+     0,
+     411,
+     13,
+     523,
+     489
+    ]
+   },
+   "active_batches": {
+    "cutpair_aug": [
+     55,
+     136,
+     151,
+     159,
+     138
+    ],
+    "cutpair_aug_shift": [
+     174,
+     167,
+     181,
+     172,
+     167
+    ]
+   },
+   "dosed_batches": {
+    "cutpair_aug": [
+     30,
+     113,
+     122,
+     125,
+     111
+    ],
+    "cutpair_aug_shift": [
+     163,
+     158,
+     178,
+     138,
+     158
+    ]
+   },
+   "natural_counts": {
+    "clipper": [
+     109,
+     85,
+     74,
+     101,
+     66
+    ],
+    "tralo_null": [
+     109,
+     99,
+     105,
+     110,
+     103
+    ],
+    "aug_clip": [
+     109,
+     73,
+     85,
+     82,
+     77
+    ],
+    "cutpair_aug": [
+     109,
+     70,
+     75,
+     74,
+     86
+    ],
+    "cutpair_aug_shift": [
+     109,
+     69,
+     88,
+     60,
+     106
+    ]
+   }
+  },
+  {
+   "seed": 2720,
+   "matched": true,
+   "updates": [
+    1810
+   ],
+   "dose_ok": true,
+   "anchor_ranks": {
+    "cutpair_aug": [
+     76,
+     76,
+     76,
+     76,
+     76
+    ],
+    "cutpair_aug_shift": [
+     228,
+     25,
+     228,
+     25,
+     228
+    ]
+   },
+   "n_act": {
+    "cutpair_aug": [
+     8,
+     69,
+     95,
+     80,
+     69
+    ],
+    "cutpair_aug_shift": [
+     602,
+     4,
+     1325,
+     6,
+     1353
+    ]
+   },
+   "p_act": {
+    "cutpair_aug": [
+     23,
+     225,
+     244,
+     233,
+     228
+    ],
+    "cutpair_aug_shift": [
+     0,
+     454,
+     4,
+     506,
+     7
+    ]
+   },
+   "active_batches": {
+    "cutpair_aug": [
+     26,
+     152,
+     154,
+     154,
+     148
+    ],
+    "cutpair_aug_shift": [
+     173,
+     170,
+     181,
+     173,
+     181
+    ]
+   },
+   "dosed_batches": {
+    "cutpair_aug": [
+     20,
+     119,
+     128,
+     133,
+     106
+    ],
+    "cutpair_aug_shift": [
+     166,
+     154,
+     178,
+     166,
+     179
+    ]
+   },
+   "natural_counts": {
+    "clipper": [
+     77,
+     91,
+     69,
+     83,
+     73
+    ],
+    "tralo_null": [
+     77,
+     109,
+     70,
+     89,
+     59
+    ],
+    "aug_clip": [
+     77,
+     64,
+     76,
+     111,
+     57
+    ],
+    "cutpair_aug": [
+     77,
+     59,
+     77,
+     125,
+     55
+    ],
+    "cutpair_aug_shift": [
+     77,
+     54,
+     93,
+     103,
+     72
+    ]
+   }
+  },
+  {
+   "seed": 2721,
+   "matched": true,
+   "updates": [
+    1810
+   ],
+   "dose_ok": true,
+   "anchor_ranks": {
+    "cutpair_aug": [
+     76,
+     76,
+     76,
+     76,
+     76
+    ],
+    "cutpair_aug_shift": [
+     25,
+     25,
+     228,
+     228,
+     25
+    ]
+   },
+   "n_act": {
+    "cutpair_aug": [
+     13,
+     94,
+     65,
+     150,
+     49
+    ],
+    "cutpair_aug_shift": [
+     0,
+     5,
+     1304,
+     1421,
+     3
+    ]
+   },
+   "p_act": {
+    "cutpair_aug": [
+     25,
+     276,
+     237,
+     216,
+     214
+    ],
+    "cutpair_aug_shift": [
+     407,
+     381,
+     11,
+     20,
+     477
+    ]
+   },
+   "active_batches": {
+    "cutpair_aug": [
+     34,
+     158,
+     154,
+     160,
+     134
+    ],
+    "cutpair_aug_shift": [
+     164,
+     164,
+     181,
+     181,
+     170
+    ]
+   },
+   "dosed_batches": {
+    "cutpair_aug": [
+     20,
+     115,
+     111,
+     116,
+     108
+    ],
+    "cutpair_aug_shift": [
+     154,
+     137,
+     178,
+     181,
+     145
+    ]
+   },
+   "natural_counts": {
+    "clipper": [
+     55,
+     74,
+     139,
+     77,
+     111
+    ],
+    "tralo_null": [
+     55,
+     86,
+     223,
+     115,
+     95
+    ],
+    "aug_clip": [
+     55,
+     53,
+     52,
+     45,
+     81
+    ],
+    "cutpair_aug": [
+     55,
+     47,
+     46,
+     52,
+     87
+    ],
+    "cutpair_aug_shift": [
+     55,
+     53,
+     73,
+     24,
+     73
+    ]
+   }
+  },
+  {
+   "seed": 2722,
+   "matched": true,
+   "updates": [
+    1810
+   ],
+   "dose_ok": true,
+   "anchor_ranks": {
+    "cutpair_aug": [
+     76,
+     76,
+     76,
+     76,
+     76
+    ],
+    "cutpair_aug_shift": [
+     228,
+     25,
+     228,
+     228,
+     228
+    ]
+   },
+   "n_act": {
+    "cutpair_aug": [
+     15,
+     82,
+     86,
+     71,
+     79
+    ],
+    "cutpair_aug_shift": [
+     590,
+     4,
+     1607,
+     1380,
+     1150
+    ]
+   },
+   "p_act": {
+    "cutpair_aug": [
+     23,
+     194,
+     292,
+     199,
+     205
+    ],
+    "cutpair_aug_shift": [
+     1,
+     496,
+     15,
+     11,
+     2
+    ]
+   },
+   "active_batches": {
+    "cutpair_aug": [
+     35,
+     142,
+     159,
+     143,
+     149
+    ],
+    "cutpair_aug_shift": [
+     175,
+     171,
+     181,
+     181,
+     181
+    ]
+   },
+   "dosed_batches": {
+    "cutpair_aug": [
+     22,
+     110,
+     108,
+     119,
+     118
+    ],
+    "cutpair_aug_shift": [
+     161,
+     155,
+     180,
+     181,
+     180
+    ]
+   },
+   "natural_counts": {
+    "clipper": [
+     69,
+     98,
+     74,
+     96,
+     94
+    ],
+    "tralo_null": [
+     69,
+     73,
+     82,
+     69,
+     111
+    ],
+    "aug_clip": [
+     69,
+     66,
+     48,
+     85,
+     80
+    ],
+    "cutpair_aug": [
+     69,
+     65,
+     46,
+     87,
+     94
+    ],
+    "cutpair_aug_shift": [
+     69,
+     64,
+     50,
+     72,
+     89
+    ]
+   }
+  },
+  {
+   "seed": 2723,
+   "matched": true,
+   "updates": [
+    1810
+   ],
+   "dose_ok": true,
+   "anchor_ranks": {
+    "cutpair_aug": [
+     76,
+     76,
+     76,
+     76,
+     76
+    ],
+    "cutpair_aug_shift": [
+     25,
+     25,
+     25,
+     25,
+     25
+    ]
+   },
+   "n_act": {
+    "cutpair_aug": [
+     27,
+     37,
+     58,
+     68,
+     133
+    ],
+    "cutpair_aug_shift": [
+     0,
+     1,
+     4,
+     2,
+     1
+    ]
+   },
+   "p_act": {
+    "cutpair_aug": [
+     44,
+     232,
+     266,
+     220,
+     243
+    ],
+    "cutpair_aug_shift": [
+     365,
+     423,
+     334,
+     498,
+     516
+    ]
+   },
+   "active_batches": {
+    "cutpair_aug": [
+     60,
+     141,
+     148,
+     147,
+     155
+    ],
+    "cutpair_aug_shift": [
+     155,
+     166,
+     154,
+     168,
+     170
+    ]
+   },
+   "dosed_batches": {
+    "cutpair_aug": [
+     39,
+     126,
+     123,
+     119,
+     121
+    ],
+    "cutpair_aug_shift": [
+     146,
+     161,
+     144,
+     156,
+     156
+    ]
+   },
+   "natural_counts": {
+    "clipper": [
+     62,
+     89,
+     61,
+     65,
+     103
+    ],
+    "tralo_null": [
+     62,
+     81,
+     76,
+     107,
+     87
+    ],
+    "aug_clip": [
+     62,
+     106,
+     74,
+     76,
+     67
+    ],
+    "cutpair_aug": [
+     62,
+     96,
+     78,
+     75,
+     72
+    ],
+    "cutpair_aug_shift": [
+     62,
+     114,
+     88,
+     89,
+     81
+    ]
+   }
+  },
+  {
+   "seed": 2724,
+   "matched": true,
+   "updates": [
+    1810
+   ],
+   "dose_ok": true,
+   "anchor_ranks": {
+    "cutpair_aug": [
+     76,
+     76,
+     76,
+     76,
+     76
+    ],
+    "cutpair_aug_shift": [
+     25,
+     25,
+     228,
+     25,
+     228
+    ]
+   },
+   "n_act": {
+    "cutpair_aug": [
+     27,
+     86,
+     73,
+     98,
+     87
+    ],
+    "cutpair_aug_shift": [
+     1,
+     0,
+     1368,
+     2,
+     1290
+    ]
+   },
+   "p_act": {
+    "cutpair_aug": [
+     46,
+     215,
+     218,
+     218,
+     225
+    ],
+    "cutpair_aug_shift": [
+     314,
+     446,
+     4,
+     501,
+     7
+    ]
+   },
+   "active_batches": {
+    "cutpair_aug": [
+     61,
+     152,
+     141,
+     143,
+     153
+    ],
+    "cutpair_aug_shift": [
+     153,
+     164,
+     181,
+     168,
+     181
+    ]
+   },
+   "dosed_batches": {
+    "cutpair_aug": [
+     37,
+     129,
+     110,
+     117,
+     116
+    ],
+    "cutpair_aug_shift": [
+     148,
+     155,
+     181,
+     148,
+     181
+    ]
+   },
+   "natural_counts": {
+    "clipper": [
+     86,
+     90,
+     94,
+     75,
+     83
+    ],
+    "tralo_null": [
+     86,
+     93,
+     110,
+     77,
+     125
+    ],
+    "aug_clip": [
+     86,
+     82,
+     77,
+     69,
+     94
+    ],
+    "cutpair_aug": [
+     86,
+     77,
+     75,
+     61,
+     76
+    ],
+    "cutpair_aug_shift": [
+     86,
+     78,
+     97,
+     62,
+     97
+    ]
+   }
+  }
+ ],
+ "by_rank": {
+  "cutpair_aug": {
+   "ranks": {
+    "76": {
+     "epochs": 120,
+     "mean_n_act": 72.00833333333334,
+     "mean_p_act": 186.2,
+     "active_batch_fraction": 0.7078729281767956,
+     "dosed_batch_fraction": 0.5548342541436464
+    }
+   },
+   "epochs_per_rank_by_seed": {
+    "2701": {
+     "76": 5
+    },
+    "2702": {
+     "76": 5
+    },
+    "2703": {
+     "76": 5
+    },
+    "2704": {
+     "76": 5
+    },
+    "2705": {
+     "76": 5
+    },
+    "2706": {
+     "76": 5
+    },
+    "2707": {
+     "76": 5
+    },
+    "2708": {
+     "76": 5
+    },
+    "2709": {
+     "76": 5
+    },
+    "2710": {
+     "76": 5
+    },
+    "2711": {
+     "76": 5
+    },
+    "2712": {
+     "76": 5
+    },
+    "2713": {
+     "76": 5
+    },
+    "2714": {
+     "76": 5
+    },
+    "2715": {
+     "76": 5
+    },
+    "2716": {
+     "76": 5
+    },
+    "2717": {
+     "76": 5
+    },
+    "2718": {
+     "76": 5
+    },
+    "2719": {
+     "76": 5
+    },
+    "2720": {
+     "76": 5
+    },
+    "2721": {
+     "76": 5
+    },
+    "2722": {
+     "76": 5
+    },
+    "2723": {
+     "76": 5
+    },
+    "2724": {
+     "76": 5
+    }
+   }
+  },
+  "cutpair_aug_shift": {
+   "ranks": {
+    "25": {
+     "epochs": 65,
+     "mean_n_act": 2.9076923076923076,
+     "mean_p_act": 449.4769230769231,
+     "active_batch_fraction": 0.9164470888227794,
+     "dosed_batch_fraction": 0.8413939651508713
+    },
+    "228": {
+     "epochs": 55,
+     "mean_n_act": 1234.4545454545455,
+     "mean_p_act": 7.545454545454546,
+     "active_batch_fraction": 0.9937719738824713,
+     "dosed_batch_fraction": 0.9817177297840279
+    }
+   },
+   "epochs_per_rank_by_seed": {
+    "2701": {
+     "25": 3,
+     "228": 2
+    },
+    "2702": {
+     "25": 2,
+     "228": 3
+    },
+    "2703": {
+     "25": 3,
+     "228": 2
+    },
+    "2704": {
+     "25": 3,
+     "228": 2
+    },
+    "2705": {
+     "25": 3,
+     "228": 2
+    },
+    "2706": {
+     "25": 1,
+     "228": 4
+    },
+    "2707": {
+     "25": 2,
+     "228": 3
+    },
+    "2708": {
+     "25": 4,
+     "228": 1
+    },
+    "2709": {
+     "25": 3,
+     "228": 2
+    },
+    "2710": {
+     "25": 4,
+     "228": 1
+    },
+    "2711": {
+     "25": 3,
+     "228": 2
+    },
+    "2712": {
+     "25": 3,
+     "228": 2
+    },
+    "2713": {
+     "25": 2,
+     "228": 3
+    },
+    "2714": {
+     "25": 3,
+     "228": 2
+    },
+    "2715": {
+     "25": 3,
+     "228": 2
+    },
+    "2716": {
+     "25": 1,
+     "228": 4
+    },
+    "2717": {
+     "25": 4,
+     "228": 1
+    },
+    "2718": {
+     "25": 1,
+     "228": 4
+    },
+    "2719": {
+     "25": 3,
+     "228": 2
+    },
+    "2720": {
+     "25": 2,
+     "228": 3
+    },
+    "2721": {
+     "25": 3,
+     "228": 2
+    },
+    "2722": {
+     "25": 1,
+     "228": 4
+    },
+    "2723": {
+     "25": 5
+    },
+    "2724": {
+     "25": 3,
+     "228": 2
+    }
+   }
+  }
+ },
+ "mean_active": {
+  "n_act": {
+   "cutpair_aug": 72.00833333333334,
+   "cutpair_aug_shift": 567.3666666666667
+  },
+  "p_act": {
+   "cutpair_aug": 186.20000000000002,
+   "cutpair_aug_shift": 246.92499999999998
+  }
+ },
+ "primary": {
+  "P1": {
+   "a": "cutpair_aug",
+   "b": "cutpair_aug_shift",
+   "holm_p": 0.6067167368483162,
+   "n": 24,
+   "mean": 0.3663003663003659,
+   "sd": 1.7044650730308546,
+   "lo": -0.3534321117406396,
+   "hi": 1.0860328443413714,
+   "p": 0.3033583684241581,
+   "wins": 13,
+   "ties": 3,
+   "losses": 8,
+   "deltas": [
+    0.0,
+    -2.19780219780219,
+    -2.197802197802204,
+    2.197802197802204,
+    1.098901098901095,
+    1.098901098901095,
+    3.296703296703292,
+    2.197802197802204,
+    -1.098901098901095,
+    1.098901098901095,
+    1.098901098901095,
+    1.098901098901095,
+    1.098901098901095,
+    1.098901098901095,
+    -2.19780219780219,
+    1.0989010989011092,
+    0.0,
+    -2.197802197802204,
+    3.296703296703299,
+    -1.098901098901095,
+    0.0,
+    2.197802197802204,
+    -1.0989010989011092,
+    -1.0989010989011092
+   ]
+  },
+  "P2": {
+   "a": "cutpair_aug",
+   "b": "aug_clip",
+   "holm_p": 0.9999999999999969,
+   "n": 24,
+   "mean": -1.7763568394002505e-15,
+   "sd": 2.173781780425675,
+   "lo": -0.9179075431355824,
+   "hi": 0.9179075431355789,
+   "p": 0.9999999999999969,
+   "wins": 9,
+   "ties": 4,
+   "losses": 11,
+   "deltas": [
+    1.0989010989011092,
+    1.098901098901102,
+    -2.197802197802204,
+    0.0,
+    -1.0989010989011092,
+    -2.197802197802204,
+    -1.0989010989011092,
+    5.494505494505503,
+    -1.098901098901095,
+    1.098901098901095,
+    2.197802197802204,
+    0.0,
+    0.0,
+    4.395604395604387,
+    -1.098901098901095,
+    -1.098901098901095,
+    1.098901098901095,
+    -2.197802197802204,
+    1.0989010989011092,
+    -1.098901098901095,
+    -3.2967032967033134,
+    0.0,
+    -3.2967032967033134,
+    2.19780219780219
+   ]
+  },
+  "P3": {
+   "a": "cutpair_aug",
+   "b": "clipper",
+   "holm_p": 0.0035211612982810276,
+   "n": 24,
+   "mean": 3.021978021978022,
+   "sd": 3.9984193282447107,
+   "lo": 1.3335936151052135,
+   "hi": 4.71036242885083,
+   "p": 0.0011737204327603426,
+   "wins": 17,
+   "ties": 1,
+   "losses": 6,
+   "deltas": [
+    6.593406593406591,
+    -1.098901098901095,
+    0.0,
+    1.098901098901095,
+    6.593406593406584,
+    3.296703296703292,
+    2.19780219780219,
+    1.098901098901095,
+    4.395604395604387,
+    6.593406593406591,
+    3.296703296703299,
+    -2.197802197802204,
+    7.6923076923077005,
+    -2.197802197802204,
+    4.395604395604408,
+    6.593406593406591,
+    -3.296703296703292,
+    -1.098901098901095,
+    10.989010989011,
+    4.395604395604401,
+    1.098901098901095,
+    4.395604395604408,
+    -2.197802197802204,
+    9.89010989010989
+   ]
+  }
+ },
+ "tta": {
+  "P1": {
+   "a": "cutpair_aug",
+   "b": "cutpair_aug_shift",
+   "holm_p": NaN,
+   "n": 24,
+   "mean": 0.18315018315018428,
+   "sd": 2.0917224934804457,
+   "lo": -0.7001067620506749,
+   "hi": 1.0664071283510435,
+   "p": 0.6719490765460836,
+   "wins": 11,
+   "ties": 6,
+   "losses": 7,
+   "deltas": [
+    3.296703296703299,
+    0.0,
+    3.2967032967033134,
+    1.098901098901095,
+    1.0989010989011092,
+    3.296703296703299,
+    1.0989010989011092,
+    2.19780219780219,
+    -2.197802197802204,
+    1.098901098901095,
+    -2.197802197802204,
+    -4.395604395604408,
+    -1.0989010989011092,
+    1.0989010989011092,
+    2.197802197802204,
+    -4.395604395604394,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    -1.098901098901095,
+    1.0989010989011092,
+    0.0,
+    -1.098901098901095
+   ]
+  },
+  "P2": {
+   "a": "cutpair_aug",
+   "b": "aug_clip",
+   "holm_p": NaN,
+   "n": 24,
+   "mean": -0.32051282051282054,
+   "sd": 2.1853245098365894,
+   "lo": -1.2432944308110105,
+   "hi": 0.6022687897853696,
+   "p": 0.47967683084958035,
+   "wins": 8,
+   "ties": 7,
+   "losses": 9,
+   "deltas": [
+    2.19780219780219,
+    0.0,
+    1.0989010989011092,
+    0.0,
+    1.0989010989011092,
+    1.098901098901095,
+    -2.197802197802204,
+    4.395604395604394,
+    -1.098901098901095,
+    0.0,
+    1.098901098901095,
+    -4.395604395604408,
+    -3.296703296703299,
+    3.296703296703299,
+    1.0989010989011092,
+    -3.296703296703299,
+    0.0,
+    -1.098901098901095,
+    0.0,
+    -3.296703296703299,
+    -3.296703296703299,
+    0.0,
+    0.0,
+    -1.098901098901095
+   ]
+  },
+  "P3": {
+   "a": "cutpair_aug",
+   "b": "clipper",
+   "holm_p": NaN,
+   "n": 24,
+   "mean": 3.6630036630036678,
+   "sd": 2.9462859894498354,
+   "lo": 2.4188962009284745,
+   "hi": 4.9071111250788615,
+   "p": 3.26571835018799e-06,
+   "wins": 21,
+   "ties": 0,
+   "losses": 3,
+   "deltas": [
+    5.494505494505503,
+    1.098901098901095,
+    -1.098901098901095,
+    -1.0989010989011092,
+    5.494505494505503,
+    3.296703296703299,
+    5.494505494505496,
+    3.296703296703299,
+    3.296703296703292,
+    4.395604395604387,
+    8.791208791208796,
+    -3.2967032967033134,
+    1.098901098901095,
+    4.395604395604401,
+    8.791208791208803,
+    1.0989010989011092,
+    5.494505494505503,
+    2.197802197802204,
+    6.593406593406613,
+    5.494505494505503,
+    5.494505494505503,
+    3.2967032967033134,
+    4.395604395604408,
+    4.395604395604408
+   ]
+  }
+ },
+ "ens": {
+  "P1-ENS": {
+   "a": "cutpair_aug",
+   "b": "cutpair_aug_shift",
+   "holm_p": 0.6751826169497466,
+   "n": 24,
+   "mean": 0.32051282051282,
+   "sd": 1.6032749316531985,
+   "lo": -0.35649080824906515,
+   "hi": 0.9975164492747051,
+   "p": 0.3375913084748733,
+   "wins": 9,
+   "ties": 7,
+   "losses": 8,
+   "deltas": [
+    -1.098901098901095,
+    0.0,
+    -1.098901098901095,
+    2.197802197802204,
+    1.098901098901095,
+    -1.0989010989011092,
+    -1.098901098901095,
+    3.296703296703299,
+    2.19780219780219,
+    2.19780219780219,
+    1.098901098901095,
+    -1.098901098901095,
+    2.197802197802204,
+    0.0,
+    0.0,
+    -2.19780219780219,
+    -2.197802197802204,
+    -1.098901098901095,
+    3.296703296703285,
+    1.098901098901095,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "P2-ENS": {
+   "a": "cutpair_aug",
+   "b": "aug_clip",
+   "holm_p": 0.6751826169497466,
+   "n": 24,
+   "mean": 0.22893772893772812,
+   "sd": 1.4842388808173956,
+   "lo": -0.3978013838772724,
+   "hi": 0.8556768417527286,
+   "p": 0.45753024015104227,
+   "wins": 9,
+   "ties": 10,
+   "losses": 5,
+   "deltas": [
+    0.0,
+    0.0,
+    -2.197802197802204,
+    0.0,
+    2.197802197802204,
+    0.0,
+    0.0,
+    0.0,
+    2.19780219780219,
+    2.19780219780219,
+    0.0,
+    1.098901098901095,
+    1.0989010989011092,
+    -2.197802197802204,
+    1.098901098901095,
+    -3.296703296703285,
+    0.0,
+    1.098901098901095,
+    2.19780219780219,
+    2.19780219780219,
+    -1.098901098901095,
+    -1.098901098901095,
+    0.0,
+    0.0
+   ]
+  },
+  "P3-ENS": {
+   "a": "cutpair_aug",
+   "b": "clipper",
+   "holm_p": 0.0055401118131978445,
+   "n": 24,
+   "mean": 2.609890109890111,
+   "sd": 3.6347252134784416,
+   "lo": 1.0750802588186683,
+   "hi": 4.144699960961553,
+   "p": 0.001846703937732615,
+   "wins": 18,
+   "ties": 2,
+   "losses": 4,
+   "deltas": [
+    4.395604395604408,
+    7.692307692307693,
+    0.0,
+    3.296703296703299,
+    3.296703296703299,
+    -1.0989010989011092,
+    4.395604395604394,
+    3.296703296703299,
+    8.791208791208788,
+    5.494505494505489,
+    2.197802197802204,
+    0.0,
+    4.395604395604408,
+    1.098901098901095,
+    5.494505494505489,
+    4.395604395604408,
+    -6.593406593406598,
+    6.593406593406598,
+    6.593406593406584,
+    -2.197802197802204,
+    -3.296703296703299,
+    2.197802197802204,
+    1.0989010989011092,
+    1.098901098901095
+   ]
+  }
+ },
+ "secondary": {
+  "S1": {
+   "a": "cutpair_aug",
+   "b": "tralo_null",
+   "holm_p": NaN,
+   "n": 24,
+   "mean": 3.4798534798534804,
+   "sd": 3.8975700096790633,
+   "lo": 1.834054005408141,
+   "hi": 5.12565295429882,
+   "p": 0.00022168437552371064,
+   "wins": 18,
+   "ties": 4,
+   "losses": 2,
+   "deltas": [
+    3.296703296703299,
+    2.197802197802197,
+    2.197802197802204,
+    3.296703296703299,
+    8.791208791208774,
+    1.098901098901095,
+    0.0,
+    8.791208791208796,
+    0.0,
+    4.395604395604394,
+    0.0,
+    6.593406593406598,
+    3.296703296703299,
+    3.296703296703292,
+    5.494505494505503,
+    6.593406593406591,
+    -6.5934065934066055,
+    -2.197802197802204,
+    8.791208791208803,
+    3.296703296703299,
+    9.890109890109883,
+    5.494505494505503,
+    0.0,
+    5.494505494505503
+   ]
+  },
+  "S2": {
+   "a": "cutpair_aug_shift",
+   "b": "tralo_null",
+   "holm_p": NaN,
+   "n": 24,
+   "mean": 3.1135531135531145,
+   "sd": 3.7324207586105316,
+   "lo": 1.5374900517799395,
+   "hi": 4.6896161753262895,
+   "p": 0.00045350750367589236,
+   "wins": 19,
+   "ties": 2,
+   "losses": 3,
+   "deltas": [
+    3.296703296703299,
+    4.395604395604387,
+    4.395604395604408,
+    1.098901098901095,
+    7.692307692307679,
+    0.0,
+    -3.296703296703292,
+    6.593406593406591,
+    1.098901098901095,
+    3.296703296703299,
+    -1.098901098901095,
+    5.494505494505503,
+    2.197802197802204,
+    2.197802197802197,
+    7.692307692307693,
+    5.494505494505482,
+    -6.5934065934066055,
+    0.0,
+    5.494505494505503,
+    4.395604395604394,
+    9.890109890109883,
+    3.296703296703299,
+    1.0989010989011092,
+    6.593406593406613
+   ]
+  },
+  "S3": {
+   "a": "aug_clip",
+   "b": "tralo_null",
+   "holm_p": NaN,
+   "n": 24,
+   "mean": 3.4798534798534817,
+   "sd": 4.195976552684934,
+   "lo": 1.7080479733341851,
+   "hi": 5.251658986372778,
+   "p": 0.00048117317071698823,
+   "wins": 20,
+   "ties": 1,
+   "losses": 3,
+   "deltas": [
+    2.19780219780219,
+    1.098901098901095,
+    4.395604395604408,
+    3.296703296703299,
+    9.890109890109883,
+    3.296703296703299,
+    1.0989010989011092,
+    3.296703296703292,
+    1.098901098901095,
+    3.296703296703299,
+    -2.197802197802204,
+    6.593406593406598,
+    3.296703296703299,
+    -1.098901098901095,
+    6.593406593406598,
+    7.692307692307686,
+    -7.6923076923077005,
+    0.0,
+    7.692307692307693,
+    4.395604395604394,
+    13.186813186813197,
+    5.494505494505503,
+    3.2967032967033134,
+    3.2967032967033134
+   ]
+  },
+  "S4": {
+   "a": "clipper",
+   "b": "tralo_null",
+   "holm_p": NaN,
+   "n": 24,
+   "mean": 0.4578754578754583,
+   "sd": 4.085022105550716,
+   "lo": -1.267078094650097,
+   "hi": 2.1828290104010137,
+   "p": 0.5882226245874131,
+   "wins": 11,
+   "ties": 1,
+   "losses": 12,
+   "deltas": [
+    -3.296703296703292,
+    3.296703296703292,
+    2.197802197802204,
+    2.197802197802204,
+    2.19780219780219,
+    -2.197802197802197,
+    -2.19780219780219,
+    7.6923076923077005,
+    -4.395604395604387,
+    -2.197802197802197,
+    -3.296703296703299,
+    8.791208791208803,
+    -4.395604395604401,
+    5.494505494505496,
+    1.098901098901095,
+    0.0,
+    -3.2967032967033134,
+    -1.0989010989011092,
+    -2.197802197802197,
+    -1.098901098901102,
+    8.791208791208788,
+    1.098901098901095,
+    2.197802197802204,
+    -4.395604395604387
+   ]
+  }
+ },
+ "swaps": {
+  "clipper": {
+   "entered": 493,
+   "left": 493,
+   "correct_fraction": 0.4330628803245436,
+   "net": -2.75
+  },
+  "tralo_null": {
+   "entered": 518,
+   "left": 518,
+   "correct_fraction": 0.4266409266409266,
+   "net": -3.1666666666666665
+  },
+  "cutpair_aug": {
+   "entered": 182,
+   "left": 182,
+   "correct_fraction": 0.5,
+   "net": 0.0
+  },
+  "cutpair_aug_shift": {
+   "entered": 191,
+   "left": 191,
+   "correct_fraction": 0.4790575916230366,
+   "net": -0.3333333333333333
+  }
+ },
+ "turnover": {
+  "null": "aug_clip",
+  "floor": 0.23731884057971014,
+  "clipper": 0.2702850877192982,
+  "tralo_null": 0.28399122807017546,
+  "cutpair_aug": 0.09978070175438597,
+  "cutpair_aug_shift": 0.10471491228070175
+ }
+}

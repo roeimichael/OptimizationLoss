@@ -1,0 +1,6 @@
+seeds 24 (cap 76): [2701, 2702, 2703, 2704, 2705, 2706, 2707, 2708, 2709, 2710, 2711, 2712, 2713, 2714, 2715, 2716, 2717, 2718, 2719, 2720, 2721, 2722, 2723, 2724]
+  clipper            ENS-BASE +2.58 [+1.22, +3.95] slots  p=0.0007  W/T/L 15/3/6  PRIMARY Holm=0.0007
+  tralo_null         ENS-BASE +2.88 [+1.65, +4.10] slots  p=0.0001  W/T/L 17/4/3  PRIMARY Holm=0.0001
+  aug_clip           ENS-BASE +2.00 [+0.88, +3.12] slots  p=0.0012  W/T/L 15/6/3  secondary
+  cutpair_aug        ENS-BASE +2.21 [+1.34, +3.08] slots  p=0.0000  W/T/L 19/4/1  secondary
+  cutpair_aug_shift  ENS-BASE +2.25 [+1.38, +3.12] slots  p=0.0000  W/T/L 18/3/3  secondary
