@@ -38,3 +38,27 @@ OR of `P_act` < 20.
   (seeds 2201-2224 at cap 50 as primary, 2301-2324 at cap 76 as replication) before launch.
 
 Development labels are not read by the gate.
+
+## RESULT (2026-09-26): DEAD AT BOTH CAPS -- CUTPAIR and PREC@K-RAMP are not implemented
+
+Release 5193051f, dsisco01 GPU 0, seed 2000. Full output: `analysis/cutpair_gate_20260926.json`.
+
+| epoch | train acc proxy | cap 50: tau / N_act / P_act | cap 76: tau / N_act / P_act |
+|---|---|---|---|
+| 6 | 0.994 | 4.40 / 2 / 176 | 2.10 / 15 / 63 |
+| 7 | 0.998 | 4.86 / 0 / 122 | 2.35 / 5 / 17 |
+| 8 | 0.997 | 4.37 / 1 / 128 | 1.84 / 5 / 23 |
+| 9 | 1.000 | 3.15 / 0 / 93 | 0.27 / 2 / 6 |
+| 10 | 0.990 | 1.91 / 3 / 127 | -1.12 / 40 / 33 |
+| **mean** | | **N_act 1.2**, P_act 129 | **N_act 13.4**, P_act 28 |
+
+- **Kill rule met at both caps.** `N_act` < 20: of ~5,040 training non-grade-3 images, ~5,020
+  sit more than one log-odds unit below the score where the development cut falls.
+- **Why.** The development set's ranking errors, the wrong-grade items inside the 50 or 76
+  slots, are generalisation errors. They have no counterpart in the memorised training set, so
+  a supervised loss anchored at the cut has nothing to push down.
+- **What P_act adds.** It is non-trivial only at cap 50, and there it can only push positives
+  up. That is a one-sided shift of the grade-3 score: a count effect, closed by LEDGER #9.
+- **Conclusion:** train-label information at the development cut is exhausted by memorisation.
+  This closes CUTPAIR and PREC@K-RAMP on this cell without spending a study. The remaining
+  information source is the unlabeled development IMAGES (BANDCONS).
