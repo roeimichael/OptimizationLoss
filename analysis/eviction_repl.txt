@@ -1,0 +1,15 @@
+#### claude-repl-mn3
+tralo_target steps=108 | step evicts 2798 (56.1% wrong-grade), admits 65 (41.5% true 3) | post-hoc cut evicts 2734 (55.4% wrong-grade) | overlap 76.3% | capped correct slots per step +0.51 (sd 1.88)
+sham_target  steps=105 | step evicts 59 (67.8% wrong-grade), admits 46 (45.7% true 3) | post-hoc cut evicts 2712 (56.7% wrong-grade) | overlap 100.0% | capped correct slots per step -0.02 (sd 0.54)
+tralo_adam   steps=104 | step evicts 4688 (49.1% wrong-grade), admits 11 (45.5% true 3) | post-hoc cut evicts 2510 (58.7% wrong-grade) | overlap 46.9% | capped correct slots per step -0.42 (sd 2.85)
+base rate: 87.2% of development items are not grade 3
+#### claude-repl-rgy
+tralo_target steps=105 | step evicts 2589 (54.8% wrong-grade), admits 55 (34.5% true 3) | post-hoc cut evicts 2539 (54.6% wrong-grade) | overlap 76.0% | capped correct slots per step +0.48 (sd 1.47)
+sham_target  steps=105 | step evicts 42 (61.9% wrong-grade), admits 33 (42.4% true 3) | post-hoc cut evicts 2557 (55.1% wrong-grade) | overlap 97.6% | capped correct slots per step +0.08 (sd 0.43)
+tralo_adam   steps=106 | step evicts 7030 (37.4% wrong-grade), admits 24 (41.7% true 3) | post-hoc cut evicts 2439 (54.8% wrong-grade) | overlap 33.0% | capped correct slots per step -5.08 (sd 4.01)
+base rate: 87.2% of development items are not grade 3
+#### claude-target-20260925
+tralo_target steps=96 | step evicts 1966 (57.3% wrong-grade), admits 3 (33.3% true 3) | post-hoc cut evicts 1964 (58.6% wrong-grade) | overlap 83.0% | capped correct slots per step +0.12 (sd 1.20)
+sham_target  steps=94 | step evicts 6 (100.0% wrong-grade), admits 6 (33.3% true 3) | post-hoc cut evicts 2074 (59.4% wrong-grade) | overlap 100.0% | capped correct slots per step -0.01 (sd 0.18)
+tralo_adam   steps=104 | step evicts 8017 (36.3% wrong-grade), admits 0 (0.0% true 3) | post-hoc cut evicts 2189 (57.7% wrong-grade) | overlap 27.3% | capped correct slots per step -2.94 (sd 4.25)
+base rate: 87.2% of development items are not grade 3

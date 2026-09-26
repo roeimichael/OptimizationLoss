@@ -14,6 +14,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from scipy import stats
 
 sys.path.insert(0, str(Path(sys.argv[0]).resolve().parent))
 from tralo.global_clipper import allocate  # noqa: E402
@@ -48,7 +49,7 @@ def main():
             out = []
             for key in ('B', 'A'):
                 diff = np.array(table[(arm, key, e)]) - np.array(table[('tralo_null', key, e)])
-                h = 1.96 * diff.std(ddof=1) / np.sqrt(n)
+                h = stats.t.ppf(.975, n - 1) * diff.std(ddof=1) / np.sqrt(n)
                 out.append('%s %+5.2f [%+5.2f,%+5.2f]' % (key, diff.mean(), diff.mean() - h, diff.mean() + h))
             step = np.array(table[(arm, 'A', e)]) - np.array(table[(arm, 'B', e)])
             out.append('own step %+5.2f' % step.mean())

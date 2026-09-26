@@ -1,0 +1,55 @@
+complete seeds: 24  [3001, 3002, 3003, 3004, 3005, 3006, 3007, 3008, 3009, 3010, 3011, 3012, 3013, 3014, 3015, 3016, 3017, 3018, 3019, 3020, 3021, 3022, 3023, 3024]
+
+INTEGRITY (per seed)
+  seed=3001 matched=True task_updates=True null_first_hard=62 target_steps=3 sham_steps=3 target_lands=True sham_triggers=True first_radius_equal=True target_radii=[0.0, 0.0, 0.00098, 0.01573, 0.00517] sham_radii=[0.0, 0.0, 0.00098, 0.01465, 0.00314] sham_hard=[(62, None), (75, None), (86, 86), (143, 144), (92, 92)]
+  seed=3002 matched=True task_updates=True null_first_hard=141 target_steps=4 sham_steps=5 target_lands=True sham_triggers=True first_radius_equal=True target_radii=[0.0148, 0.00294, 0.00416, 0.00199, 0.0] sham_radii=[0.0148, 0.00413, 0.003, 0.00539, 0.0073] sham_hard=[(141, 139), (97, 95), (90, 90), (106, 106), (103, 102)]
+  seed=3003 matched=True task_updates=True null_first_hard=102 target_steps=5 sham_steps=5 target_lands=True sham_triggers=True first_radius_equal=True target_radii=[0.00582, 0.00394, 0.00583, 0.00996, 0.01198] sham_radii=[0.00582, 0.00378, 0.00283, 0.00421, 0.01268] sham_hard=[(102, 105), (90, 89), (88, 87), (101, 101), (121, 121)]
+  seed=3004 matched=True task_updates=True null_first_hard=136 target_steps=3 sham_steps=3 target_lands=True sham_triggers=True first_radius_equal=True target_radii=[0.0178, 0.0, 0.00703, 0.0, 0.00911] sham_radii=[0.0178, 0.00316, 0.0, 0.0, 0.01051] sham_hard=[(136, 135), (84, 84), (75, None), (68, None), (118, 117)]
+  seed=3005 matched=True task_updates=True null_first_hard=103 target_steps=5 sham_steps=5 target_lands=True sham_triggers=True first_radius_equal=True target_radii=[0.00516, 0.00199, 0.00512, 0.0115, 0.00767] sham_radii=[0.00516, 0.00516, 0.01001, 0.0008, 0.00558] sham_hard=[(103, 102), (101, 101), (108, 108), (82, 82), (114, 113)]
+  seed=3006 matched=True task_updates=True null_first_hard=82 target_steps=5 sham_steps=5 target_lands=True sham_triggers=True first_radius_equal=True target_radii=[0.00123, 0.00901, 0.00287, 0.00022, 0.01544] sham_radii=[0.00123, 0.00895, 0.00138, 0.00555, 0.01293] sham_hard=[(82, 82), (109, 108), (83, 83), (95, 95), (133, 134)]
+  seed=3007 matched=True task_updates=True null_first_hard=97 target_steps=5 sham_steps=5 target_lands=True sham_triggers=True first_radius_equal=True target_radii=[0.00515, 0.00644, 0.00702, 0.00539, 0.00108] sham_radii=[0.00515, 0.00665, 0.00635, 0.0042, 0.00197] sham_hard=[(97, 97), (114, 114), (112, 112), (93, 93), (86, 86)]
+  seed=3008 matched=True task_updates=True null_first_hard=101 target_steps=5 sham_steps=5 target_lands=True sham_triggers=True first_radius_equal=True target_radii=[0.00512, 0.00348, 0.00214, 0.00269, 0.01042] sham_radii=[0.00512, 0.00137, 0.00098, 0.00927, 0.00937] sham_hard=[(101, 100), (85, 84), (83, 82), (103, 104), (117, 116)]
+  seed=3009 matched=True task_updates=True null_first_hard=83 target_steps=5 sham_steps=3 target_lands=True sham_triggers=True first_radius_equal=True target_radii=[0.00175, 0.00071, 0.00621, 0.00436, 0.0006] sham_radii=[0.00175, 0.00127, 0.00305, 0.0, 0.0] sham_hard=[(83, 83), (86, 86), (96, 97), (62, None), (71, None)]
+  seed=3010 matched=True task_updates=True null_first_hard=83 target_steps=5 sham_steps=5 target_lands=True sham_triggers=True first_radius_equal=True target_radii=[0.00197, 0.00177, 0.0099, 0.0098, 0.01279] sham_radii=[0.00197, 0.00174, 0.00845, 0.00574, 0.00816] sham_hard=[(83, 83), (84, 84), (114, 118), (103, 102), (114, 113)]
+  seed=3011 matched=True task_updates=True null_first_hard=101 target_steps=4 sham_steps=3 target_lands=True sham_triggers=True first_radius_equal=True target_radii=[0.00426, 0.0, 0.00194, 0.00892, 0.00219] sham_radii=[0.00426, 0.0, 0.0, 0.00276, 0.0] sham_hard=[(101, 101), (69, None), (77, 77), (93, 94), (70, None)]
+  seed=3012 matched=True task_updates=True null_first_hard=70 target_steps=4 sham_steps=4 target_lands=True sham_triggers=True first_radius_equal=True target_radii=[0.0, 0.00844, 0.01186, 0.00084, 0.00162] sham_radii=[0.0, 0.00844, 0.01167, 0.00011, 0.00434] sham_hard=[(70, None), (120, 120), (130, 131), (77, 77), (97, 96)]
+  seed=3013 matched=True task_updates=True null_first_hard=94 target_steps=4 sham_steps=5 target_lands=True sham_triggers=True first_radius_equal=True target_radii=[0.00562, 0.0, 0.00773, 0.00102, 0.00629] sham_radii=[0.00562, 0.00281, 0.00661, 0.00479, 0.00477] sham_hard=[(94, 93), (86, 86), (98, 97), (96, 97), (104, 104)]
+  seed=3014 matched=True task_updates=True null_first_hard=98 target_steps=5 sham_steps=4 target_lands=True sham_triggers=True first_radius_equal=True target_radii=[0.0054, 0.00552, 0.0068, 0.00072, 0.00193] sham_radii=[0.0054, 0.00624, 0.00562, 0.00602, 0.0] sham_hard=[(98, 98), (99, 99), (106, 106), (112, 112), (74, None)]
+  seed=3015 matched=True task_updates=True null_first_hard=96 target_steps=5 sham_steps=5 target_lands=True sham_triggers=True first_radius_equal=True target_radii=[0.0042, 0.00261, 0.00295, 0.00802, 0.01001] sham_radii=[0.0042, 0.00326, 0.00383, 0.00264, 0.01624] sham_hard=[(96, 96), (86, 85), (95, 96), (94, 94), (144, 144)]
+  seed=3016 matched=True task_updates=True null_first_hard=81 target_steps=5 sham_steps=4 target_lands=True sham_triggers=True first_radius_equal=True target_radii=[0.00098, 0.00916, 0.00757, 0.00753, 0.0001] sham_radii=[0.00098, 0.00832, 0.00922, 0.00602, 0.0] sham_hard=[(81, 81), (109, 108), (115, 114), (106, 106), (75, None)]
+  seed=3017 matched=True task_updates=True null_first_hard=121 target_steps=5 sham_steps=5 target_lands=True sham_triggers=True first_radius_equal=True target_radii=[0.00944, 0.00567, 0.01028, 0.00319, 0.00111] sham_radii=[0.00944, 0.00551, 0.00897, 0.00578, 0.00227] sham_hard=[(121, 121), (99, 98), (120, 120), (99, 98), (85, 85)]
+  seed=3018 matched=True task_updates=True null_first_hard=98 target_steps=5 sham_steps=5 target_lands=True sham_triggers=True first_radius_equal=True target_radii=[0.00503, 0.00575, 0.00017, 0.00617, 0.00311] sham_radii=[0.00503, 0.00516, 6e-05, 0.00681, 0.00732] sham_hard=[(98, 99), (103, 101), (77, 77), (105, 105), (106, 106)]
+  seed=3019 matched=True task_updates=True null_first_hard=126 target_steps=4 sham_steps=5 target_lands=True sham_triggers=True first_radius_equal=True target_radii=[0.01123, 0.01112, 0.00241, 0.00454, 0.0] sham_radii=[0.01123, 0.01427, 0.00537, 0.00321, 0.0069] sham_hard=[(126, 126), (118, 118), (99, 98), (97, 97), (102, 102)]
+  seed=3020 matched=True task_updates=True null_first_hard=83 target_steps=5 sham_steps=5 target_lands=True sham_triggers=True first_radius_equal=True target_radii=[0.00043, 0.00704, 0.00403, 0.00639, 0.00842] sham_radii=[0.00043, 0.00584, 0.00719, 0.00734, 0.00767] sham_hard=[(83, 82), (100, 99), (113, 114), (108, 110), (112, 112)]
+  seed=3021 matched=True task_updates=True null_first_hard=57 target_steps=4 sham_steps=4 target_lands=True sham_triggers=True first_radius_equal=True target_radii=[0.0, 0.00245, 0.00609, 0.00081, 0.00464] sham_radii=[0.0, 0.00245, 0.00954, 0.00289, 0.00285] sham_hard=[(57, None), (93, 93), (107, 108), (84, 84), (90, 90)]
+  seed=3022 matched=True task_updates=True null_first_hard=102 target_steps=5 sham_steps=5 target_lands=True sham_triggers=True first_radius_equal=True target_radii=[0.00586, 0.00444, 0.006, 0.00295, 0.00847] sham_radii=[0.00586, 0.00506, 0.0029, 0.00096, 0.00635] sham_hard=[(102, 103), (98, 98), (95, 95), (78, 78), (104, 105)]
+  seed=3023 matched=True task_updates=True null_first_hard=53 target_steps=4 sham_steps=3 target_lands=True sham_triggers=True first_radius_equal=True target_radii=[0.0, 0.00189, 0.01641, 0.00149, 0.00976] sham_radii=[0.0, 0.00189, 0.01444, 0.0, 0.01927] sham_hard=[(53, None), (89, 88), (138, 132), (75, None), (178, 181)]
+  seed=3024 matched=True task_updates=True null_first_hard=69 target_steps=4 sham_steps=4 target_lands=True sham_triggers=True first_radius_equal=True target_radii=[0.0, 0.00437, 0.00212, 0.0025, 0.00844] sham_radii=[0.0, 0.00437, 0.00301, 0.00308, 0.0047] sham_hard=[(69, None), (103, 102), (89, 90), (93, 93), (103, 103)]
+
+ARM MEANS (grade-3 F1: capped_first / raw)
+  clipper       64.70 (sd 3.64)  raw  66.62
+  tralo_null    64.65 (sd 3.27)  raw  66.83
+  tralo_adam    64.93 (sd 3.59)  raw  59.54
+  tralo_target  66.16 (sd 2.02)  raw  66.02
+  sham_target   64.70 (sd 3.10)  raw  66.98
+
+PRIMARY (Holm over C1, C2) -- capped_first grade-3 F1, points; correct slots of 76
+  C1 tralo_target - tralo_null     +1.51 [ +0.40,  +2.62]  p=0.0098  Holm=0.0155  W/T/L 15/3/6 | slots +1.38 [+0.36, +2.39]
+  C2 tralo_target - sham_target    +1.47 [ +0.43,  +2.50]  p=0.0078  Holm=0.0155  W/T/L 16/2/6 | slots +1.33 [+0.39, +2.28]
+
+RAW (unallocated) grade-3 F1, secondary
+  C1 tralo_target - tralo_null     -0.81 [ -2.25,  +0.64]  p=0.2611
+  C2 tralo_target - sham_target    -0.96 [ -2.41,  +0.50]  p=0.1871
+
+SECONDARY (t intervals, not in the family)
+  tralo_adam   - tralo_null     +0.27 [ -1.65,  +2.20]  p=0.7701  W/T/L 11/3/10
+  sham_target  - tralo_null     +0.05 [ -1.34,  +1.43]  p=0.9461  W/T/L 9/6/9
+  clipper      - tralo_null     +0.05 [ -1.51,  +1.60]  p=0.9518  W/T/L 13/0/11
+  tralo_target - tralo_adam     +1.24 [ -0.42,  +2.89]  p=0.1360  W/T/L 15/3/6
+
+SLOT TURNOVER vs the null (same seed), against the null reseed floor
+  reseed floor (null s vs null s'): 0.287
+  clipper      0.167  (0.58x floor)
+  tralo_adam   0.185  (0.64x floor)
+  tralo_target 0.172  (0.60x floor)
+  sham_target  0.153  (0.53x floor)

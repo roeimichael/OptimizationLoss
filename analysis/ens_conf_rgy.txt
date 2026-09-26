@@ -1,0 +1,6 @@
+seeds 24 (cap 76): [3101, 3102, 3103, 3104, 3105, 3106, 3107, 3108, 3109, 3110, 3111, 3112, 3113, 3114, 3115, 3116, 3117, 3118, 3119, 3120, 3121, 3122, 3123, 3124]
+  clipper            ENS-BASE +1.79 [+1.04, +2.54] slots  p=0.0001  W/T/L 18/3/3  PRIMARY Holm=0.0001
+  tralo_null         ENS-BASE +2.08 [+0.89, +3.28] slots  p=0.0015  W/T/L 15/3/6  PRIMARY Holm=0.0015
+  tralo_adam         ENS-BASE +3.21 [+1.45, +4.96] slots  p=0.0010  W/T/L 18/2/4  secondary
+  tralo_target       ENS-BASE +2.12 [+0.96, +3.29] slots  p=0.0010  W/T/L 17/2/5  secondary
+  sham_target        ENS-BASE +2.21 [+0.98, +3.43] slots  p=0.0011  W/T/L 17/3/4  secondary
