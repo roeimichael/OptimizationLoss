@@ -121,7 +121,7 @@ All live work is on **dsisco01**, under `~/tralo-rebuild/runs/`. Releases are im
 |---|---|---|---|---|
 | `claude-bandcons-a1cap50` (BANDCONS, cap 50, deviation D-A1) | c5634488 | 2401-2424 | **DONE, scored**: reading 4, the term damages (-3.47 F1 vs null), placement null; snapshot ensemble CONFIRMED on these seeds | `experiments/claude_bandcons_cap50_result_20260926.md` |
 | `claude-step-probe-20260926` (targeted step at depths f) | e7e02085 | 2601-2624 | **DONE, scored**: no depth helps; deeper pushes cost slots (LEDGER #10) | `experiments/claude_step_probe_20260926_result.md` |
-| `claude-cutpair-cap76` (CUTPAIR, cap 76) | 6fb21e48 | 2701-2724 | launched 12:42; the pilot 2700 passed its gate | `analysis/score_cutpair.py` under amendment 1, then the snapshot-ensemble prereg |
+| `claude-cutpair-cap76` (CUTPAIR, cap 76) | 6fb21e48 | 2701-2724 | **DONE, scored**: the hinge adds nothing over aug_clip (-0.00 [-0.92, +0.92]); +3.0 over the clipper is the augmentation; ensemble confirmed (set 2) | `experiments/claude_cutpair_cap76_result_20260926.md` |
 
 The BANDCONS cap-76 block (2501-2524) is NOT run: it existed to replicate a positive result, and cap 50 was a significant harm.
 
