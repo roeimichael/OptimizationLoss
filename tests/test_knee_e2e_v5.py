@@ -230,3 +230,68 @@ def test_batchnorm_sees_exactly_one_train_mode_forward_per_batch_in_every_augmen
         model[1].register_forward_pre_hook(lambda module, args: calls.append(module.training))
         out = train_one(model, train, val, CONFIG, arm, lambda row: None, lambda *a: None)
         assert sum(calls) == out['task_updates_applied'] == 4 * 5
+
+
+def test_cutpair_without_a_hinge_is_bit_identical_to_aug_clip(results, monkeypatch):
+    """Pins the shared augmentation schedule, generator (seed+11) and the CE fallback of the dose rule."""
+    monkeypatch.setattr(v5, 'cut_hinge', lambda *args: None)
+    base = results['aug_clip']['result']
+    for arm in CUTPAIR:
+        out = run_arm(arm)['result']
+        assert torch.equal(out['final_probabilities'], base['final_probabilities'])
+        assert torch.equal(out['tta_probabilities'], base['tta_probabilities'])
+        assert (out['warmup_sha256'], out['batch_sha256']) == (base['warmup_sha256'], base['batch_sha256'])
+        assert all(log['active_batches'] == log['dosed_batches'] == 0 for log in out['cut_logs'])
+
+
+def test_batch_masks_are_the_bank_masks_at_the_shuffled_training_indices(monkeypatch):
+    banks, masks = [], []
+    real_sets, real_hinge = v5.active_sets, v5.cut_hinge
+
+    def sets_spy(s, y, tau):
+        out = real_sets(s, y, tau)
+        banks.append(out)
+        return out
+
+    def hinge_spy(s, neg, pos, tau):
+        masks.append((neg.clone(), pos.clone()))
+        return real_hinge(s, neg, pos, tau)
+    monkeypatch.setattr(v5, 'active_sets', sets_spy)
+    monkeypatch.setattr(v5, 'cut_hinge', hinge_spy)
+    run_arm('cutpair_aug')
+    g = torch.Generator().manual_seed(CONFIG['seed'] + 1)
+    orders = [torch.randperm(40, generator=g) for _ in range(CONFIG['epochs'])][CONFIG['warmup_epochs']:]
+    assert len(banks) == len(orders) == 2 and len(masks) == 2 * 5
+    for e, (order, (neg, pos)) in enumerate(zip(orders, banks)):
+        assert not torch.equal(order, torch.arange(40))
+        for b, start in enumerate(range(0, 40, CONFIG['batch_size'])):
+            index = order[start:start + CONFIG['batch_size']]
+            got_neg, got_pos = masks[e * 5 + b]
+            assert torch.equal(got_neg, neg[index]) and torch.equal(got_pos, pos[index])
+        # the positional slice would be a different selection in this fixture
+        assert any(not torch.equal(neg[order[s:s + 8]], neg[s:s + 8]) for s in range(0, 40, 8))
+
+
+def test_logs_separate_active_from_dosed_batches_and_record_the_anchor_p3(results):
+    for arm in CUTPAIR:
+        v = results[arm]
+        for log in v['result']['cut_logs']:
+            probs = v['snaps'][(log['epoch'], 'before_constraint')]
+            assert log['anchor_p3'] == float(torch.sort(probs[:, 3].double(), descending=True).values[log['anchor_rank'] - 1])
+            assert abs(log['tau'] - math.log(log['anchor_p3'] / (1 - log['anchor_p3']))) < 1e-9
+            assert 0 < log['dosed_batches'] <= log['active_batches'] <= log['batches'] == 5
+
+
+def test_an_active_hinge_with_zero_gradient_is_counted_active_but_not_dosed(results, monkeypatch):
+    """With m > 0 an active item always has a positive hinge term, so active == dosed in practice;
+    the two counts must still be kept apart, and a zero-gradient hinge must fall back to CE exactly."""
+    real = v5.cut_hinge
+
+    def flat(s, neg, pos, tau):
+        loss = real(s, neg, pos, tau)
+        return None if loss is None else loss * 0.0
+    monkeypatch.setattr(v5, 'cut_hinge', flat)
+    out = run_arm('cutpair_aug')['result']
+    assert all(log['active_batches'] > 0 and log['dosed_batches'] == 0 and log['realised_ratio_mean'] is None
+               for log in out['cut_logs'])
+    assert torch.equal(out['final_probabilities'], results['aug_clip']['result']['final_probabilities'])

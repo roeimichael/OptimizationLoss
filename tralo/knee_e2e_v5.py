@@ -76,13 +76,16 @@ def validate(config):
         raise ValueError('invalid learning rate')
 
 
-def cut_logit(p3, rank):
-    """Logit of the rank-th largest p3 over ALL development items (capped_first's boundary at rank=cap)."""
+def rank_p3(p3, rank):
+    """The rank-th largest p3 over ALL development items (capped_first's boundary at rank=cap)."""
     import torch
     if not 1 <= rank <= len(p3):
         raise ValueError('anchor rank outside the cohort')
-    p = float(torch.sort(p3.double(), descending=True).values[rank - 1])
-    p = min(max(p, 1e-12), 1 - 1e-12)
+    return float(torch.sort(p3.double(), descending=True).values[rank - 1])
+
+
+def cut_logit(p3, rank):
+    p = min(max(rank_p3(p3, rank), 1e-12), 1 - 1e-12)
     return math.log(p / (1 - p))
 
 
@@ -175,7 +178,8 @@ def train_one(model, train_images, val_chunks, config, arm, emit, snapshot):
                 tau = cut_logit(current[:, 3], rank)
                 bank_s, bank_y = training_log_odds(model, train_images)
                 neg_act, pos_act = active_sets(bank_s, bank_y, tau)
-                row.update(anchor_rank=rank, tau=tau, n_act=int(neg_act.sum()), p_act=int(pos_act.sum()))
+                row.update(anchor_rank=rank, anchor_p3=rank_p3(current[:, 3], rank), tau=tau,
+                           n_act=int(neg_act.sum()), p_act=int(pos_act.sum()))
         order = torch.randperm(len(train_images), generator=generator)
         batch_hash.update(order.numpy().tobytes())
         model.train()
@@ -218,11 +222,14 @@ def train_one(model, train_images, val_chunks, config, arm, emit, snapshot):
                        soft_counts_after=current.sum(0).tolist())
             if hinge_on:
                 active = [d for d in doses if d['cut_grad_norm'] > 0]
-                row.update(active_batches=len(hinges), hinge_mean=_summary(hinges)[0], dose_ratio=DOSE_RATIO)
+                # active: >= 1 active item in the batch; dosed: the hinge gradient was nonzero and rescaled
+                row.update(active_batches=len(hinges), dosed_batches=len(active), batches=len(doses),
+                           hinge_mean=_summary(hinges)[0], dose_ratio=DOSE_RATIO)
                 for key in ('ce_grad_norm', 'cut_grad_norm', 'realised_ratio'):
                     row[key + '_mean'], row[key + '_max'] = _summary([d[key] for d in active])
                 cut_logs.append({k: row[k] for k in (
-                    'epoch', 'anchor_rank', 'tau', 'n_act', 'p_act', 'active_batches', 'hinge_mean', 'dose_ratio',
+                    'epoch', 'anchor_rank', 'anchor_p3', 'tau', 'n_act', 'p_act', 'active_batches', 'dosed_batches',
+                    'batches', 'hinge_mean', 'dose_ratio',
                     'ce_grad_norm_mean', 'ce_grad_norm_max', 'cut_grad_norm_mean', 'cut_grad_norm_max',
                     'realised_ratio_mean', 'realised_ratio_max')})
         emit(row)

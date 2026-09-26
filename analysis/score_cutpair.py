@@ -1,4 +1,4 @@
-"""Score the CUTPAIR study (tralo/knee_e2e_v5.py; seeds 2701-2724 at cap 76, pilot 2700 excluded by the caller).
+"""Score the CUTPAIR study (tralo/knee_e2e_v5.py; seeds 2701-2724 at cap 76; pilot 2700 is excluded here).
 
 python analysis/score_cutpair.py RUN_ROOT [--json OUT]
 
@@ -8,7 +8,8 @@ Primary: capped_first grade-3 F1 on CLEAN probabilities, Holm over P1-P3:
   P3 cutpair_aug - clipper            (the bar)
 Secondary: the same contrasts on TTA probabilities, tralo_null contrasts, the offline swap
 analysis vs aug_clip (development labels, after training), slot turnover, and integrity
-(hashes, task updates, dose ratio, active-set sizes).
+(hashes, task updates, dose ratio, active-set sizes), with a per-anchor-rank breakdown of the
+active sets. Any integrity violation in a loaded seed exits non-zero: nothing is scored on it.
 """
 import itertools
 import json
@@ -29,17 +30,34 @@ SECONDARY = [('cutpair_aug', 'tralo_null'), ('cutpair_aug_shift', 'tralo_null'),
 NULL = 'aug_clip'
 GRADE = 3
 RATIO = 0.1
+PILOT, STUDY_SEEDS, EXPECTED_UPDATES = 2700, range(2701, 2725), 1810
 
 
 def load(root):
     seeds, cap = {}, None
     for d in sorted(Path(root).glob('seed*')):
-        if not d.is_dir() or not (d / 'summary.json').exists():
+        if not d.is_dir():
+            continue
+        try:
+            seed = int(d.name[4:])
+        except ValueError:
+            print('skipped %s: not a seed directory' % d.name)
+            continue
+        if seed == PILOT:
+            print('skipped %s: the integrity pilot is not a study seed' % d.name)
+            continue
+        if seed not in STUDY_SEEDS:
+            print('skipped %s: outside the study block 2701-2724' % d.name)
+            continue
+        if not (d / 'summary.json').exists():
+            print('skipped %s: incomplete (no summary.json)' % d.name)
             continue
         summary = {r['arm']: r for r in json.loads((d / 'summary.json').read_text())}
         if set(summary) != set(ARMS):
+            print('skipped %s: incomplete arms %s' % (d.name, sorted(summary)))
             continue
-        c = json.loads((d / 'config.json').read_text())['caps'][GRADE]
+        config = json.loads((d / 'config.json').read_text())
+        c = config['caps'][GRADE]
         if cap is None:
             cap = c
         if c != cap:
@@ -56,7 +74,7 @@ def load(root):
                 row[view + '_slots'] = set(np.flatnonzero(pred == GRADE).tolist())
                 row[view + '_tp'] = int(((pred == GRADE) & (labels == GRADE)).sum())
             arms[arm] = row
-        seeds[int(d.name[4:])] = dict(arms=arms, labels=labels)
+        seeds[seed] = dict(arms=arms, labels=labels, epochs=config['epochs'])
     return seeds, cap
 
 
@@ -73,28 +91,68 @@ def integrity(seed, arms):
     ids = {(arms[x]['summary']['warmup_sha256'], arms[x]['summary']['batch_sha256'],
             arms[x]['summary']['tta_draws_sha256']) for x in ARMS}
     logs = {x: arms[x]['summary']['cut_logs'] for x in CUTPAIR}
-    dosed = [r for x in CUTPAIR for r in logs[x] if r['active_batches']]
+    dosed = [r for x in CUTPAIR for r in logs[x] if r['dosed_batches']]
     return dict(seed=seed, matched=len(ids) == 1,
                 updates=sorted({arms[x]['summary']['task_updates_applied'] for x in ARMS}),
-                dose_ok=all(abs(r['realised_ratio_mean'] - RATIO) < 1e-6 and abs(r['realised_ratio_max'] - RATIO) < 1e-6
-                            for r in dosed),
+                dose_ok=bool(dosed) and all(
+                    r['realised_ratio_mean'] is not None and r['realised_ratio_max'] is not None
+                    and abs(r['realised_ratio_mean'] - RATIO) < 1e-6 and abs(r['realised_ratio_max'] - RATIO) < 1e-6
+                    for r in dosed),
                 anchor_ranks={x: [r['anchor_rank'] for r in logs[x]] for x in CUTPAIR},
                 n_act={x: [r['n_act'] for r in logs[x]] for x in CUTPAIR},
                 p_act={x: [r['p_act'] for r in logs[x]] for x in CUTPAIR},
                 active_batches={x: [r['active_batches'] for r in logs[x]] for x in CUTPAIR},
+                dosed_batches={x: [r['dosed_batches'] for r in logs[x]] for x in CUTPAIR},
                 natural_counts={x: arms[x]['summary'].get('natural_counts_start') for x in ARMS})
+
+
+def by_rank(seeds):
+    """Active-set quantities per anchor rank (cutpair_aug: the cap; the shift arm: each side)."""
+    out = {}
+    for arm in CUTPAIR:
+        groups, sides = {}, {}
+        for s, v in sorted(seeds.items()):
+            for r in v['arms'][arm]['summary']['cut_logs']:
+                groups.setdefault(r['anchor_rank'], []).append(
+                    (r['n_act'], r['p_act'], r['active_batches'] / r['batches'], r['dosed_batches'] / r['batches']))
+                sides.setdefault(s, {}).setdefault(r['anchor_rank'], 0)
+                sides[s][r['anchor_rank']] += 1
+        out[arm] = dict(ranks={str(k): dict(epochs=len(g), mean_n_act=float(np.mean([x[0] for x in g])),
+                                            mean_p_act=float(np.mean([x[1] for x in g])),
+                                            active_batch_fraction=float(np.mean([x[2] for x in g])),
+                                            dosed_batch_fraction=float(np.mean([x[3] for x in g])))
+                               for k, g in sorted(groups.items())},
+                        epochs_per_rank_by_seed={str(s): {str(k): n for k, n in sorted(c.items())}
+                                                 for s, c in sides.items()})
+    return out
 
 
 def main():
     seeds, cap = load(sys.argv[1])
-    out = dict(n_seeds=len(seeds), seeds=sorted(seeds), cap=cap)
+    missing = [s for s in STUDY_SEEDS if s not in seeds]
+    out = dict(n_seeds=len(seeds), seeds=sorted(seeds), missing_seeds=missing, cap=cap)
     print('complete seeds: %d  cap %s  %s' % (len(seeds), cap, sorted(seeds)))
+    print('missing study seeds: %d  %s' % (len(missing), missing))
     if not seeds:
         return
     print('\nINTEGRITY')
     out['integrity'] = [integrity(s, seeds[s]['arms']) for s in sorted(seeds)]
     for row in out['integrity']:
         print('  ' + ' '.join('%s=%s' % kv for kv in row.items()))
+    bad = [r['seed'] for r in out['integrity']
+           if not r['matched'] or r['updates'] != [EXPECTED_UPDATES] or not r['dose_ok']]
+    if bad:
+        raise SystemExit('INTEGRITY FAILURE in seeds %s (hash mismatch, task updates != %d, or realised dose '
+                         'ratio != %s); nothing is scored' % (bad, EXPECTED_UPDATES, RATIO))
+    print('\nACTIVE SETS BY ANCHOR RANK')
+    out['by_rank'] = by_rank(seeds)
+    for arm, v in out['by_rank'].items():
+        for rank, q in v['ranks'].items():
+            print('  %-17s rank %4s  epochs %3d  N_act %7.1f  P_act %7.1f  active %.3f  dosed %.3f'
+                  % (arm, rank, q['epochs'], q['mean_n_act'], q['mean_p_act'], q['active_batch_fraction'],
+                     q['dosed_batch_fraction']))
+    print('  cutpair_aug_shift epochs per rank by seed: %s'
+          % out['by_rank']['cutpair_aug_shift']['epochs_per_rank_by_seed'])
     means = {x: np.mean([np.mean(r['n_act'][x]) for r in out['integrity']]) for x in CUTPAIR}
     pmeans = {x: np.mean([np.mean(r['p_act'][x]) for r in out['integrity']]) for x in CUTPAIR}
     print('  mean N_act %s  mean P_act %s' % (means, pmeans))
