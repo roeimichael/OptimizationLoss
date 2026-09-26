@@ -120,7 +120,7 @@ All live work is on **dsisco01**, under `~/tralo-rebuild/runs/`. Releases are im
 | run | release | seeds | state | scored by |
 |---|---|---|---|---|
 | `claude-bandcons-a1cap50` (BANDCONS, cap 50, deviation D-A1) | c5634488 | 2401-2424 | 5/24 | `analysis/score_bandcons.py`, then the snapshot-ensemble prereg |
-| `claude-step-probe-20260926` (targeted step at depths f) | e7e02085 | 2601-2624 | 12/24 | `analysis/score_step_probe.py` (fixed 615d55eb) under amendment 1 |
+| `claude-step-probe-20260926` (targeted step at depths f) | e7e02085 | 2601-2624 | **DONE, scored**: no depth helps; deeper pushes cost slots (LEDGER #10) | `experiments/claude_step_probe_20260926_result.md` |
 | `claude-cutpair-cap76` (CUTPAIR, cap 76) | 6fb21e48 | 2701-2724 | launched 12:42; the pilot 2700 passed its gate | `analysis/score_cutpair.py` under amendment 1, then the snapshot-ensemble prereg |
 
 Queued: the BANDCONS cap-76 block (2501-2524). It is decided after the cap-50 result.
