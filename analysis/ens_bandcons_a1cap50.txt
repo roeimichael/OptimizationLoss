@@ -1,0 +1,7 @@
+seeds 24 (cap 50): [2401, 2402, 2403, 2404, 2405, 2406, 2407, 2408, 2409, 2410, 2411, 2412, 2413, 2414, 2415, 2416, 2417, 2418, 2419, 2420, 2421, 2422, 2423, 2424]
+  clipper            ENS-BASE +1.62 [+0.53, +2.72] slots  p=0.0055  W/T/L 18/1/5  PRIMARY Holm=0.0111
+  tralo_null         ENS-BASE +0.96 [+0.02, +1.89] slots  p=0.0451  W/T/L 14/5/5  PRIMARY Holm=0.0451
+  aug_clip           ENS-BASE +1.58 [+0.60, +2.56] slots  p=0.0028  W/T/L 16/3/5  secondary
+  bandcons           ENS-BASE +2.71 [+1.25, +4.17] slots  p=0.0008  W/T/L 18/1/5  secondary
+  bandcons_unc       ENS-BASE +2.96 [+1.42, +4.50] slots  p=0.0006  W/T/L 18/3/3  secondary
+  bandcons_rand      ENS-BASE +2.79 [+1.84, +3.74] slots  p=0.0000  W/T/L 19/3/2  secondary

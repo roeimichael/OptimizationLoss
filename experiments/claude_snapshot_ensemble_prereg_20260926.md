@@ -34,3 +34,26 @@ These sets are fixed. Each is scored only after its own preregistered primary an
 
 - **ENS - BASE > 0, Holm-significant for both arms in set 1:** confirmed. The post-hoc bar rises to "clipper on the snapshot ensemble", and every TraLO comparison must be made at equal ensembling (ENS vs ENS). The practical lever at the cut is variance of p3, not the constraint direction.
 - **Null or negative:** the post-hoc finding does not replicate and is recorded as not confirmed.
+
+## RESULT, set 1 (BANDCONS 2401-2424, cap 50), scored 2026-09-26 after the BANDCONS primary write-up
+
+Scorer: `analysis/score_snapshot_ensemble.py`, which reproduced the exploratory numbers exactly
+before use. Raw output: `analysis/ens_bandcons_a1cap50.txt`.
+
+| arm | ENS - BASE, correct slots | p | Holm | W/T/L |
+|---|---|---|---|---|
+| clipper (primary) | **+1.62 [+0.53, +2.72]** | 0.006 | **0.011** | 18/1/5 |
+| tralo_null (primary) | **+0.96 [+0.02, +1.89]** | 0.045 | **0.045** | 14/5/5 |
+| aug_clip | +1.58 [+0.60, +2.56] | 0.003 | | 16/3/5 |
+| bandcons | +2.71 [+1.25, +4.17] | 0.0008 | | 18/1/5 |
+| bandcons_unc | +2.96 [+1.42, +4.50] | 0.0006 | | 18/3/3 |
+| bandcons_rand | +2.79 [+1.84, +3.74] | <1e-4 | | 19/3/2 |
+
+**Reading: CONFIRMED.** Both primaries are positive and Holm-significant on seeds the rule had never seen.
+
+- **The effect shrinks** from the exploratory +2.0 to +2.5 slots at cap 50 to +1.0 to +1.6 slots,
+  which is 1.2 to 2.1 F1 points at cap 50.
+- **The post-hoc bar is now "clipper on the snapshot ensemble".** Every TraLO comparison is to be made
+  ENS vs ENS.
+
+Set 2 (CUTPAIR 2701-2724) is scored after the CUTPAIR primary write-up.
