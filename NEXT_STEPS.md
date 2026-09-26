@@ -34,9 +34,11 @@ at all 40 planned ranking opportunities, unlike the earlier occupancy term,
 but rank-only capped-first grade-3 F1 was 65.66% versus phase Null 65.38% and
 Clipper 65.93%; rank-plus-count was 64.56%. Paired intervals include zero.
 The count component again strongly reduced raw grade-3 calls. Preserve these
-negative and mixed results. Next: compare logged ranking loss/gradient dose with
-saved development cutoff scores and slot transitions, then freeze an independent
-confirmation cohort/split and deployment utility before another method campaign.
+negative and mixed results. The offline cutoff audit in the result report found
+rank-only updates increased correct occupancy in 11/20 opportunities but also
+decreased it in 7/20; count-only decreased it in 12/20. These repeated events
+are not final gains. Next: freeze an independent confirmation cohort/split and
+deployment utility before another method campaign.
 Do not tune cap or step
 against the repeatedly inspected development split or use the untouched test
 split to choose a new term.
