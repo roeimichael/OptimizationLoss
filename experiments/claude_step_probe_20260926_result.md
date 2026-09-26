@@ -1,7 +1,7 @@
 # Step probe: result -- 2026-09-26
 
 - **Protocol:** `claude_step_probe_20260926.md` plus amendment 1, which fixed the primary tests before scoring.
-- **Scorer:** `analysis/score_step_probe.py` at 4b2 HEAD of the branch. Raw output is in `analysis/step_probe_score_20260926.txt`.
+- **Scorer:** `analysis/score_step_probe.py` at commit 797ac32a. Raw output is in `analysis/step_probe_score_20260926.txt`.
 - **Seeds:** 2601-2624, cap 50, release e7e02085.
 
 **Seed 2605 is excluded, per amendment 1.** At f = 1.0 its hard count was 43, already under the cap of 50, so the step was not applied. n = 23.
