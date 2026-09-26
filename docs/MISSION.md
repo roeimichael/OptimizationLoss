@@ -113,7 +113,7 @@ trade as a trade, and retract in place.**
 
 ---
 
-## RUN STATE -- checked 2026-09-26 15:20 IDT (server clock)
+## RUN STATE -- checked 2026-09-26 15:01 IDT (server clock)
 
 All live work is on **dsisco01**, under `~/tralo-rebuild/runs/`. Releases are immutable clones by SHA in `~/tralo-rebuild/releases/`, and the code is on branch `claude/bandcons-20260926`. dsisco02 is fully held by another user. All four dsisco01 GPUs are ours only.
 
