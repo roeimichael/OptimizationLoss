@@ -33,6 +33,7 @@ from .knee_experiment import cuda_setup, digest, save, source
 from .targeted_step import targeted_step
 
 ARMS = ('clipper', 'tralo_null', 'tralo_adam', 'tralo_target', 'sham_target')
+CUDA_RNG_OFFSET = 31
 CONSTRAINED = ('tralo_adam', 'tralo_target', 'sham_target')
 TARGETED = ('tralo_target', 'sham_target')
 # preregistered seed block -> grade-3 cap (v3: 76; v3b deeper cut: 50)
@@ -251,6 +252,9 @@ def run(data_root, config_path, output, arms=ARMS):
                 model = copy.deepcopy(base).cuda()
                 if _state_hash(model) != initial_sha:
                     raise RuntimeError('arm initialization differs')
+                # Every arm starts from the same CUDA RNG state, so a backbone with dropout
+                # (MobileNetV3) draws the same masks in every arm. ResNet18 draws nothing from it.
+                torch.cuda.manual_seed_all(config['seed'] + CUDA_RNG_OFFSET)
                 snapshots = []
 
                 def snapshot(epoch, phase, values):

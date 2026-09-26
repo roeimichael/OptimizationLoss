@@ -86,3 +86,23 @@ moves between epochs, so the first check is the wrong test of whether the cap bi
 - The number of checks with hard count > 76 is reported for each pilot.
 
 Everything else is unchanged. Checker: `analysis/repl_pilot_gate.py`.
+
+## Amendment 2 (2026-09-26, after pilot 3000 failed; no study seed has run)
+
+**What failed.** Pilot 3000 (MobileNetV3) failed its integrity check. The runner stopped itself
+('warmup or batch identity differs across matched arms'). The batch hash matched, but the warm-up
+hashes and the epoch-1 CE differ in all five arms.
+
+**Cause.** v3 seeds the global RNG once per run, not once per arm. MobileNetV3's classifier dropout
+draws from the CUDA RNG, so each arm continued the previous arm's generator. ResNet18 and RegNetY have
+no dropout and draw nothing from it, which is why this never showed before.
+
+**Fix.** `torch.cuda.manual_seed_all(seed + 31)` at the start of every arm.
+
+**Verification**, before the study:
+- **The ResNet18 default is unchanged.** Re-run a stored ResNet18 seed (1801) on the fixed release;
+  every final probability tensor must be byte-identical to the stored run.
+- **The pilot re-runs cleanly.** Re-run pilot 3000 into a new root (`claude-repl-pilot2`). The failed
+  run stays in `claude-repl-pilot` as evidence.
+- **RegNetY.** If pilot 3100 (old release) passes, its block runs on the fixed release; for a model
+  with no dropout the two are identical.
