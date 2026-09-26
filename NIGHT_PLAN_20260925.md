@@ -39,13 +39,18 @@ scratchpad/runs (sweep 384 fits, ALM 48, anchor/far-error 40 -- all with per-sam
    C1 target-null +0.96 [-0.96,+2.88]; C2 target-sham +0.14 [-1.21,+1.48]; target-adam
    +2.98 [+1.24,+4.71] (the published damage is the dose).
    (experiments/claude_targeted_step_protocol_20260925_result.md)
-   v3b (cap 50, seeds 1901-1924): PREREGISTERED (experiments/claude_targeted_step_cap50_protocol_20260926.md),
-   release cd6a205a. Pilot 1901 PASSED 02:08 (23.6 min). Seeds LAUNCHED 02:09 via claude_target50_queue.sh:
-   1902-1906 gpu0, 1907-1912 gpu1, 1913-1918 gpu2, 1919-1924 gpu3. ETA ~04:35.
+   v3b (cap 50, seeds 1901-1924): DONE 04:35, READING 2 again -- C1 +0.96 [-0.87,+2.79],
+   C2 -0.75 [-2.45,+0.96]; step/post-hoc eviction overlap 87%.
+   (experiments/claude_targeted_step_cap50_protocol_20260926_result.md)
+   Recorded in main-repo LEDGER settled #9 and MISSION THE COURSE (pushed).
+   GPUs deliberately left idle after 04:35: both preregistered questions are answered, and the
+   next direction (local/group caps, or score-improving methods) changes the scientific question,
+   which is the user's call.
 6. ALSO: score the unread augfin_a/augfin_b campaign on the MAIN branch
    (~/optloss-rank/augfin_*, 168 runs, pre-registered in docs/MISSION.md) once ssh is back.
    STATUS: DONE -- outcome 2 AMBIGUOUS (decisive +0.0011/+0.0033, t<1). Recorded in MISSION, pushed.
 7. MORNING REPORT for the user: verified / unverified / what ran / what is next.
+   STATUS: DONE -- MORNING_REPORT_20260926.md
 
 ## Rules that bite tonight
 - Never touch codex's worktree or its releases; never update a release in place.
