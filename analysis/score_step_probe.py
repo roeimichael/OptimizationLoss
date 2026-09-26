@@ -55,7 +55,7 @@ def main():
                 sham = rows_by[('sham', f)]
                 if not (r['applied'] and r['hard_after'] == r['target']):
                     bad.append((f, r['applied'], r['hard_after'], r['target']))
-                if not sham['applied'] or abs(sham['radius'] - r['radius']) > 1e-12:
+                elif not sham['applied'] or abs(sham['radius'] - r['radius']) > 1e-12:
                     raise ValueError('%s f=%s: sham radius differs from tralo' % (d.name, f))
         if bad:
             excluded.append((d.name, bad))
