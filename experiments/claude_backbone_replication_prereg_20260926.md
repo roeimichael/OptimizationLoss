@@ -106,3 +106,15 @@ no dropout and draw nothing from it, which is why this never showed before.
   run stays in `claude-repl-pilot` as evidence.
 - **RegNetY.** If pilot 3100 (old release) passes, its block runs on the fixed release; for a model
   with no dropout the two are identical.
+
+## Verification and pilots (2026-09-26 17:30 IDT)
+
+- **ResNet18 bit-identity.** Seed 1801 re-run on release 91bc190c: 55 of 55 probability files are
+  byte-identical to the stored study run. The fix changes nothing for ResNet18.
+- **Pilot 3000 (MobileNetV3, re-run in `claude-repl-pilot2`): gate PASS.** Hashes matched, 1810
+  updates, 5/5 steps applied (hard 87-121 -> 76), 19.5 min. The failed first run stays in
+  `claude-repl-pilot/seed3000`.
+- **Pilot 3100 (RegNetY, release 868f1a3f): gate PASS.** 4/5 steps applied (the 5th check sat at
+  exactly 76), 22.7 min.
+- **Study launched 17:34 IDT on release 91bc190c:** blocks `mn3` 3001-3024 and `rgy` 3101-3124,
+  2 queues per GPU on all four dsisco01 GPUs (ours only), 8/8 processes confirmed on GPU.
