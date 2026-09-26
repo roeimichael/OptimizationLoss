@@ -113,17 +113,17 @@ trade as a trade, and retract in place.**
 
 ---
 
-## RUN STATE -- checked 2026-09-26 12:45 IDT (server clock)
+## RUN STATE -- checked 2026-09-26 15:20 IDT (server clock)
 
 All live work is on **dsisco01**, under `~/tralo-rebuild/runs/`. Releases are immutable clones by SHA in `~/tralo-rebuild/releases/`, and the code is on branch `claude/bandcons-20260926`. dsisco02 is fully held by another user. All four dsisco01 GPUs are ours only.
 
 | run | release | seeds | state | scored by |
 |---|---|---|---|---|
-| `claude-bandcons-a1cap50` (BANDCONS, cap 50, deviation D-A1) | c5634488 | 2401-2424 | 5/24 | `analysis/score_bandcons.py`, then the snapshot-ensemble prereg |
+| `claude-bandcons-a1cap50` (BANDCONS, cap 50, deviation D-A1) | c5634488 | 2401-2424 | **DONE, scored**: reading 4, the term damages (-3.47 F1 vs null), placement null; snapshot ensemble CONFIRMED on these seeds | `experiments/claude_bandcons_cap50_result_20260926.md` |
 | `claude-step-probe-20260926` (targeted step at depths f) | e7e02085 | 2601-2624 | **DONE, scored**: no depth helps; deeper pushes cost slots (LEDGER #10) | `experiments/claude_step_probe_20260926_result.md` |
 | `claude-cutpair-cap76` (CUTPAIR, cap 76) | 6fb21e48 | 2701-2724 | launched 12:42; the pilot 2700 passed its gate | `analysis/score_cutpair.py` under amendment 1, then the snapshot-ensemble prereg |
 
-Queued: the BANDCONS cap-76 block (2501-2524). It is decided after the cap-50 result.
+The BANDCONS cap-76 block (2501-2524) is NOT run: it existed to replicate a positive result, and cap 50 was a significant harm.
 
 ## RUN STATE (superseded) -- checked 2026-09-16 22:57 IDT (server clock)
 
