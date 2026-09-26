@@ -72,3 +72,17 @@ Any failure stops that block and is recorded.
 - The natural grade-3 count at the first post-warm-up check exceeds 76. If the cap does not bind, the
   study cannot test the constraint on that backbone.
 - The seed finishes in at most 60 minutes.
+
+## Amendment 1 (2026-09-26 17:0x, both pilots still running, no pilot output read)
+
+The gate item "natural grade-3 count at the first post-warm-up check exceeds 76" is withdrawn. Tested
+on a valid seed of the original ResNet18 study (1801), it fails: the count there is exactly 76 at the
+first check. Yet the cap bound at 3 of 5 checks in that seed, and the step applied 3 times. The count
+moves between epochs, so the first check is the wrong test of whether the cap binds.
+
+**Replacement:**
+- `tralo_target` must apply at least one step, which is the original protocol's binding requirement
+  and is already a gate item.
+- The number of checks with hard count > 76 is reported for each pilot.
+
+Everything else is unchanged. Checker: `analysis/repl_pilot_gate.py`.
