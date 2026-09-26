@@ -21,6 +21,18 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from score_sham import holm, paired  # noqa: E402
 
+
+def ensemble_view(arm_dir, caps, ids, labels):
+    """Amendment 2: capped_first on the mean of the epoch 06-10 after_constraint dev snapshots."""
+    import torch
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from tralo.global_clipper import allocate
+    snaps = [torch.load(arm_dir / ('epoch%02d_after_constraint.pt' % e), weights_only=True).double() for e in range(6, 11)]
+    pred = np.array(allocate(torch.stack(snaps).mean(0).tolist(), caps, ids, 'capped_first'))
+    tp = int(((pred == GRADE) & (labels == GRADE)).sum())
+    fp, fn = int(((pred == GRADE) & (labels != GRADE)).sum()), int(((pred != GRADE) & (labels == GRADE)).sum())
+    return 100 * 2 * tp / (2 * tp + fp + fn)
+
 ARMS = ('clipper', 'tralo_null', 'aug_clip', 'cutpair_aug', 'cutpair_aug_shift')
 CUTPAIR = ('cutpair_aug', 'cutpair_aug_shift')
 PRIMARY = [('P1', 'cutpair_aug', 'cutpair_aug_shift'), ('P2', 'cutpair_aug', 'aug_clip'),
@@ -63,7 +75,9 @@ def load(root):
         if c != cap:
             raise ValueError('mixed caps under one run root')
         manifest = json.loads((d / 'manifest.json').read_text())
-        labels = np.array([r['label'] for r in manifest['rows'] if r['split'] == 'val'])
+        val_rows = [r for r in manifest['rows'] if r['split'] == 'val']
+        labels = np.array([r['label'] for r in val_rows])
+        ids = [r['sample_id'] for r in val_rows]
         arms = {}
         for arm in ARMS:
             row = dict(summary=summary[arm])
@@ -73,6 +87,7 @@ def load(root):
                 row[view] = 100 * rep['metrics']['cc_f1']
                 row[view + '_slots'] = set(np.flatnonzero(pred == GRADE).tolist())
                 row[view + '_tp'] = int(((pred == GRADE) & (labels == GRADE)).sum())
+            row['ens'] = ensemble_view(d / arm, config['caps'], ids, labels)
             arms[arm] = row
         seeds[seed] = dict(arms=arms, labels=labels, epochs=config['epochs'])
     return seeds, cap
@@ -169,6 +184,8 @@ def main():
     out['primary'] = table(seeds, PRIMARY, 'clean', True)
     print('\nSECONDARY: same contrasts on TTA probabilities')
     out['tta'] = table(seeds, PRIMARY, 'tta', False)
+    print('\nSECONDARY (amendment 2): P1-P3 on the snapshot ensemble, Holm over the three')
+    out['ens'] = table(seeds, [(n + '-ENS', a, b) for n, a, b in PRIMARY], 'ens', True)
     print('\nSECONDARY: tralo_null contrasts (clean)')
     out['secondary'] = table(seeds, [('S%d' % (k + 1), a, b) for k, (a, b) in enumerate(SECONDARY)], 'clean', False)
     print('\nSLOT SWAPS vs %s (offline, development labels): correct-direction fraction' % NULL)
