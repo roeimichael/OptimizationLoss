@@ -1,0 +1,70 @@
+complete seeds: 24  cap 50  [2401, 2402, 2403, 2404, 2405, 2406, 2407, 2408, 2409, 2410, 2411, 2412, 2413, 2414, 2415, 2416, 2417, 2418, 2419, 2420, 2421, 2422, 2423, 2424]
+
+INTEGRITY
+  seed=2401 matched=True updates=[1810] band_sizes_ok=True disagreement_epoch6=2.782442569732666 max_disagreement=3.612011671066284 dose_ok=True natural_counts={'clipper': [68, 45, 93, 98, 94], 'tralo_null': [68, 47, 92, 99, 73], 'aug_clip': [68, 22, 79, 58, 73], 'bandcons': [68, 3, 172, 154, 111], 'bandcons_unc': [68, 10, 160, 420, 89], 'bandcons_rand': [68, 14, 63, 383, 42]}
+  seed=2402 matched=True updates=[1810] band_sizes_ok=True disagreement_epoch6=2.187957286834717 max_disagreement=3.6429615020751953 dose_ok=True natural_counts={'clipper': [60, 130, 85, 102, 98], 'tralo_null': [60, 112, 105, 91, 64], 'aug_clip': [60, 81, 70, 71, 97], 'bandcons': [60, 42, 456, 4, 333], 'bandcons_unc': [60, 480, 54, 161, 96], 'bandcons_rand': [60, 95, 91, 51, 187]}
+  seed=2403 matched=True updates=[1810] band_sizes_ok=True disagreement_epoch6=1.8466987609863281 max_disagreement=3.8588273525238037 dose_ok=True natural_counts={'clipper': [77, 80, 90, 81, 92], 'tralo_null': [77, 82, 114, 62, 98], 'aug_clip': [77, 51, 79, 72, 110], 'bandcons': [77, 221, 136, 27, 547], 'bandcons_unc': [77, 26, 233, 37, 7], 'bandcons_rand': [77, 49, 186, 90, 90]}
+  seed=2404 matched=True updates=[1810] band_sizes_ok=True disagreement_epoch6=3.2616844177246094 max_disagreement=3.671487331390381 dose_ok=True natural_counts={'clipper': [101, 107, 93, 91, 87], 'tralo_null': [101, 102, 71, 105, 64], 'aug_clip': [101, 48, 95, 95, 66], 'bandcons': [101, 792, 103, 50, 16], 'bandcons_unc': [101, 60, 116, 656, 88], 'bandcons_rand': [101, 145, 115, 116, 50]}
+  seed=2405 matched=True updates=[1810] band_sizes_ok=True disagreement_epoch6=2.9460151195526123 max_disagreement=4.356328010559082 dose_ok=True natural_counts={'clipper': [72, 97, 138, 86, 89], 'tralo_null': [72, 81, 148, 62, 97], 'aug_clip': [72, 103, 85, 64, 86], 'bandcons': [72, 161, 432, 76, 102], 'bandcons_unc': [72, 600, 38, 172, 173], 'bandcons_rand': [72, 61, 176, 157, 37]}
+  seed=2406 matched=True updates=[1810] band_sizes_ok=True disagreement_epoch6=3.2739105224609375 max_disagreement=4.171088218688965 dose_ok=True natural_counts={'clipper': [84, 102, 95, 103, 93], 'tralo_null': [84, 98, 114, 105, 114], 'aug_clip': [84, 48, 110, 85, 75], 'bandcons': [84, 564, 62, 677, 60], 'bandcons_unc': [84, 164, 48, 61, 85], 'bandcons_rand': [84, 178, 41, 69, 268]}
+  seed=2407 matched=True updates=[1810] band_sizes_ok=True disagreement_epoch6=2.597416877746582 max_disagreement=3.5811967849731445 dose_ok=True natural_counts={'clipper': [80, 104, 102, 37, 82], 'tralo_null': [80, 91, 123, 83, 81], 'aug_clip': [80, 72, 68, 51, 75], 'bandcons': [80, 45, 45, 32, 100], 'bandcons_unc': [80, 75, 12, 69, 6], 'bandcons_rand': [80, 218, 56, 331, 108]}
+  seed=2408 matched=True updates=[1810] band_sizes_ok=True disagreement_epoch6=3.006199359893799 max_disagreement=4.173072338104248 dose_ok=True natural_counts={'clipper': [109, 75, 138, 92, 87], 'tralo_null': [109, 78, 83, 122, 74], 'aug_clip': [109, 65, 50, 55, 90], 'bandcons': [109, 25, 29, 67, 37], 'bandcons_unc': [109, 174, 31, 73, 173], 'bandcons_rand': [109, 58, 169, 55, 116]}
+  seed=2409 matched=True updates=[1810] band_sizes_ok=True disagreement_epoch6=1.5735931396484375 max_disagreement=5.570909023284912 dose_ok=True natural_counts={'clipper': [92, 94, 141, 107, 113], 'tralo_null': [92, 95, 130, 83, 79], 'aug_clip': [92, 50, 86, 40, 92], 'bandcons': [92, 78, 42, 144, 75], 'bandcons_unc': [92, 91, 31, 325, 60], 'bandcons_rand': [92, 77, 108, 149, 32]}
+  seed=2410 matched=True updates=[1810] band_sizes_ok=True disagreement_epoch6=1.9118560552597046 max_disagreement=4.221240997314453 dose_ok=True natural_counts={'clipper': [95, 85, 66, 127, 83], 'tralo_null': [95, 121, 51, 92, 90], 'aug_clip': [95, 97, 71, 104, 62], 'bandcons': [95, 36, 79, 20, 6], 'bandcons_unc': [95, 102, 41, 4, 179], 'bandcons_rand': [95, 170, 61, 149, 64]}
+  seed=2411 matched=True updates=[1810] band_sizes_ok=True disagreement_epoch6=1.8968093395233154 max_disagreement=5.73822546005249 dose_ok=True natural_counts={'clipper': [60, 70, 66, 59, 131], 'tralo_null': [60, 127, 90, 62, 73], 'aug_clip': [60, 62, 50, 93, 80], 'bandcons': [60, 43, 18, 214, 51], 'bandcons_unc': [60, 655, 53, 15, 25], 'bandcons_rand': [60, 145, 30, 340, 96]}
+  seed=2412 matched=True updates=[1810] band_sizes_ok=True disagreement_epoch6=1.82706618309021 max_disagreement=5.462893486022949 dose_ok=True natural_counts={'clipper': [78, 117, 85, 80, 102], 'tralo_null': [78, 71, 90, 54, 65], 'aug_clip': [78, 72, 64, 61, 40], 'bandcons': [78, 406, 32, 32, 116], 'bandcons_unc': [78, 205, 7, 89, 70], 'bandcons_rand': [78, 95, 149, 53, 51]}
+  seed=2413 matched=True updates=[1810] band_sizes_ok=True disagreement_epoch6=2.4834439754486084 max_disagreement=3.2644920349121094 dose_ok=True natural_counts={'clipper': [63, 109, 71, 70, 82], 'tralo_null': [63, 113, 60, 93, 89], 'aug_clip': [63, 119, 83, 65, 62], 'bandcons': [63, 125, 103, 57, 185], 'bandcons_unc': [63, 20, 2, 40, 95], 'bandcons_rand': [63, 139, 63, 68, 49]}
+  seed=2414 matched=True updates=[1810] band_sizes_ok=True disagreement_epoch6=2.0252456665039062 max_disagreement=4.847180366516113 dose_ok=True natural_counts={'clipper': [54, 107, 98, 109, 37], 'tralo_null': [54, 92, 98, 122, 87], 'aug_clip': [54, 47, 80, 91, 54], 'bandcons': [54, 548, 73, 72, 126], 'bandcons_unc': [54, 578, 40, 237, 16], 'bandcons_rand': [54, 48, 29, 9, 85]}
+  seed=2415 matched=True updates=[1810] band_sizes_ok=True disagreement_epoch6=3.0861709117889404 max_disagreement=5.628668785095215 dose_ok=True natural_counts={'clipper': [87, 113, 91, 82, 60], 'tralo_null': [87, 120, 77, 78, 80], 'aug_clip': [87, 97, 78, 63, 76], 'bandcons': [87, 46, 52, 75, 315], 'bandcons_unc': [87, 158, 23, 95, 58], 'bandcons_rand': [87, 43, 107, 160, 78]}
+  seed=2416 matched=True updates=[1810] band_sizes_ok=True disagreement_epoch6=2.7465624809265137 max_disagreement=4.362902641296387 dose_ok=True natural_counts={'clipper': [124, 83, 70, 84, 114], 'tralo_null': [124, 82, 87, 65, 143], 'aug_clip': [124, 44, 71, 47, 94], 'bandcons': [124, 307, 88, 23, 67], 'bandcons_unc': [124, 135, 637, 41, 58], 'bandcons_rand': [124, 109, 117, 66, 82]}
+  seed=2417 matched=True updates=[1810] band_sizes_ok=True disagreement_epoch6=2.574169158935547 max_disagreement=5.335755825042725 dose_ok=True natural_counts={'clipper': [76, 86, 85, 97, 103], 'tralo_null': [76, 91, 77, 91, 89], 'aug_clip': [76, 85, 51, 80, 68], 'bandcons': [76, 109, 143, 152, 83], 'bandcons_unc': [76, 5, 151, 388, 44], 'bandcons_rand': [76, 106, 65, 102, 66]}
+  seed=2418 matched=True updates=[1810] band_sizes_ok=True disagreement_epoch6=2.360743999481201 max_disagreement=5.087631702423096 dose_ok=True natural_counts={'clipper': [61, 91, 85, 83, 85], 'tralo_null': [61, 85, 90, 78, 100], 'aug_clip': [61, 99, 46, 51, 78], 'bandcons': [61, 36, 74, 45, 48], 'bandcons_unc': [61, 137, 120, 73, 108], 'bandcons_rand': [61, 90, 116, 43, 244]}
+  seed=2419 matched=True updates=[1810] band_sizes_ok=True disagreement_epoch6=2.4887542724609375 max_disagreement=5.1774001121521 dose_ok=True natural_counts={'clipper': [79, 75, 91, 72, 77], 'tralo_null': [79, 71, 122, 106, 88], 'aug_clip': [79, 60, 59, 66, 86], 'bandcons': [79, 36, 24, 191, 145], 'bandcons_unc': [79, 54, 59, 28, 196], 'bandcons_rand': [79, 51, 43, 69, 128]}
+  seed=2420 matched=True updates=[1810] band_sizes_ok=True disagreement_epoch6=2.070251941680908 max_disagreement=4.18226957321167 dose_ok=True natural_counts={'clipper': [73, 107, 83, 118, 122], 'tralo_null': [73, 98, 101, 85, 86], 'aug_clip': [73, 98, 82, 118, 86], 'bandcons': [73, 634, 19, 186, 39], 'bandcons_unc': [73, 618, 104, 52, 229], 'bandcons_rand': [73, 55, 84, 180, 111]}
+  seed=2421 matched=True updates=[1810] band_sizes_ok=True disagreement_epoch6=2.4855573177337646 max_disagreement=4.0927534103393555 dose_ok=True natural_counts={'clipper': [117, 85, 86, 95, 69], 'tralo_null': [117, 74, 121, 96, 95], 'aug_clip': [117, 85, 77, 73, 28], 'bandcons': [117, 321, 53, 44, 71], 'bandcons_unc': [117, 128, 36, 214, 38], 'bandcons_rand': [117, 41, 71, 138, 41]}
+  seed=2422 matched=True updates=[1810] band_sizes_ok=True disagreement_epoch6=2.416010618209839 max_disagreement=4.411170482635498 dose_ok=True natural_counts={'clipper': [69, 111, 60, 118, 91], 'tralo_null': [69, 97, 72, 97, 111], 'aug_clip': [69, 57, 50, 91, 67], 'bandcons': [69, 77, 368, 122, 39], 'bandcons_unc': [69, 456, 18, 193, 1], 'bandcons_rand': [69, 136, 14, 94, 64]}
+  seed=2423 matched=True updates=[1810] band_sizes_ok=True disagreement_epoch6=2.0697340965270996 max_disagreement=3.8334059715270996 dose_ok=True natural_counts={'clipper': [84, 105, 78, 109, 54], 'tralo_null': [84, 127, 63, 91, 74], 'aug_clip': [84, 83, 55, 71, 95], 'bandcons': [84, 155, 251, 25, 117], 'bandcons_unc': [84, 782, 53, 0, 69], 'bandcons_rand': [84, 116, 88, 140, 71]}
+  seed=2424 matched=True updates=[1810] band_sizes_ok=True disagreement_epoch6=2.420097589492798 max_disagreement=4.380460262298584 dose_ok=True natural_counts={'clipper': [87, 101, 91, 86, 96], 'tralo_null': [87, 124, 64, 54, 114], 'aug_clip': [87, 86, 54, 37, 55], 'bandcons': [87, 62, 109, 58, 155], 'bandcons_unc': [87, 47, 486, 27, 209], 'bandcons_rand': [87, 69, 132, 23, 151]}
+
+ARM MEANS (capped_first grade-3 F1: clean / tta)
+  clipper        55.72 (sd 2.51)  tta  55.24
+  tralo_null     57.21 (sd 3.02)  tta  54.91
+  aug_clip       56.62 (sd 3.06)  tta  56.78
+  bandcons       53.74 (sd 4.26)  tta  53.31
+  bandcons_unc   54.43 (sd 4.97)  tta  54.43
+  bandcons_rand  54.27 (sd 3.48)  tta  54.86
+
+PRIMARY (clean, Holm over B1-B4)
+  B1  bandcons      - bandcons_rand  -0.53 [ -2.59,  +1.52]  p=0.5962  Holm=1.0000  W/T/L 10/3/11
+  B2  bandcons      - bandcons_unc   -0.69 [ -3.44,  +2.05]  p=0.6059  Holm=1.0000  W/T/L 10/0/14
+  B3  bandcons      - tralo_null     -3.47 [ -5.38,  -1.56]  p=0.0010  Holm=0.0041  W/T/L 3/3/18
+  B4  bandcons      - aug_clip       -2.88 [ -5.03,  -0.74]  p=0.0105  Holm=0.0316  W/T/L 7/2/15
+
+SECONDARY: same contrasts on TTA probabilities
+  B1  bandcons      - bandcons_rand  -1.55 [ -3.52,  +0.42]  p=0.1171  Holm=nan  W/T/L 11/1/12
+  B2  bandcons      - bandcons_unc   -1.12 [ -3.48,  +1.24]  p=0.3354  Holm=nan  W/T/L 10/1/13
+  B3  bandcons      - tralo_null     -1.60 [ -3.99,  +0.79]  p=0.1788  Holm=nan  W/T/L 10/1/13
+  B4  bandcons      - aug_clip       -3.47 [ -5.26,  -1.68]  p=0.0005  Holm=nan  W/T/L 2/5/17
+
+SECONDARY: other clean contrasts
+  S1  aug_clip      - tralo_null     -0.59 [ -2.73,  +1.55]  p=0.5758  Holm=nan  W/T/L 9/3/12
+  S2  clipper       - tralo_null     -1.50 [ -3.27,  +0.28]  p=0.0947  Holm=nan  W/T/L 4/8/12
+  S3  bandcons_rand - tralo_null     -2.94 [ -5.09,  -0.78]  p=0.0097  Holm=nan  W/T/L 5/0/19
+  S4  bandcons_unc  - tralo_null     -2.78 [ -5.32,  -0.24]  p=0.0333  Holm=nan  W/T/L 7/1/16
+
+SECONDARY: bandcons_tta - clipper_tta
+   -1.92 [ -3.65,  -0.20]  p=0.0306
+
+SLOT SWAPS vs tralo_null (offline, development labels): correct-direction fraction
+  clipper       swapped 341 in / 341 out, 45.9% correct-direction, net correct slots -1.17
+  aug_clip      swapped 394 in / 394 out, 48.6% correct-direction, net correct slots -0.46
+  bandcons      swapped 384 in / 384 out, 41.5% correct-direction, net correct slots -2.71
+  bandcons_unc  swapped 394 in / 394 out, 43.4% correct-direction, net correct slots -2.17
+  bandcons_rand swapped 363 in / 363 out, 42.4% correct-direction, net correct slots -2.29
+
+SLOT TURNOVER vs null, reseed floor 0.329
+  clipper       0.284 (0.86x floor)
+  aug_clip      0.328 (1.00x floor)
+  bandcons      0.320 (0.97x floor)
+  bandcons_unc  0.328 (1.00x floor)
+  bandcons_rand 0.302 (0.92x floor)
