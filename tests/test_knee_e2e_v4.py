@@ -3,8 +3,9 @@ import copy
 import pytest
 import torch
 
-from tralo.band_consistency import band_indices, random_band
-from tralo.knee_e2e_v4 import ARMS, BANDCONS, U, half_width, train_one, validate
+import tralo.knee_e2e_v4 as v4
+from tralo.band_consistency import band_indices, consistency_loss, log_odds, random_band
+from tralo.knee_e2e_v4 import ARMS, BANDCONS, DOSE_RATIO, U, dual_backward, half_width, train_one, validate
 
 CAP = 12
 CONFIG = dict(seed=2001, epochs=4, warmup_epochs=2, batch_size=8, task_lr=1e-3,
@@ -113,10 +114,135 @@ def test_validate_rejects_seeds_and_caps_outside_the_v4_preregistration():
     validate(good)
     validate(dict(good, seed=2000))
     validate(dict(good, seed=2124, caps=[None, None, None, 76, None]))
+    validate(dict(good, seed=2400))
+    validate(dict(good, seed=2424))
+    validate(dict(good, seed=2501, caps=[None, None, None, 76, None]))
+    validate(dict(good, seed=2524, caps=[None, None, None, 76, None]))
     for bad in (dict(good, seed=1801), dict(good, seed=2025), dict(good, seed=2100),
+                dict(good, seed=2399), dict(good, seed=2425), dict(good, seed=2500), dict(good, seed=2525),
+                dict(good, seed=2400, caps=[None, None, None, 76, None]),
+                dict(good, seed=2412, caps=[None, None, None, 76, None]),
+                dict(good, seed=2501), dict(good, seed=2524),
                 dict(good, caps=[None, None, None, 76, None]),                 # cap 76 on a cap-50 seed
                 dict(good, seed=2000, caps=[None, None, None, 76, None]),
                 dict(good, seed=2101),                                          # cap 50 on a cap-76 seed
                 dict(good, extra=1)):
         with pytest.raises(ValueError):
             validate(bad)
+
+
+def _batch():
+    model, train, val = fixture()
+    images = torch.stack([x for x, _ in train[:8]])
+    labels = torch.tensor([y for _, y in train[:8]])
+    return model, images, labels, val[0][:U]
+
+
+def _flat_grads(model):
+    return torch.cat([p.grad.flatten() for p in model.parameters()])
+
+
+def test_dual_backward_matches_an_independent_autograd_reference():
+    model, images, labels, dev = _batch()
+    ref = copy.deepcopy(model)
+    model.train()
+    ce = torch.nn.functional.cross_entropy(model(images), labels)
+    _, dose = dual_backward(model, ce, lambda: consistency_loss(model, dev, torch.Generator().manual_seed(4)),
+                            DOSE_RATIO)
+    ref.train()
+    params = list(ref.parameters())
+    g_ce = torch.autograd.grad(torch.nn.functional.cross_entropy(ref(images), labels), params)
+    g = torch.Generator().manual_seed(4)
+    from tralo.band_consistency import strong_view, weak_view
+    weak, strong = weak_view(dev, g), strong_view(dev, g)
+    ref.eval()
+    z = log_odds(ref(torch.cat([weak, strong])))
+    g_cons = torch.autograd.grad(torch.nn.functional.smooth_l1_loss(z[U:], z[:U].detach(), beta=1.0), params)
+    a, b = torch.cat([x.flatten() for x in g_ce]).double(), torch.cat([x.flatten() for x in g_cons]).double()
+    assert float(b.norm()) > 0 and abs(float(a.norm()) / float(b.norm()) - 1) > 0.05   # the rescale is not a no-op
+    expected = a + DOSE_RATIO * (a.norm() / b.norm()) * b
+    assert torch.allclose(_flat_grads(model).double(), expected, rtol=1e-5, atol=1e-7)
+    assert abs(dose['realised_ratio'] - DOSE_RATIO) < 1e-6
+    assert abs(dose['ce_grad_norm'] - float(a.norm())) < 1e-5 * float(a.norm())
+    assert abs(dose['consistency_grad_norm'] - float(b.norm())) < 1e-5 * float(b.norm())
+
+
+def test_dual_backward_moves_batchnorm_statistics_only_through_the_ce_forward():
+    model, images, labels, dev = _batch()
+    ce_only = copy.deepcopy(model).train()
+    ce_only(images)
+    model.train()
+    ce = torch.nn.functional.cross_entropy(model(images), labels)
+    dual_backward(model, ce, lambda: consistency_loss(model, dev, torch.Generator().manual_seed(4)), DOSE_RATIO)
+    assert model.training
+    assert all(torch.equal(a, b) for a, b in zip(model.buffers(), ce_only.buffers()))
+
+
+def test_zero_consistency_gradient_falls_back_to_ce():
+    model, images, labels, _ = _batch()
+    ref = copy.deepcopy(model).train()
+    model.train()
+    ce = torch.nn.functional.cross_entropy(model(images), labels)
+    _, dose = dual_backward(model, ce, lambda: (model(images) * 0.0).sum(), DOSE_RATIO)
+    torch.nn.functional.cross_entropy(ref(images), labels).backward()
+    assert dose['consistency_grad_norm'] == 0.0 and dose['realised_ratio'] == 0.0
+    assert torch.equal(_flat_grads(model), _flat_grads(ref))
+
+
+def test_the_dose_rule_is_the_same_in_every_bandcons_arm(results):
+    for arm in BANDCONS:
+        r = results[arm]['result']
+        assert r['dose_ratio'] == DOSE_RATIO == 0.1
+        for log in r['band_logs']:
+            assert log['dose_ratio'] == DOSE_RATIO
+            assert abs(log['realised_ratio_mean'] - DOSE_RATIO) < 1e-6
+            assert abs(log['realised_ratio_max'] - DOSE_RATIO) < 1e-6
+            assert 0 < log['ce_grad_norm_mean'] <= log['ce_grad_norm_max']
+            assert 0 < log['consistency_grad_norm_mean'] <= log['consistency_grad_norm_max']
+    for arm in ('clipper', 'tralo_null', 'aug_clip'):
+        assert results[arm]['result']['dose_ratio'] is None
+
+
+def _refusing_runs(monkeypatch):
+    calls = []
+
+    def refuse(model, ce, consistency, ratio):
+        calls.append(1)
+        raise AssertionError('dual backward reached by a non-bandcons arm')
+    monkeypatch.setattr(v4, 'dual_backward', refuse)
+    out = {}
+    for arm in ('clipper', 'tralo_null', 'aug_clip'):
+        model, train, val = fixture()
+        out[arm] = train_one(copy.deepcopy(model), train, val, CONFIG, arm, lambda row: None, lambda *a: None)
+    return out, calls
+
+
+def test_non_bandcons_arms_never_reach_the_dual_backward(monkeypatch):
+    assert _refusing_runs(monkeypatch)[1] == []
+
+
+def test_non_bandcons_arms_are_unchanged_by_the_dose_rule(results, monkeypatch):
+    """With the dual backward made unreachable they reproduce the module run bit for bit."""
+    out, _ = _refusing_runs(monkeypatch)
+    for arm, r in out.items():
+        assert torch.equal(r['final_probabilities'], results[arm]['result']['final_probabilities'])
+        assert torch.equal(r['tta_probabilities'], results[arm]['result']['tta_probabilities'])
+
+
+def test_bandcons_takes_one_dual_backward_per_post_warmup_batch(monkeypatch):
+    calls = []
+
+    def spy(*args):
+        calls.append(1)
+        return dual_backward(*args)
+    monkeypatch.setattr(v4, 'dual_backward', spy)
+    model, train, val = fixture()
+    out = train_one(copy.deepcopy(model), train, val, CONFIG, 'bandcons', lambda row: None, lambda *a: None)
+    assert len(calls) == 2 * 5 and out['task_updates_applied'] == 4 * 5
+
+
+def test_every_arm_logs_the_natural_count_at_each_epoch_start(results):
+    for v in results.values():
+        counts = [r['natural_count'] for r in v['rows'][CONFIG['warmup_epochs']:]]
+        expected = [int((v['snaps'][(e, 'before_constraint')].argmax(1) == 3).sum()) for e in (3, 4)]
+        assert counts == expected == v['result']['natural_counts_start']
