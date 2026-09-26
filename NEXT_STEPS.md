@@ -43,6 +43,17 @@ Do not tune cap or step
 against the repeatedly inspected development split or use the untouched test
 split to choose a new term.
 
+The reviewable external-confirmation design is
+`experiments/most_external_confirmation_design_20260926.md`. It proposes a
+zero-shot evaluation of all four existing hard-pair seeds and their matched
+controls on one baseline knee per MOST patient, with a training-prevalence-scaled
+grade-3 capacity and correct people in the exact slots as the operational
+endpoint. It is **design only**: MOST access requires authorization and a Data
+Use Agreement, image preprocessing must be locked without labels or model
+outcomes, and the scientific/data-access decision is still pending. Do not
+download, infer, train, or score the untouched Chen test split on the strength
+of this draft.
+
 ## Completed: 384-fit strength sweep, 24 September
 
 Runtime bf00a7fbfe7c2cdf8e27b53e51b37992e82386ca, unchanged method math.
