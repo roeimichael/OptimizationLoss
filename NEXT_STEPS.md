@@ -26,12 +26,19 @@ audited under immutable release `ff080795ee29571b1f2f10a912705354a458bfb8`.
 See `experiments/knee_cutoff_ranking_result_20260924.md`. Its ranking term was
 active in only 2/20 rank-only and 1/20 combined opportunities because training
 top-532 occupancy was usually pure true grade 3. It did not reliably beat its
-phase Null or rank-only control. The next fixed hypothesis is a **hard-pair
-training rank term** in `experiments/knee_hard_pair_protocol_20260924.md` that
-remains active with pure training occupancy. Validate its derivative, label
-boundary and full streamed step before a gated pilot; do not tune cap or step
-against the repeatedly inspected development split. Keep the test split
-untouched until a fixed independent confirmation is justified.
+phase Null or rank-only control. The fixed **hard-pair training ranking**
+follow-up is also complete: 20 fits, four seeds, all independently audited under
+immutable release `eac8db3c069217121a1ff3bba41cdd055bad9ea8`. See
+`experiments/knee_hard_pair_result_20260926.md`. Its rank gradient was active
+at all 40 planned ranking opportunities, unlike the earlier occupancy term,
+but rank-only capped-first grade-3 F1 was 65.66% versus phase Null 65.38% and
+Clipper 65.93%; rank-plus-count was 64.56%. Paired intervals include zero.
+The count component again strongly reduced raw grade-3 calls. Preserve these
+negative and mixed results. Next: offline cutoff-level transfer analysis from
+the saved trajectories, then freeze an independent confirmation cohort/split
+and deployment utility before another method campaign. Do not tune cap or step
+against the repeatedly inspected development split or use the untouched test
+split to choose a new term.
 
 ## Completed: 384-fit strength sweep, 24 September
 
