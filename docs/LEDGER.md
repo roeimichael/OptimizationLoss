@@ -1208,7 +1208,44 @@ comparison against it is available until it is restored.
 
     Read the ResNet18 pattern as backbone-specific or as noise. Across the v3-recipe backbones it was already mixed. The recipe factorial tests the dose relation prospectively.
 
+    **Reinstated in place for every backbone but B5 (2026-09-27 18:30).**
+    - The factorial's prospective test (Amendment 1) replicates the dose relation on ResNet18: pooled Spearman +0.340 over 175 binding jobs (p < 0.0001), and within seed +0.26 [+0.10, +0.43] (p 0.003).
+    - The small-backbone blocks in his pipeline show it too:
+      - swaps: MobileNetV3 net +8 slots (share 0.59), RegNetY +11 (0.58);
+      - dose: Spearman +0.43 (p 0.047) and +0.35 (p 0.10).
+    - B5 alone shows neither.
+
   Record: `experiments/claude_yuval_pipeline_result_20260927.md` on `claude/bandcons-20260926`.
+- 📊 **AUGMENTATION IS ALL OF YUVAL'S RECIPE GAIN, AND TraLO'S STEP IS ATTRIBUTABLE ACROSS RECIPES (2026-09-27, recipe factorial, knee ResNet18, cap 76, 2x2x2 on seeds 4200-4223, n=24 x 8 cells, preregistered, Holm over four).**
+  All 192 jobs pass every integrity item, and no prediction vector repeats across seeds.
+
+  | Primary (cc-F1 points) | Estimate | Holm |
+  |---|---|---|
+  | F-A augmentation | **+5.64 [+4.60, +6.68]** | 0.000 |
+  | F-S balanced sampler | +0.72 [-0.24, +1.68] | 0.135 |
+  | F-E early stopping | **-0.95 [-1.77, -0.13]** | 0.049 |
+  | P2-pooled tralo_final - sham_final | **+0.72 [+0.46, +0.97]** | 0.000 |
+
+  - **Augmentation carries the whole recipe gain.** Its main effect is larger than the pipeline's total +4.81.
+    - The components held fixed add nothing: the all-off cell equals our v3 clipper (64.56 vs 64.97, p 0.66). These are weight decay, LR decay, his normalisation and the carve.
+    - The all-on cell replicates the ResNet18 block (70.47 vs 69.78, p 0.44).
+    - The balanced sampler costs accuracy (-1.64 [-2.47, -0.82]).
+    - Early stopping costs cc-F1, mostly without augmentation: the A x E interaction is +2.40 [+0.91, +3.90], and without augmentation the best epoch is about 2.
+  - **TraLO's step: the first Holm-significant attributable effect.** P2-pooled is about 0.66 of 76 slots. It is positive in all 8 cells (+0.09 to +1.37), and none of the three switches changes it (all p > 0.2).
+    - Secondary costs: macro-F1 +0.01 (none); weighted-F1 -0.17 [-0.33, -0.01].
+    - The dose relation of Amendment 1 replicates prospectively (reinstated above).
+  - **It does not yet clear the thesis bar.** In the same cells the snapshot ensemble adds +0.87 to +3.98, significant in 7 of 8, which is more than the step. Whether the step survives ensembling is the step-ensemble study (PART 5).
+
+  Record: `experiments/claude_recipe_factorial_result_20260927.md`; scorer output `analysis/recipe_factorial_score.txt`.
+- 📊 **IN YUVAL'S PIPELINE THE STEP IS NOT ATTRIBUTABLE ON MobileNetV3 OR RegNetY ALONE (2026-09-27, knee, cap 76, n=24 per block, preregistered, Holm over two).**
+  - **P2 tralo_final - sham_final:**
+    - MobileNetV3 +0.37 [-0.30, +1.03], Holm 0.27;
+    - RegNetY +0.55 [+0.04, +1.06], p 0.037, Holm 0.073.
+  - **The v3-recipe MobileNetV3 +1.47 does not replicate** in a recipe that does not memorise. Both blocks sit near the factorial's pooled +0.72, which a 24-seed block cannot detect alone.
+  - **Recipe gain over our v3 clipper, same backbone (unpaired):** MobileNetV3 +7.28, RegNetY +4.81.
+  - **Ensemble confirmation sets 6 and 7:** +1.24 [+0.51, +1.96] and +1.56 [+0.45, +2.66].
+
+  Record: `experiments/claude_yuval_smallbb_result_20260927.md`; scorer output `analysis/yuval_smallbb_score.txt`.
 - 📊 **TraLO SCORED ON YUVAL'S METRICS IS NO BETTER (2026-09-27, directional, 4 knee studies x 24 seeds).**
   Metrics: accuracy, macro-F1 and weighted-F1 under capped_first, the metrics Yuval reports.
   **No final-model tralo_target contrast survives Holm in any study.** For example, ResNet18 cap 76 target - clipper:
@@ -1441,28 +1478,17 @@ tests; they cannot establish the new campaign's success or failure.
 
 ## PART 5 -- Live candidates, not yet tested
 
-- 🔁 **LIVE 2026-09-27: THE RECIPE FACTORIAL -- which part of Yuval's pipeline carries its +4.8, and does TraLO's step help in any recipe (knee ResNet18, cap 76).**
-  - **Design:** augmentation x balanced sampler x early stopping, all 8 cells per seed on fresh seeds 4200-4223 (pilot 4299). PTO only, with TraLO's step and its sham in every cell. Common random numbers within a seed.
-  - **Primary, Holm over four:** the three main effects on pto cc-F1, and P2-pooled (tralo_final - sham_final averaged over the 8 cells per seed).
-  - **Prior:** augmentation alone gave +3.48 in our recipe (CUTPAIR). The Yuval-pipeline study (PART 3) is now done on both backbones.
-  - **State, checked 13:56:** release 67ecde20; 13/13 runner mutations caught.
-    - The pilot's integrity gate passed at 13:38:40, after a re-run. The first pilot at 12:29 died of an OOM race with the last B5 seed; its outputs are quarantined in `runs/claude-recipe/failed_pilot_oom_20260927_1229/`.
-    - Study: 12/192 done, 0 failures, 12 processes on dsisco01 GPUs 0-3. The machine is CPU-bound (load 123 on 96 cores), so about 3-5 more hours.
+- 🔁 **LIVE 2026-09-27: DOES TraLO'S STEP SURVIVE SNAPSHOT ENSEMBLING? The step-ensemble study (knee ResNet18 in Yuval's pipeline, cap 76).**
+  - **Why:** the factorial's P2-pooled is +0.72, but the snapshot ensemble adds more in the same cells. A single-model gain the ensemble already captures does not clear the thesis bar.
+  - **Design:** at every epoch, TraLO's targeted step and its sham act on side copies of the model. Each arm is then ensembled like the clipper.
+  - **Primary, Holm over two:**
+    - E1, ens_tralo - ens_sham;
+    - E2, ens_tralo - ens_pto (the thesis bar).
+  - **Seeds and power:** 4500-4571, n = 72, with about 95% power for +0.72.
+  - **Pilot:** it reruns seed 4000. Its PTO must be byte-identical to the stored ResNet18-block run.
+  - **State:** release 129134dd, with 18/18 mutations caught and 27 tests passing on the server. The launcher started at 18:43 (`lab/stepens/launcher.log`).
 
-  Prereg: `experiments/claude_recipe_factorial_prereg_20260927.md` on `claude/bandcons-20260926`.
-
-- 🔁 **QUEUED 2026-09-27: DOES TraLO'S ONE POSITIVE SURVIVE A NON-MEMORISING RECIPE? MobileNetV3 and RegNetY inside Yuval's pipeline (knee, cap 76).**
-  - **Why:** the one attributable positive is MobileNetV3 in the v3 recipe (target - sham +1.47 [+0.43, +2.50]), and the v3 recipe memorises.
-  - **Design:** PTO only. Seeds 4300-4323 (MobileNetV3) and 4400-4423 (RegNetY); pilots 4399 and 4499.
-  - **Primary:** P2 tralo_final - sham_final per block, Holm over the two. About 75% power for the v3 effect size; a one-step effect (~0.5 slots) is not detectable at this n.
-  - **Secondary:** ENS confirmation sets 6 and 7.
-  - **State:** release 7d8f7dd7.
-    - The code review's 7 defects are fixed.
-    - 19/20 runner and 10/10 scorer mutations are caught.
-    - The new code reproduces the recorded initial weights of seeds 4000, 4017, 4100 and 4200 exactly.
-    - Launcher PID 932045 (`lab/smallbb/launcher.log`) starts it after the factorial's last claim.
-
-  Prereg: `experiments/claude_yuval_smallbb_prereg_20260927.md`.
+  Prereg: `experiments/claude_stepens_prereg_20260927.md`.
 
 - ⛔ **RETRACTED AS A CANDIDATE -- OPTION C HAS NOW RUN AND IS CLOSED ON BOTH
   BACKBONES (2026-09-20).** MobileNetV3 refuted (252 runs, 12 seeds), ViTB16

@@ -76,8 +76,20 @@ a real moderator; under the corrected cap it is not -- the one exception reverse
   What his pipeline does carry is a **recipe gain: plain training plus the cut scores about +5 cc-F1
   over our recipe's clipper on either backbone** (unpaired), and neither loss adds to it. The best knee system measured is post hoc: B5 in his pipeline, then the
   snapshot ensemble (+4.08, preregistered), then capped_first, at about 74.0 cc-F1. In a post-hoc
-  comparison that ensemble beats PAO by +3.11 and TraLO's step by +4.49. The recipe factorial is
-  splitting which part of the pipeline carries the gain.
+  comparison that ensemble beats PAO by +3.11 and TraLO's step by +4.49.
+
+- 🔑 **The recipe factorial (2026-09-27, n=24 x 8 cells, preregistered, LEDGER PART 3) splits the gain and finds
+  TraLO's first attributable effect.**
+  - **Augmentation is all of the recipe gain:** +5.64 [+4.60, +6.68].
+  - **The other components:** the balanced sampler's +0.72 [-0.24, +1.68] is not significant, and early stopping costs -0.95. The fixed
+    components add nothing: the all-off cell equals our clipper.
+  - **TraLO's step, pooled over the eight recipes:** +0.72 [+0.46, +0.97] cc-F1 over its sham (Holm 0.000),
+    about 0.66 of 76 slots. Its dose relation replicates prospectively.
+  - **Small backbones in his pipeline:** the same contrast is +0.37 (MobileNetV3) and +0.55 (RegNetY), neither
+    Holm-significant alone. The v3-recipe MobileNetV3 +1.47 does not replicate.
+  - **The bar is still not met:** the snapshot ensemble adds more than the step in the same cells. **The live
+    question is whether the step survives ensembling:** the step-ensemble study, E1 ens_tralo - ens_sham and E2
+    ens_tralo - ens_pto, n=72.
 
 **The mechanism is proved, not guessed** (LEDGER PART 2). The loss is a function
 of the multiset of test probabilities while the allocator is a function of their
@@ -127,47 +139,29 @@ trade as a trade, and retract in place.**
 
 ---
 
-## RUN STATE -- checked 2026-09-27 14:54 IDT (server clock)
+## RUN STATE -- checked 2026-09-27 18:50 IDT (server clock)
 
-**Live: `claude-recipe`, the recipe factorial** (release 67ecde20, seeds 4200-4223 x 8 cells).
-- **Pilot:** the integrity gate passed at 13:38:40 on seed 4299, after a re-run.
-  - The first pilot (12:29) started one second after the last B5 claim. That seed then took the memory, and all 8 pilot jobs died of CUDA OOM. No score was read, and the outputs are quarantined in `runs/claude-recipe/failed_pilot_oom_20260927_1229/`.
-  - The launcher now waits for the newest claim to age 5 min.
-- **Study:** 79/192 done, 91 claimed, 0 failures; 12 queues alive on dsisco01 GPUs 0-3. All four GPUs are ours, and the launcher caps them at 3 per GPU. At about 1.3 jobs/min it ends around 16:25. dsisco02 is fully held by another user.
-- **Where things are:**
-  - launcher `~/tralo-rebuild/lab/recipe/claude_recipe_launcher.sh`, log `lab/recipe/launcher.log`;
-  - queue logs `runs/claude-recipe/queue_gpu*_s*.log`.
-- **Score at 192/192:** `CUDA_VISIBLE_DEVICES="" PYTHONPATH=~/tralo-rebuild/releases/67ecde20976c236d358f342bce46a90a0288f1fb python ~/tralo-rebuild/lab/recipe/score_recipe.py ~/tralo-rebuild/runs/claude-recipe ~/tralo-rebuild/runs/claude-target-20260925 ~/tralo-rebuild/runs/claude-yuval-r18`.
-- **Prereg** (fixed readings, amendment 1 = the dose relation): `experiments/claude_recipe_factorial_prereg_20260927.md`.
+**Live: `claude-stepens`, the step-ensemble study** (release 129134dd, seeds 4500-4571, plus the pilot job `4000_stepens`).
+- It asks whether TraLO's step survives snapshot ensembling.
+- **Launcher:** started 18:43, PID 1216284, log `lab/stepens/launcher.log`. It runs in three stages:
+  - the pilot, alone on GPU 0 since 18:43:12 with a CUDA context (2.4 GB), at about 61 s per epoch. Seed 4000's first training ran 14 epochs, so the pilot ends near 19:00;
+  - the gate: `analysis/score_stepens.py --gate runs/claude-stepens-pilot runs/claude-yuval-r18`, which requires PTO byte-identical to the stored seed-4000 run at every epoch;
+  - 72 one-seed queues, at most 3 per GPU on dsisco01, for about 2 h. dsisco02 is fully held by another user.
+- **Score at 72/72:** `CUDA_VISIBLE_DEVICES="" PYTHONPATH=$REL python $REL/analysis/score_stepens.py ~/tralo-rebuild/runs/claude-stepens`, with REL=`~/tralo-rebuild/releases/129134dd87504446a81228e777c7849229be05af`.
+- **Prereg:** `experiments/claude_stepens_prereg_20260927.md`, with fixed readings for E1 ens_tralo - ens_sham and E2 ens_tralo - ens_pto.
 
-**The Yuval investigation (the user's request of 2026-09-27) is DONE on both backbones.** The question: does anything in Yuval Kassif's repo (github.com/YuvalKassif/ConstrainedClassification @ 413d96c) explain why his PAO loss beats PTO while TraLO does not?
-- **Audit:** no bug on our side. His loss is label-aware: it up-weights training false positives of the capped class, and that only acts in a recipe that does not memorise. His PAO > PTO is single-seed, steered by the test set, and outcome-filtered.
-- **On his metrics:** TraLO does not look better on accuracy, macro-F1 or weighted-F1 than on cc-F1.
-- **Synthetic lab:** a live PAO lowers cc-F1, and even an oracle step direction does not help (LEDGER PART 4).
-- **In his pipeline, on GPU** (preregistered, n=24 per backbone):
-  - his loss is null against PTO on ResNet18 (-0.09) and on his EfficientNet-B5 (+0.96 [-0.28, +2.20]);
-  - TraLO's step is not attributable on either (+0.73, Holm 0.088; -0.50), and on B5 it costs about 2 points of macro-F1;
-  - his pipeline lifts plain training plus the cut by about +5 cc-F1 over our clipper, and neither loss adds to it;
-  - the snapshot ensemble adds +2.4 and +4.1 more and beats both losses.
-- **Record:** `experiments/claude_yuval_pipeline_result_20260927.md` @ 672abbf3. The prereg is next to it.
+**Done today, all scored.** The Yuval investigation, which the user asked for on 2026-09-27, is complete. THE COURSE above has the verdict.
 
 | run | release | seeds | state | record |
 |---|---|---|---|---|
-| `claude-yuval-b5` (Yuval's pipeline + PAO outer loop + TraLO step arms, his timm EfficientNet-B5, cap 76) | 0d70d993 | 4100-4123 | **DONE, scored** 13:40: P1 +0.96 (Holm 0.37), P2 -0.50 (Holm 0.46), snapshot ensemble +4.08 confirmed | result file, B5 block |
-| `claude-yuval-r18` (the same with ResNet18) | bcf5d010 | 4000-4023 | **DONE, scored** 11:07: P1 null, P2 Holm 0.088, recipe +4.81 | result file, ResNet18 block |
-| `claude-yuval-b5-pilot` | 0d70d993 | 4199 | **DONE**: gate passed; 4 PAO retrains, step 101 -> 76 | prereg, Pilots section |
-| `claude-yuval-pilot` | bcf5d010 | 4099 | **DONE**: integrity gate passed; PAO converged in 2 retrains and overshot (106 -> 57 vs cap 76) | prereg, Pilots section |
+| `claude-recipe` (the recipe factorial, ResNet18) | 67ecde20 | 4200-4223 x 8 cells | **DONE** 16:21, 192/192 plus the 8-job pilot, 0 failures. F-A **+5.64** (Holm 0.000); F-S +0.72 [-0.24, +1.68] (Holm 0.135); F-E **-0.95** (Holm 0.049); P2-pooled **+0.72** (Holm 0.000); the dose relation replicates. The first pilot's OOM outputs are quarantined in `runs/claude-recipe/failed_pilot_oom_20260927_1229/` | `experiments/claude_recipe_factorial_result_20260927.md` |
+| `claude-yuval-mn3` + `claude-yuval-rgy` (small backbones in his pipeline) | 7d8f7dd7 | 4300-4323, 4400-4423 | **DONE** 17:48, 48/48, 0 failures. P2 +0.37 (Holm 0.27) and +0.55 (Holm 0.073); ensemble sets 6-7 confirmed | `experiments/claude_yuval_smallbb_result_20260927.md` |
+| `claude-yuval-b5` (his EfficientNet-B5) | 0d70d993 | 4100-4123 | **DONE** 13:40. P1 +0.96 (Holm 0.37); P2 -0.50 (Holm 0.46); ensemble +4.08 confirmed | `experiments/claude_yuval_pipeline_result_20260927.md` |
+| `claude-yuval-r18` (ResNet18) | bcf5d010 | 4000-4023 | **DONE** 11:07. P1 null; P2 Holm 0.088; recipe +4.81 | same file |
 
-**Queued behind it: `claude-yuval-mn3` + `claude-yuval-rgy`**, TraLO's step on MobileNetV3 and RegNetY inside Yuval's pipeline. It asks whether the one attributable positive survives a non-memorising recipe.
-- Seeds 4300-4323 and 4400-4423, pilots 4399 and 4499, release 7d8f7dd7.
-- The launcher (PID 932045, log `lab/smallbb/launcher.log`, started 14:50) waits for the factorial's last claim. Then it runs the pilots, the gate (`analysis/score_smallbb.py --gate`) and 48 one-seed queues.
-- It refuses to start on non-empty roots, never uses a GPU with another user's process, and stops on any failed or lost job.
-- Prereg: `experiments/claude_yuval_smallbb_prereg_20260927.md`.
-- **Score:** `score_smallbb.py runs/claude-yuval-mn3 runs/claude-yuval-rgy runs/claude-repl-mn3 runs/claude-repl-rgy`, plus `yuval_ensemble.py` and `yuval_swaps.py` on each root.
-
-**Next:**
-- score the factorial against its fixed readings at 192/192, then write it up and update LEDGER, MISSION and the professor document;
-- check that the small-backbone pilots hold GPU contexts, then score that study at 48/48.
+**Next**, at 72/72: score the step-ensemble study against its fixed readings and write it up.
+- **If E1 and E2 are both above 0:** preregister its replication on RegNetY, the other backbone whose step points up.
+- **If E1 covers 0:** the step's gain is redundant with averaging, and the thesis bar stands as the ensembled clipper.
 
 All live work is on **dsisco01**, under `~/tralo-rebuild/runs/`. Releases are immutable clones by SHA in `~/tralo-rebuild/releases/`, and the code is on branch `claude/bandcons-20260926`.
 
