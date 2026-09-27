@@ -52,7 +52,7 @@ cc-F1 (CUTPAIR, LEDGER PART 4).
 
 All analysis uses capped_first on the development pool, cc-F1 of grade 3, 95% t intervals, n = 24
 seeds. A seed is the unit: each contrast is formed within a seed, then tested across seeds. Before
-scoring, no pto prediction vector may repeat across seeds or across (A, S) cells. Corrected 13:30, before
+scoring, no pto prediction vector may repeat across seeds or across (A, S) cells. Corrected 13:24 (commit 698e540e), before
 any job had completed: an E-off cell equals its E-on twin exactly when the twin's best epoch is 10. This
 is a real zero, allowed by the common random numbers, and not a duplicate run; the original wording would
 have aborted the scorer.
@@ -130,10 +130,10 @@ Erratum (11:59, still before any job started): on exact per-seed values the moti
 (p 0.024). The 0.53 above came from per-seed values rounded to 0.01 points, which split tied ranks. The test
 and its code are unchanged.
 
-## Operational note (13:30): the first pilot attempt failed on memory
+## Operational note (13:24): the first pilot attempt failed on memory
 
 At 12:29 the launcher started the pilot one second after the last B5 seed was claimed. That seed's process
 then took 10.6 GB on the same GPU, and all 8 pilot jobs failed with CUDA out-of-memory errors within their
 first minute. No score was produced or read. Their outputs are kept in
 `runs/claude-recipe/failed_pilot_oom_20260927_1229/`. The launcher now waits until the newest B5 claim is
-5 min old. Same release, configs and gate.
+5 min old. Same release, configs and gate. The pilot restarted at 13:25:33 on all four GPUs.
