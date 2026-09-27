@@ -1176,6 +1176,12 @@ comparison against it is available until it is restored.
 
   Also measured:
   - **PAO is live but steers on noise.** At the best epoch it has a median of 162 training false positives per epoch. The pool count's within-retrain sd is 19.3 against a cap of 76, and PAO overshoots it (95.2 -> 65.8).
+  - **PAO moves the argmax count, not the p3 order** (post hoc, `analysis/yuval_ranking.py`). capped_first fills the slots by p3 rank, so the count is fixed by the cut. PAO - PTO:
+    - precision of the 76 capped slots -0.1 [-3.4, +3.2] points;
+    - AUC -0.006 (p 0.11);
+    - with no cap, its overshoot costs -6.6 raw grade-3 F1 and -1.8 accuracy.
+
+    TraLO's step instead lifts capped-slot precision +0.9 [+0.1, +1.7] at AUC -0.0014: it reorders items at the cut only.
   - **Exploratory:** the snapshot ensemble adds +2.43 [+0.82, +4.03] on top of his pipeline.
 
   Record: `experiments/claude_yuval_pipeline_result_20260927.md` on `claude/bandcons-20260926`. The B5 block is in PART 5.
@@ -1412,7 +1418,15 @@ tests; they cannot establish the new campaign's success or failure.
     - His timm EfficientNet-B5 4100-4123 (release 0d70d993): **live, 5/24 at 11:12**, with 8 queues on 4 GPUs.
   - **Primary:** P1 pao - pto, P2 tralo_final - sham_final, P3 tralo_final - pto; cc-F1, Holm within each block.
 
-  Prereg with fixed readings: `experiments/claude_yuval_pipeline_prereg_20260927.md`.
+  Prereg with fixed readings: `experiments/claude_yuval_pipeline_prereg_20260927.md`. Amendment 2, committed before any B5 seed was scored, adds the snapshot ensemble as a fresh B5 confirmation.
+
+- 🔁 **QUEUED 2026-09-27: THE RECIPE FACTORIAL -- which part of Yuval's pipeline carries its +4.8, and does TraLO's step help in any recipe (knee ResNet18, cap 76).**
+  - **Design:** augmentation x balanced sampler x early stopping, all 8 cells per seed on fresh seeds 4200-4223 (pilot 4299). PTO only, with TraLO's step and its sham in every cell. Common random numbers within a seed.
+  - **Primary, Holm over four:** the three main effects on pto cc-F1, and P2-pooled (tralo_final - sham_final averaged over the 8 cells per seed).
+  - **Prior:** augmentation alone gave +3.48 in our recipe (CUTPAIR).
+  - **State:** release 67ecde20; 13/13 runner mutations caught. The launcher (`tools/claude_recipe_launcher.sh`) starts it once every B5 seed is claimed, runs the pilot's integrity gate, then the study.
+
+  Prereg: `experiments/claude_recipe_factorial_prereg_20260927.md` on `claude/bandcons-20260926`.
 
 - ⛔ **RETRACTED AS A CANDIDATE -- OPTION C HAS NOW RUN AND IS CLOSED ON BOTH
   BACKBONES (2026-09-20).** MobileNetV3 refuted (252 runs, 12 seeds), ViTB16

@@ -155,7 +155,16 @@ Answers so far:
 | `claude-yuval-b5-pilot` | 0d70d993 | 4199 | **DONE**: gate passed; 4 PAO retrains, step 101 -> 76 | prereg, Pilots section |
 | `claude-yuval-pilot` | bcf5d010 | 4099 | **DONE**: integrity gate passed; PAO converged in 2 retrains and overshot (106 -> 57 vs cap 76) | prereg, Pilots section |
 
-**Next:** score the B5 block against the fixed readings when 24/24 land.
+**Queued: `claude-recipe`, the recipe factorial** (release 67ecde20, seeds 4200-4223 x 8 cells, pilot 4299). Its launcher is `~/tralo-rebuild/lab/recipe/claude_recipe_launcher.sh`, started 11:41 and logging to `lab/recipe/launcher.log`. It waits until all 24 B5 seeds are claimed, then:
+1. runs the pilot;
+2. gates it with `analysis/score_recipe.py --gate`;
+3. fills freed GPU memory with study queues.
+
+Prereg: `experiments/claude_recipe_factorial_prereg_20260927.md`.
+
+**Next:**
+- score the B5 block against the fixed readings (amendment 2 adds the ensemble) when 24/24 land;
+- score the factorial when its 192 jobs land.
 
 All live work is on **dsisco01**, under `~/tralo-rebuild/runs/`. Releases are immutable clones by SHA in `~/tralo-rebuild/releases/`, and the code is on branch `claude/bandcons-20260926`.
 
