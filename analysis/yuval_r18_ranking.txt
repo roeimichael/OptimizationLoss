@@ -1,4 +1,4 @@
-python analysis/yuval_ranking.py ~/tralo-rebuild/runs/claude-yuval-r18   (2026-09-27 11:58, post hoc, development labels offline)
+python analysis/yuval_ranking.py ~/tralo-rebuild/runs/claude-yuval-r18   (2026-09-27 11:38, post hoc, development labels offline)
 24 seeds; 21 where PAO retrained at least once
 
 auc          pto 0.9392  pao 0.9333  tralo_final 0.9378  sham_final 0.9392

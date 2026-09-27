@@ -1,6 +1,6 @@
 # Preregistration: which part of Yuval's pipeline carries its gain, and does TraLO's step help in any of them (knee, cap 76)
 
-Written 2026-09-27 11:40, before any run of this study. Runner: `tralo/knee_yuval.py` recipe factorial.
+Written 2026-09-27 before any run of this study, and committed at 11:34 as 67ecde20. Runner: `tralo/knee_yuval.py` recipe factorial.
 Scorer: `analysis/score_recipe.py`.
 
 ## Why

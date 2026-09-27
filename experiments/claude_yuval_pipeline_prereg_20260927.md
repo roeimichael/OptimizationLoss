@@ -159,7 +159,7 @@ huggingface.co/timm/efficientnet_b5.sw_in12k_ft_in1k and uploaded to
 - **Cost.** Benchmarked at 0.27 s per training step (44 s of GPU per epoch, 10.6 GB peak) plus
   the serial augmentation. About 12-15 min per early-stopped retrain.
 
-## Amendment 2 (2026-09-27, 11:25, before any B5 seed is scored): the snapshot ensemble, B5 block
+## Amendment 2 (2026-09-27, committed 11:23 as 78ee2e06, before any B5 seed is scored): the snapshot ensemble, B5 block
 
 The ResNet18 block found, exploratory, that the snapshot ensemble adds +2.43 [+0.82, +4.03] cc-F1 on
 top of this pipeline (`analysis/yuval_r18_ensemble.txt`). At 11:12, 5 of 24 B5 seeds had finished and
