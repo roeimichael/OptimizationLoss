@@ -119,3 +119,7 @@ where the excess is 30 or more (n 7), and +0.1 where it is below 20 (n 10).
   evict. The within-seed version holds seed-level model quality fixed, though not recipe-level quality.
   A correlation near 0 means the Yuval-block pattern was noise, or a between-seed quality confound.
 - The primaries and their readings are unchanged.
+
+Erratum (11:59, still before any job started): on exact per-seed values the motivating Spearman is 0.49
+(p 0.024). The 0.53 above came from per-seed values rounded to 0.01 points, which split tied ranks. The test
+and its code are unchanged.

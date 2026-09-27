@@ -94,9 +94,12 @@ capped_first.**
 | 20-29 | 4 | +0.27 | +0.25 |
 | 30-48 | 7 | +2.20 | +2.0 |
 
-Spearman 0.53 (p 0.013), Pearson 0.61 (p 0.003); against the step radius, Spearman 0.45 (p 0.040).
+Spearman 0.49 (p 0.024), Pearson 0.61 (p 0.003); against the step radius, Spearman 0.39 (p 0.081). Computed on
+exact per-seed values (`analysis/step_dose_across_backbones.txt`); rounded values had given 0.53.
 This is post hoc; the recipe factorial tests it prospectively (its amendment 1, committed before any
-of its jobs started). Source: the per-seed lines of `analysis/yuval_r18_score.txt`.
+of its jobs started). Across the v3-recipe studies the pattern is mixed: MobileNetV3 has the largest
+excess (median 26) and the only positive there (+1.47), but RegNetY (19, -0.09) is out of order, and no
+within-study correlation there is significant (-0.15, +0.17, +0.25).
 
 **What the step's swaps are** (top-76 sets by p3, development labels offline):
 - TraLO's step swaps 62 slots over 24 seeds (0-7 per seed).
