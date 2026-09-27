@@ -79,7 +79,7 @@ a real moderator; under the corrected cap it is not -- the one exception reverse
   comparison that ensemble beats PAO by +3.11 and TraLO's step by +4.49.
 
 - 🔑 **The recipe factorial (2026-09-27, n=24 x 8 cells, preregistered, LEDGER PART 3) splits the gain and finds
-  TraLO's first attributable effect.**
+  TraLO's first attributable effect on ResNet18.** (Our recipe's MobileNetV3 block had the first on any backbone, +1.47, Holm 0.016.)
   - **Augmentation is all of the recipe gain:** +5.64 [+4.60, +6.68].
   - **The other components:** the balanced sampler's +0.72 [-0.24, +1.68] is not significant, and early stopping costs -0.95. The fixed
     components add nothing: the all-off cell equals our clipper.

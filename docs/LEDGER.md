@@ -1231,7 +1231,7 @@ comparison against it is available until it is restored.
     - The all-on cell replicates the ResNet18 block (70.47 vs 69.78, p 0.44).
     - The balanced sampler costs accuracy (-1.64 [-2.47, -0.82]).
     - Early stopping costs cc-F1, mostly without augmentation: the A x E interaction is +2.40 [+0.91, +3.90], and without augmentation the best epoch is about 2.
-  - **TraLO's step: the first Holm-significant attributable effect.** P2-pooled is about 0.66 of 76 slots. It is positive in all 8 cells (+0.09 to +1.37), and none of the three switches changes it (all p > 0.2).
+  - **TraLO's step: its first Holm-significant attributable effect on ResNet18.** The first on any backbone was our recipe's MobileNetV3 block (+1.47, Holm 0.016), which does not replicate in Yuval's pipeline (+0.37). P2-pooled is about 0.66 of 76 slots. It is positive in all 8 cells (+0.09 to +1.37), and none of the three switches changes it (all p > 0.2).
     - Secondary costs: macro-F1 +0.01 (none); weighted-F1 -0.17 [-0.33, -0.01].
     - The dose relation of Amendment 1 replicates prospectively (reinstated above).
   - **It does not yet clear the thesis bar.** In the same cells the snapshot ensemble adds +0.87 to +3.98, significant in 7 of 8, which is more than the step. Whether the step survives ensembling is the step-ensemble study (PART 5).
