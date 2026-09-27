@@ -55,13 +55,13 @@ def holm(ps):
     return adjusted
 
 
-def load(seed_dir):
+def load(seed_dir, arms=ARMS):
     summary = json.loads((seed_dir / 'summary.json').read_text())
     rows = [r for r in json.loads((seed_dir / 'manifest.json').read_text())['rows'] if r['split'] == 'val']
     labels = [r['label'] for r in rows]
     out = dict(seed=summary['seed'], converged=summary['converged'], retrains=summary['retrains'],
                steps=summary['steps'], arms={})
-    for arm in ARMS:
+    for arm in arms:
         report = json.loads((seed_dir / arm / 'report.json').read_text())['capped_first']
         preds = report['predictions']
         m = metrics(labels, preds)

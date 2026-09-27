@@ -26,6 +26,9 @@ Recipe factorial (seeds 4200-4223, pilot 4299, ResNet18, experiments/claude_reci
 PTO only (max_retrains 1, no pao arm), with three switches that turn one part of the pipeline off:
 augment (off: the evaluation transform), balanced (off: a uniform permutation per epoch) and
 early_stop (off: exactly max_epochs epochs, the last one kept).
+Small backbones (experiments/claude_yuval_smallbb_prereg_20260927.md): the full pipeline, PTO only
+(max_retrains 1), on torchvision mobilenet_v3_large (seeds 4300-4323, pilot 4399) and regnet_y_400mf
+(4400-4423, pilot 4499), built as in the v3 studies.
 """
 
 import copy
@@ -52,6 +55,7 @@ MEAN, STD = [0.66133188] * 3, [0.21229856] * 3
 STUDY_SEEDS = tuple(range(4000, 4024)) + tuple(range(4100, 4124))
 PILOT_SEEDS = (4099, 4199)
 FACTORIAL_SEEDS = tuple(range(4200, 4224)) + (4299,)
+SMALL_SEEDS = tuple(range(4300, 4324)) + (4399,) + tuple(range(4400, 4424)) + (4499,)
 KEYS = {'seed', 'cap', 'max_epochs', 'patience', 'batch_size', 'lr', 'weight_decay', 'decay_epoch',
         'decay_factor', 'mu', 'b', 'development_batch_size'}
 RECIPE = ('augment', 'balanced', 'early_stop')
@@ -60,19 +64,28 @@ B5_SHA256 = '0e5c09ad618a28d977acf8b7846105443c553a4b425dddb54598a0ac6088aca7'
 
 
 def backbone_for(seed):
+    if 4300 <= seed < 4400:
+        return 'mobilenet_v3_large'
+    if 4400 <= seed < 4500:
+        return 'regnet_y_400mf'
     return 'efficientnet_b5' if 4100 <= seed < 4200 else 'resnet18'
 
 
 def validate(config):
     factorial = config.get('seed') in FACTORIAL_SEEDS
-    if set(config) - {'backbone'} != KEYS | ({'max_retrains', *RECIPE} if factorial else set()):
+    small = config.get('seed') in SMALL_SEEDS
+    extra = {'max_retrains', *RECIPE} if factorial else {'max_retrains'} if small else set()
+    if set(config) - {'backbone'} != KEYS | extra:
         raise ValueError('config keys differ from the declared experiment')
-    if config['seed'] not in STUDY_SEEDS + PILOT_SEEDS + FACTORIAL_SEEDS:
-        raise ValueError('seed is outside the preregistered blocks 4000-4023, 4100-4123, 4200-4223 and pilots')
+    if config['seed'] not in STUDY_SEEDS + PILOT_SEEDS + FACTORIAL_SEEDS + SMALL_SEEDS:
+        raise ValueError('seed is outside the preregistered blocks 4000-4423 and pilots')
     if factorial and (config['max_retrains'] != 1 or any(type(config[k]) is not bool for k in RECIPE)):
         raise ValueError('the recipe factorial trains PTO once, with boolean switches')
+    if small and config['max_retrains'] != 1:
+        raise ValueError('the small-backbone blocks train PTO once')
     if config.get('backbone', 'resnet18') != backbone_for(config['seed']):
-        raise ValueError('the backbone does not match the seed block (4100-4123, 4199: efficientnet_b5)')
+        raise ValueError('the backbone does not match the seed block (4100s: efficientnet_b5, '
+                         '4300s: mobilenet_v3_large, 4400s: regnet_y_400mf)')
     if config['cap'] != 76:
         raise ValueError('the preregistered grade-3 cap is 76')
     for key in ('max_epochs', 'patience', 'batch_size', 'decay_epoch', 'development_batch_size'):
@@ -104,6 +117,10 @@ def efficientnet_b5(pretrained=True):
                               **(dict(pretrained_cfg_overlay=dict(file=str(B5_WEIGHTS))) if pretrained else {}))
     model.classifier = torch.nn.Linear(model.classifier.in_features, 5)
     return model
+
+
+def make_backbone(backbone, pretrained=True):
+    return efficientnet_b5(pretrained) if backbone == 'efficientnet_b5' else build_model(backbone, pretrained)
 
 
 def carve(rows):
@@ -280,9 +297,9 @@ def run(data_root, config_path, output):
         val_ids = [r['sample_id'] for r in val_rows]
         torch.manual_seed(seed)
         backbone = config.get('backbone', 'resnet18')
-        base = build_model('resnet18') if backbone == 'resnet18' else efficientnet_b5()
+        base = make_backbone(backbone)
         initial_sha = _state_hash(base)
-        log.emit('model_initialized', initial_sha256=initial_sha, architecture=backbone,
+        log.emit('model_initialized', initial_sha256=initial_sha, architecture=backbone, model_class=type(base).__name__,
                  transform=('Yuval RGB: hflip, rotate 3, affine t0.1 s0.9-1.1, jitter 0.2, mean .6613 std .2123'
                             if config.get('augment', True) else 'Yuval RGB, no augmentation: resize 224, mean .6613 std .2123'),
                  sampler=('class-balanced with replacement' if config.get('balanced', True) else 'uniform permutation'),

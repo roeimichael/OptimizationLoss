@@ -76,6 +76,30 @@ def test_validate_admits_the_recipe_factorial_only_on_its_seeds():
             validate(bad)
 
 
+SMALL = dict(CONFIG, seed=4399, backbone='mobilenet_v3_large', max_retrains=1)
+
+
+def test_validate_admits_the_small_backbone_blocks_only_with_their_backbone_and_one_retrain():
+    from tralo.knee_yuval import backbone_for, make_backbone
+    for seed, backbone, cls in ((4300, 'mobilenet_v3_large', 'MobileNetV3'), (4323, 'mobilenet_v3_large', 'MobileNetV3'),
+                                (4399, 'mobilenet_v3_large', 'MobileNetV3'), (4400, 'regnet_y_400mf', 'RegNet'),
+                                (4423, 'regnet_y_400mf', 'RegNet'), (4499, 'regnet_y_400mf', 'RegNet'),
+                                (4000, 'resnet18', 'ResNet'), (4200, 'resnet18', 'ResNet')):
+        assert backbone_for(seed) == backbone
+        model = make_backbone(backbone_for(seed), pretrained=False)
+        assert type(model).__name__ == cls and model(torch.zeros(2, 3, 64, 64)).shape == (2, 5)
+    for seed, backbone in ((4300, 'mobilenet_v3_large'), (4399, 'mobilenet_v3_large'), (4423, 'regnet_y_400mf'),
+                           (4499, 'regnet_y_400mf')):
+        validate(dict(SMALL, seed=seed, backbone=backbone))
+    assert (backbone_for(4000), backbone_for(4100), backbone_for(4200)) == ('resnet18', 'efficientnet_b5', 'resnet18')
+    for bad in (dict(SMALL, max_retrains=2), {k: v for k, v in SMALL.items() if k != 'max_retrains'},
+                {k: v for k, v in SMALL.items() if k != 'backbone'}, dict(SMALL, backbone='regnet_y_400mf'),
+                dict(SMALL, seed=4324), dict(SMALL, seed=4424, backbone='regnet_y_400mf'),
+                dict(SMALL, augment=True), dict(CONFIG, seed=4000, max_retrains=1)):
+        with pytest.raises(ValueError):
+            validate(bad)
+
+
 class _Fake(Images):
     def __init__(self, n, seed):
         g = torch.Generator().manual_seed(seed)
