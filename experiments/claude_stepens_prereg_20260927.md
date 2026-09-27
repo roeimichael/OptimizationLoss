@@ -5,7 +5,8 @@ Written 2026-09-27 at about 19:00, before any run of this study. Runner: `tralo/
 
 ## Why
 
-- **The recipe factorial found the first Holm-significant attributable effect of TraLO's step.** P2-pooled,
+- **The recipe factorial found the first Holm-significant attributable effect of TraLO's step on ResNet18**
+  (see the erratum at the end). P2-pooled,
   tralo_final - sham_final averaged over its eight recipes on ResNet18, is +0.72 [+0.46, +0.97] cc-F1
   points (Holm 0.000, n = 24), about 0.66 of 76 slots
   ([result](claude_recipe_factorial_result_20260927.md)).
@@ -112,3 +113,10 @@ GPUs are free. dsisco02 is fully used by another user and is not used.
     passes only a byte-identical pilot.
 
   18 of 18 mutations of the new code are caught.
+
+## Erratum (2026-09-27 19:30, before any study result)
+
+The first bullet of Why said the factorial's effect was the first Holm-significant attributable effect
+of TraLO's step. It is the first on ResNet18 only: our recipe's MobileNetV3 block had one, +1.47 [+0.43,
++2.50] (Holm 0.016), which did not replicate in Yuval's pipeline. The design, endpoints and readings are
+unchanged.
