@@ -80,14 +80,14 @@ a real moderator; under the corrected cap it is not -- the one exception reverse
 
 - 🔑 **The recipe factorial (2026-09-27, n=24 x 8 cells, preregistered, LEDGER PART 3) splits the gain and finds
   TraLO's first attributable effect on ResNet18.** (Our recipe's MobileNetV3 block had the first on any backbone, +1.47, Holm 0.016.)
-  - **Augmentation is all of the recipe gain:** +5.64 [+4.60, +6.68].
+  - **Augmentation is as large as the whole recipe gain:** +5.64 [+4.60, +6.68], on ResNet18.
   - **The other components:** the balanced sampler's +0.72 [-0.24, +1.68] is not significant, and early stopping costs -0.95. The fixed
     components add nothing: the all-off cell equals our clipper.
   - **TraLO's step, pooled over the eight recipes:** +0.72 [+0.46, +0.97] cc-F1 over its sham (Holm 0.000),
     about 0.66 of 76 slots. Its dose relation replicates prospectively.
   - **Small backbones in his pipeline:** the same contrast is +0.37 (MobileNetV3) and +0.55 (RegNetY), neither
     Holm-significant alone. The v3-recipe MobileNetV3 +1.47 does not replicate.
-  - **The bar is still not met:** the snapshot ensemble adds more than the step in the same cells. **The live
+  - **The bar is still not met:** on every cell's point estimate the snapshot ensemble adds more than the step (no paired test). **The live
     question is whether the step survives ensembling:** the step-ensemble study, E1 ens_tralo - ens_sham and E2
     ens_tralo - ens_pto, n=72.
 
@@ -152,7 +152,7 @@ trade as a trade, and retract in place.**
 - **Prereg:** `experiments/claude_stepens_prereg_20260927.md`, with fixed readings for E1 ens_tralo - ens_sham and E2 ens_tralo - ens_pto.
 
 **Queued: `claude-stepens-rgy`, the RegNetY replication** (release f2580776, seeds 4600-4671, pilot job `4400_stepens`).
-- The prereg was fixed at 19:10, before any ResNet18 study result: `experiments/claude_stepens_rgy_prereg_20260927.md`.
+- The prereg was committed at 19:06:53 (f2580776), before any ResNet18 study result: `experiments/claude_stepens_rgy_prereg_20260927.md`.
 - **Launcher:** PID 1247860, log `lab/stepens-rgy/launcher.log`.
   - The pilot takes the first free slot, and its gate compares it with `runs/claude-yuval-rgy/seed4400`.
   - The 72 study seeds start only once the ResNet18 launcher (PID 1216284) exits. That is about 3-4 h of work, ending after midnight.

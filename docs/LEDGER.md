@@ -1216,7 +1216,7 @@ comparison against it is available until it is restored.
     - B5 alone shows neither.
 
   Record: `experiments/claude_yuval_pipeline_result_20260927.md` on `claude/bandcons-20260926`.
-- 📊 **AUGMENTATION IS ALL OF YUVAL'S RECIPE GAIN, AND TraLO'S STEP IS ATTRIBUTABLE ACROSS RECIPES (2026-09-27, recipe factorial, knee ResNet18, cap 76, 2x2x2 on seeds 4200-4223, n=24 x 8 cells, preregistered, Holm over four).**
+- 📊 **AUGMENTATION IS AS LARGE AS YUVAL'S WHOLE RECIPE GAIN, AND TraLO'S STEP IS ATTRIBUTABLE ACROSS RECIPES (2026-09-27, recipe factorial, knee ResNet18, cap 76, 2x2x2 on seeds 4200-4223, n=24 x 8 cells, preregistered, Holm over four).**
   All 192 jobs pass every integrity item, and no prediction vector repeats across seeds.
 
   | Primary (cc-F1 points) | Estimate | Holm |
@@ -1226,7 +1226,7 @@ comparison against it is available until it is restored.
   | F-E early stopping | **-0.95 [-1.77, -0.13]** | 0.049 |
   | P2-pooled tralo_final - sham_final | **+0.72 [+0.46, +0.97]** | 0.000 |
 
-  - **Augmentation carries the whole recipe gain.** Its main effect is larger than the pipeline's total +4.81.
+  - **Augmentation is as large as the whole recipe gain.** Its main effect, +5.64 [+4.60, +6.68], contains the pipeline's total +4.81 (unpaired, other seeds).
     - The components held fixed add nothing: the all-off cell equals our v3 clipper (64.56 vs 64.97, p 0.66). These are weight decay, LR decay, his normalisation and the carve.
     - The all-on cell replicates the ResNet18 block (70.47 vs 69.78, p 0.44).
     - The balanced sampler costs accuracy (-1.64 [-2.47, -0.82]).
@@ -1234,7 +1234,7 @@ comparison against it is available until it is restored.
   - **TraLO's step: its first Holm-significant attributable effect on ResNet18.** The first on any backbone was our recipe's MobileNetV3 block (+1.47, Holm 0.016), which does not replicate in Yuval's pipeline (+0.37). P2-pooled is about 0.66 of 76 slots. It is positive in all 8 cells (+0.09 to +1.37), and none of the three switches changes it (all p > 0.2).
     - Secondary costs: macro-F1 +0.01 (none); weighted-F1 -0.17 [-0.33, -0.01].
     - The dose relation of Amendment 1 replicates prospectively (reinstated above).
-  - **It does not yet clear the thesis bar.** In the same cells the snapshot ensemble adds +0.87 to +3.98, significant in 7 of 8, which is more than the step. Whether the step survives ensembling is the step-ensemble study (PART 5).
+  - **It does not yet clear the thesis bar.** In the same cells the snapshot ensemble adds +0.87 to +3.98, significant in 7 of 8, which is more than the step on every cell's point estimate (no paired test). Whether the step survives ensembling is the step-ensemble study (PART 5).
 
   Record: `experiments/claude_recipe_factorial_result_20260927.md`; scorer output `analysis/recipe_factorial_score.txt`.
 - 📊 **IN YUVAL'S PIPELINE THE STEP IS NOT ATTRIBUTABLE ON MobileNetV3 OR RegNetY ALONE (2026-09-27, knee, cap 76, n=24 per block, preregistered, Holm over two).**
@@ -1491,7 +1491,7 @@ tests; they cannot establish the new campaign's success or failure.
   Prereg: `experiments/claude_stepens_prereg_20260927.md`.
 - 🔁 **QUEUED 2026-09-27: the same study replicated on RegNetY** (knee, Yuval's pipeline, cap 76, seeds 4600-4671, n = 72).
   - **Why:** the ResNet18 prereg makes a positive a thesis claim only after a preregistered replication on a second backbone. RegNetY is the other backbone whose single-model step points up (+0.55, Holm 0.073).
-  - **When it was fixed:** at 19:10, before any ResNet18 study result existed.
+  - **When it was fixed:** committed at 19:06:53 (f2580776), before any ResNet18 study result existed.
   - **Joint readings:** the thesis claim needs E1 and E2 above 0 in both studies. There is no pooled primary.
   - **Pilot:** it reruns stored seed 4400 of the small-backbone block, and must be byte-identical with the same initial weights.
   - **State:** release f2580776, with 30/30 mutations caught and 17 tests passing on the server. The launcher started at 19:08 as PID 1247860 (`lab/stepens-rgy/launcher.log`). Its pilot takes the first free slot. Its study seeds wait until the ResNet18 launcher (PID 1216284) exits.
