@@ -1,0 +1,47 @@
+cap 76; pool 826; seeds 100 per regime; results C:\Users\roeym\AppData\Local\Temp\claude\C--Users-roeym-Desktop-projects-OptimizationLoss\984497b4-5277-4623-b16c-f19a291bdfaf\scratchpad\pao_lab_results.json
+
+=== regime es: binds 96/100, PAO converged 100/100, mean iterations 2.13
+PTO: epochs 12.1, train acc 0.742, memorised 0/100, train FP at deploy 68.5, live FP/epoch 81.1 (last5 59.4), pool hard 123.2
+PAO final: epochs 10.4, C_other 3.61, train acc 0.705, train FP at deploy 17.0, live FP/epoch (C>1 weighted) 42.4 (last5 35.6), pool hard 47.7
+TraLO step (n=96): demotion mass on true-k 0.402 vs true-k share of soft count 0.417; PTO precision@cap 0.549
+cc_f1     means: pto 0.4543  pao 0.4369  tralo 0.4430  sham 0.4539
+   pao-pto    -0.0174 [-0.0247, -0.0101]
+   tralo-pto    -0.0114 [-0.0143, -0.0084]
+   sham-pto    -0.0004 [-0.0012, +0.0004]
+   tralo-sham   -0.0109 [-0.0140, -0.0078]
+   pao-tralo  -0.0060 [-0.0131, +0.0011]
+accuracy  means: pto 0.6476  pao 0.6407  tralo 0.6462  sham 0.6474
+   pao-pto    -0.0069 [-0.0101, -0.0036]
+   tralo-pto    -0.0014 [-0.0023, -0.0005]
+   sham-pto    -0.0001 [-0.0005, +0.0002]
+   tralo-sham   -0.0012 [-0.0022, -0.0003]
+   pao-tralo  -0.0055 [-0.0087, -0.0022]
+macro_f1  means: pto 0.5484  pao 0.5387  tralo 0.5466  sham 0.5482
+   pao-pto    -0.0097 [-0.0147, -0.0047]
+   tralo-pto    -0.0018 [-0.0031, -0.0005]
+   sham-pto    -0.0002 [-0.0006, +0.0002]
+   tralo-sham   -0.0016 [-0.0029, -0.0003]
+   pao-tralo  -0.0079 [-0.0129, -0.0028]
+
+=== regime mem: binds 100/100, PAO converged 0/100, mean iterations 8.00
+PTO: epochs 73.8, train acc 1.000, memorised 100/100, train FP at deploy 0.0, live FP/epoch 23.7 (last5 0.2), pool hard 107.2
+PAO final: epochs 98.4, C_other 13.65, train acc 1.000, train FP at deploy 0.0, live FP/epoch (C>1 weighted) 5.3 (last5 0.0), pool hard 113.0
+TraLO step (n=100): demotion mass on true-k 0.454 vs true-k share of soft count 0.499; PTO precision@cap 0.536
+cc_f1     means: pto 0.4451  pao 0.4507  tralo 0.4402  sham 0.4442
+   pao-pto    +0.0056 [+0.0003, +0.0110]
+   tralo-pto    -0.0049 [-0.0073, -0.0026]
+   sham-pto    -0.0009 [-0.0016, -0.0001]
+   tralo-sham   -0.0040 [-0.0063, -0.0018]
+   pao-tralo  +0.0105 [+0.0051, +0.0159]
+accuracy  means: pto 0.6294  pao 0.6305  tralo 0.6299  sham 0.6292
+   pao-pto    +0.0012 [-0.0010, +0.0033]
+   tralo-pto    +0.0005 [-0.0003, +0.0014]
+   sham-pto    -0.0001 [-0.0004, +0.0002]
+   tralo-sham   +0.0007 [-0.0001, +0.0015]
+   pao-tralo  +0.0006 [-0.0015, +0.0027]
+macro_f1  means: pto 0.5255  pao 0.5261  tralo 0.5245  sham 0.5251
+   pao-pto    +0.0006 [-0.0024, +0.0037]
+   tralo-pto    -0.0010 [-0.0022, +0.0002]
+   sham-pto    -0.0004 [-0.0008, -0.0001]
+   tralo-sham   -0.0006 [-0.0017, +0.0006]
+   pao-tralo  +0.0016 [-0.0014, +0.0046]

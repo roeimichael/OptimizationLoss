@@ -1,0 +1,148 @@
+sklearn cross-check of macro/weighted F1: on
+==============================================================================================================
+claude-target-20260925: 24 seeds 1801-1824, cap 76; duplicates dropped: none
+-- FINAL / capped_first   (points; Holm over the 3 tralo_target contrasts; adam-null its own family of 1)
+   levels: clipper acc=58.85 macroF1=59.48 wF1=57.67 ccF1=64.97 | tralo_null acc=58.59 macroF1=59.21 wF1=57.71 ccF1=65.20 | tralo_adam acc=58.68 macroF1=57.08 wF1=56.69 ccF1=63.19
+           tralo_target acc=59.04 macroF1=59.57 wF1=57.60 ccF1=66.16 | sham_target acc=58.93 macroF1=59.53 wF1=57.95 ccF1=66.03
+   contrast     acc                                   macroF1                               wF1                                   ccF1                                  
+   target-clip  +0.19 sd2.90 [-1.04,+1.41] H1.000     +0.10 sd2.02 [-0.75,+0.95] H1.000     -0.07 sd1.91 [-0.87,+0.74] H1.000     +1.19 sd3.62 [-0.34,+2.72] H0.363       identical probs 0, preds 0; ccF1 W/T/L 15/1/8
+   target-sham  +0.11 sd3.32 [-1.30,+1.51] H1.000     +0.04 sd2.29 [-0.92,+1.01] H1.000     -0.35 sd2.49 [-1.40,+0.70] H1.000     +0.14 sd3.18 [-1.21,+1.48] H0.834       identical probs 0, preds 0; ccF1 W/T/L 9/3/12
+   target-null  +0.45 sd2.38 [-0.56,+1.45] H1.000     +0.36 sd2.44 [-0.67,+1.39] H1.000     -0.11 sd2.01 [-0.95,+0.74] H1.000     +0.96 sd4.54 [-0.96,+2.88] H0.621       identical probs 0, preds 0; ccF1 W/T/L 13/0/11
+   adam-null    +0.09 sd3.05 [-1.20,+1.37] H0.892     -2.14 sd3.60 [-3.66,-0.62] H0.008     -1.02 sd2.56 [-2.10,+0.06] H0.064     -2.01 sd5.60 [-4.38,+0.35] H0.091       identical probs 0, preds 0; ccF1 W/T/L 8/1/15
+-- FINAL / raw   (points; Holm over the 3 tralo_target contrasts; adam-null its own family of 1)
+   levels: clipper acc=59.04 macroF1=59.83 wF1=57.78 ccF1=66.29 | tralo_null acc=58.79 macroF1=59.45 wF1=57.77 ccF1=66.81 | tralo_adam acc=56.09 macroF1=52.60 wF1=53.12 ccF1=38.58
+           tralo_target acc=58.96 macroF1=59.40 wF1=57.51 ccF1=65.52 | sham_target acc=58.94 macroF1=59.63 wF1=57.84 ccF1=66.69
+   contrast     acc                                   macroF1                               wF1                                   ccF1                                  
+   target-clip  -0.08 sd2.91 [-1.31,+1.15] H1.000     -0.43 sd2.16 [-1.35,+0.48] H1.000     -0.28 sd1.89 [-1.08,+0.52] H1.000     -0.77 sd5.01 [-2.89,+1.35] H0.545       identical probs 0, preds 0; ccF1 W/T/L 11/0/13
+   target-sham  +0.02 sd3.18 [-1.32,+1.36] H1.000     -0.23 sd2.24 [-1.18,+0.72] H1.000     -0.34 sd2.37 [-1.34,+0.66] H1.000     -1.17 sd3.79 [-2.77,+0.43] H0.433       identical probs 0, preds 0; ccF1 W/T/L 8/0/16
+   target-null  +0.17 sd2.24 [-0.78,+1.11] H1.000     -0.05 sd2.45 [-1.09,+0.98] H1.000     -0.27 sd2.02 [-1.12,+0.58] H1.000     -1.29 sd5.62 [-3.66,+1.08] H0.545       identical probs 0, preds 0; ccF1 W/T/L 9/0/15
+   adam-null    -2.70 sd2.93 [-3.94,-1.46] H0.000     -6.85 sd3.91 [-8.51,-5.20] H0.000     -4.65 sd2.95 [-5.89,-3.41] H0.000     -28.24 sd12.73 [-33.61,-22.86] H0.000   identical probs 0, preds 0; ccF1 W/T/L 0/0/24
+-- ENS / capped_first   (points; Holm over the 3 tralo_target contrasts; adam-null its own family of 1)
+   levels: clipper acc=61.88 macroF1=61.83 wF1=60.18 ccF1=68.73 | tralo_null acc=61.58 macroF1=61.74 wF1=60.17 ccF1=68.68 | tralo_adam acc=61.76 macroF1=59.93 wF1=59.19 ccF1=66.53
+           tralo_target acc=61.51 macroF1=61.70 wF1=59.88 ccF1=69.00 | sham_target acc=61.33 macroF1=61.69 wF1=60.00 ccF1=69.00
+   contrast     acc                                   macroF1                               wF1                                   ccF1                                  
+   target-clip  -0.37 sd1.35 [-0.94,+0.20] H0.567     -0.13 sd1.62 [-0.81,+0.55] H1.000     -0.30 sd1.51 [-0.94,+0.34] H0.785     +0.27 sd2.45 [-0.76,+1.31] H1.000       identical probs 0, preds 0; ccF1 W/T/L 12/4/8
+   target-sham  +0.17 sd1.34 [-0.40,+0.74] H1.000     +0.01 sd1.68 [-0.70,+0.72] H1.000     -0.12 sd1.25 [-0.64,+0.41] H0.785     +0.00 sd2.05 [-0.87,+0.87] H1.000       identical probs 0, preds 0; ccF1 W/T/L 8/7/9
+   target-null  -0.07 sd1.27 [-0.61,+0.47] H1.000     -0.03 sd1.43 [-0.64,+0.57] H1.000     -0.29 sd1.23 [-0.81,+0.23] H0.785     +0.32 sd1.98 [-0.52,+1.16] H1.000       identical probs 0, preds 0; ccF1 W/T/L 11/5/8
+   adam-null    +0.19 sd1.14 [-0.29,+0.67] H0.430     -1.81 sd2.29 [-2.78,-0.84] H0.001     -0.98 sd1.45 [-1.59,-0.37] H0.003     -2.15 sd3.53 [-3.64,-0.66] H0.007       identical probs 0, preds 0; ccF1 W/T/L 7/2/15
+-- ENS / raw   (points; Holm over the 3 tralo_target contrasts; adam-null its own family of 1)
+   levels: clipper acc=62.06 macroF1=62.28 wF1=60.29 ccF1=69.82 | tralo_null acc=61.83 macroF1=62.25 wF1=60.35 ccF1=70.27 | tralo_adam acc=58.27 macroF1=53.00 wF1=54.32 ccF1=33.99
+           tralo_target acc=61.42 macroF1=61.55 wF1=59.76 ccF1=68.02 | sham_target acc=61.42 macroF1=61.78 wF1=59.97 ccF1=69.66
+   contrast     acc                                   macroF1                               wF1                                   ccF1                                  
+   target-clip  -0.65 sd1.37 [-1.22,-0.07] H0.090     -0.73 sd1.57 [-1.40,-0.07] H0.064     -0.53 sd1.45 [-1.14,+0.08] H0.168     -1.80 sd2.71 [-2.94,-0.65] H0.007       identical probs 0, preds 0; ccF1 W/T/L 8/0/16
+   target-sham  -0.01 sd1.30 [-0.55,+0.54] H0.985     -0.23 sd1.52 [-0.87,+0.42] H0.474     -0.22 sd1.21 [-0.73,+0.29] H0.388     -1.64 sd2.54 [-2.71,-0.57] H0.007       identical probs 0, preds 0; ccF1 W/T/L 6/0/18
+   target-null  -0.42 sd1.34 [-0.99,+0.15] H0.281     -0.70 sd1.38 [-1.28,-0.12] H0.061     -0.59 sd1.24 [-1.12,-0.06] H0.088     -2.25 sd2.18 [-3.17,-1.33] H0.000       identical probs 0, preds 0; ccF1 W/T/L 4/0/20
+   adam-null    -3.57 sd1.66 [-4.27,-2.87] H0.000     -9.25 sd3.08 [-10.55,-7.95] H0.000    -6.03 sd2.05 [-6.89,-5.16] H0.000     -36.28 sd8.48 [-39.86,-32.70] H0.000    identical probs 0, preds 0; ccF1 W/T/L 0/0/24
+==============================================================================================================
+claude-target50-20260926: 24 seeds 1901-1924, cap 50; duplicates dropped: none
+-- FINAL / capped_first   (points; Holm over the 3 tralo_target contrasts; adam-null its own family of 1)
+   levels: clipper acc=57.28 macroF1=57.12 wF1=56.29 ccF1=55.66 | tralo_null acc=57.23 macroF1=56.72 wF1=56.08 ccF1=55.13 | tralo_adam acc=58.23 macroF1=56.42 wF1=56.05 ccF1=56.57
+           tralo_target acc=58.20 macroF1=57.30 wF1=56.82 ccF1=56.09 | sham_target acc=57.38 macroF1=57.45 wF1=56.47 ccF1=56.84
+   contrast     acc                                   macroF1                               wF1                                   ccF1                                  
+   target-clip  +0.92 sd2.64 [-0.20,+2.03] H0.307     +0.18 sd2.20 [-0.75,+1.11] H1.000     +0.52 sd1.72 [-0.20,+1.25] H0.448     +0.43 sd5.12 [-1.74,+2.59] H0.864       identical probs 0, preds 0; ccF1 W/T/L 10/4/10
+   target-sham  +0.82 sd3.13 [-0.50,+2.15] H0.349     -0.15 sd2.02 [-1.00,+0.71] H1.000     +0.34 sd2.22 [-0.59,+1.28] H0.456     -0.75 sd4.04 [-2.45,+0.96] H0.864       identical probs 0, preds 0; ccF1 W/T/L 9/5/10
+   target-null  +0.97 sd3.39 [-0.46,+2.40] H0.349     +0.58 sd2.64 [-0.54,+1.69] H0.882     +0.73 sd2.77 [-0.44,+1.90] H0.448     +0.96 sd4.33 [-0.87,+2.79] H0.864       identical probs 0, preds 0; ccF1 W/T/L 12/5/7
+   adam-null    +0.99 sd2.94 [-0.25,+2.24] H0.112     -0.30 sd3.96 [-1.98,+1.37] H0.709     -0.03 sd2.30 [-1.00,+0.94] H0.949     +1.44 sd4.74 [-0.56,+3.44] H0.150       identical probs 0, preds 0; ccF1 W/T/L 13/5/6
+-- FINAL / raw   (points; Holm over the 3 tralo_target contrasts; adam-null its own family of 1)
+   levels: clipper acc=58.28 macroF1=59.13 wF1=57.37 ccF1=64.87 | tralo_null acc=58.25 macroF1=58.88 wF1=57.21 ccF1=64.60 | tralo_adam acc=55.89 macroF1=51.12 wF1=52.54 ccF1=33.11
+           tralo_target acc=58.16 macroF1=57.21 wF1=56.76 ccF1=55.82 | sham_target acc=58.46 macroF1=59.61 wF1=57.63 ccF1=66.40
+   contrast     acc                                   macroF1                               wF1                                   ccF1                                  
+   target-clip  -0.12 sd2.43 [-1.14,+0.91] H1.000     -1.92 sd2.28 [-2.88,-0.95] H0.001     -0.61 sd1.54 [-1.26,+0.04] H0.194     -9.05 sd5.19 [-11.24,-6.86] H0.000      identical probs 0, preds 0; ccF1 W/T/L 2/0/22
+   target-sham  -0.30 sd3.40 [-1.74,+1.13] H1.000     -2.40 sd2.52 [-3.46,-1.33] H0.000     -0.86 sd2.50 [-1.92,+0.19] H0.209     -10.58 sd5.29 [-12.81,-8.34] H0.000     identical probs 0, preds 0; ccF1 W/T/L 0/0/24
+   target-null  -0.09 sd3.52 [-1.58,+1.39] H1.000     -1.67 sd2.73 [-2.82,-0.51] H0.007     -0.45 sd2.90 [-1.67,+0.78] H0.456     -8.78 sd5.56 [-11.13,-6.43] H0.000      identical probs 0, preds 0; ccF1 W/T/L 3/0/21
+   adam-null    -2.36 sd3.07 [-3.66,-1.07] H0.001     -7.76 sd4.40 [-9.62,-5.90] H0.000     -4.68 sd3.03 [-5.95,-3.40] H0.000     -31.49 sd12.04 [-36.58,-26.41] H0.000   identical probs 0, preds 0; ccF1 W/T/L 0/0/24
+-- ENS / capped_first   (points; Holm over the 3 tralo_target contrasts; adam-null its own family of 1)
+   levels: clipper acc=60.08 macroF1=59.22 wF1=58.63 ccF1=58.28 | tralo_null acc=60.49 macroF1=59.17 wF1=58.92 ccF1=58.28 | tralo_adam acc=60.68 macroF1=58.42 wF1=58.05 ccF1=58.07
+           tralo_target acc=61.15 macroF1=59.74 wF1=59.11 ccF1=59.29 | sham_target acc=60.36 macroF1=59.32 wF1=58.91 ccF1=58.76
+   contrast     acc                                   macroF1                               wF1                                   ccF1                                  
+   target-clip  +1.06 sd1.36 [+0.49,+1.64] H0.002     +0.52 sd1.74 [-0.22,+1.26] H0.314     +0.48 sd1.31 [-0.07,+1.03] H0.260     +1.01 sd2.17 [+0.10,+1.93] H0.063       identical probs 0, preds 0; ccF1 W/T/L 16/4/4
+   target-sham  +0.79 sd1.50 [+0.16,+1.43] H0.017     +0.42 sd1.53 [-0.22,+1.07] H0.314     +0.20 sd1.20 [-0.31,+0.71] H0.842     +0.53 sd2.07 [-0.34,+1.41] H0.218       identical probs 0, preds 0; ccF1 W/T/L 10/10/4
+   target-null  +0.66 sd1.11 [+0.19,+1.13] H0.016     +0.57 sd1.42 [-0.03,+1.16] H0.189     +0.19 sd1.13 [-0.29,+0.67] H0.842     +1.01 sd1.85 [+0.23,+1.80] H0.040       identical probs 0, preds 0; ccF1 W/T/L 14/5/5
+   adam-null    +0.19 sd1.38 [-0.39,+0.77] H0.503     -0.76 sd2.39 [-1.77,+0.25] H0.135     -0.87 sd1.44 [-1.48,-0.27] H0.007     -0.21 sd2.23 [-1.15,+0.73] H0.643       identical probs 0, preds 0; ccF1 W/T/L 10/4/10
+-- ENS / raw   (points; Holm over the 3 tralo_target contrasts; adam-null its own family of 1)
+   levels: clipper acc=61.60 macroF1=62.01 wF1=60.27 ccF1=69.95 | tralo_null acc=61.88 macroF1=62.12 wF1=60.45 ccF1=69.61 | tralo_adam acc=57.68 macroF1=51.75 wF1=53.53 ccF1=28.45
+           tralo_target acc=60.98 macroF1=59.44 wF1=58.89 ccF1=57.96 | sham_target acc=61.77 macroF1=62.26 wF1=60.46 ccF1=69.93
+   contrast     acc                                   macroF1                               wF1                                   ccF1                                  
+   target-clip  -0.62 sd1.51 [-1.26,+0.02] H0.056     -2.58 sd1.94 [-3.40,-1.76] H0.000     -1.38 sd1.42 [-1.98,-0.78] H0.000     -11.99 sd4.19 [-13.76,-10.22] H0.000    identical probs 0, preds 0; ccF1 W/T/L 0/0/24
+   target-sham  -0.79 sd1.46 [-1.40,-0.17] H0.029     -2.83 sd1.70 [-3.55,-2.11] H0.000     -1.57 sd1.35 [-2.14,-1.00] H0.000     -11.96 sd4.01 [-13.66,-10.27] H0.000    identical probs 0, preds 0; ccF1 W/T/L 0/0/24
+   target-null  -0.90 sd1.10 [-1.37,-0.44] H0.002     -2.69 sd1.59 [-3.36,-2.02] H0.000     -1.55 sd1.25 [-2.08,-1.03] H0.000     -11.65 sd3.56 [-13.15,-10.14] H0.000    identical probs 0, preds 0; ccF1 W/T/L 0/0/24
+   adam-null    -4.20 sd1.30 [-4.75,-3.65] H0.000     -10.37 sd2.62 [-11.48,-9.26] H0.000   -6.92 sd1.73 [-7.65,-6.19] H0.000     -41.16 sd6.36 [-43.84,-38.48] H0.000    identical probs 0, preds 0; ccF1 W/T/L 0/0/24
+==============================================================================================================
+claude-repl-mn3: 24 seeds 3001-3024, cap 76; duplicates dropped: none
+-- FINAL / capped_first   (points; Holm over the 3 tralo_target contrasts; adam-null its own family of 1)
+   levels: clipper acc=56.53 macroF1=58.24 wF1=56.32 ccF1=64.70 | tralo_null acc=57.23 macroF1=58.30 wF1=56.69 ccF1=64.65 | tralo_adam acc=57.88 macroF1=58.22 wF1=57.06 ccF1=64.93
+           tralo_target acc=57.76 macroF1=59.03 wF1=57.14 ccF1=66.16 | sham_target acc=57.28 macroF1=58.33 wF1=56.80 ccF1=64.70
+   contrast     acc                                   macroF1                               wF1                                   ccF1                                  
+   target-clip  +1.24 sd3.76 [-0.35,+2.82] H0.363     +0.79 sd2.66 [-0.33,+1.92] H0.287     +0.82 sd2.39 [-0.19,+1.83] H0.317     +1.47 sd3.47 [-0.00,+2.93] H0.050       identical probs 0, preds 0; ccF1 W/T/L 15/2/7
+   target-sham  +0.48 sd3.25 [-0.89,+1.85] H0.778     +0.71 sd2.00 [-0.14,+1.56] H0.287     +0.34 sd2.32 [-0.64,+1.32] H0.633     +1.47 sd2.46 [+0.43,+2.50] H0.023       identical probs 0, preds 0; ccF1 W/T/L 16/2/6
+   target-null  +0.53 sd2.98 [-0.73,+1.79] H0.778     +0.73 sd2.30 [-0.24,+1.70] H0.287     +0.45 sd2.17 [-0.46,+1.37] H0.633     +1.51 sd2.63 [+0.40,+2.62] H0.023       identical probs 0, preds 0; ccF1 W/T/L 15/3/6
+   adam-null    +0.66 sd2.27 [-0.30,+1.62] H0.171     -0.08 sd3.24 [-1.45,+1.29] H0.903     +0.37 sd1.95 [-0.46,+1.19] H0.365     +0.27 sd4.55 [-1.65,+2.20] H0.770       identical probs 0, preds 0; ccF1 W/T/L 11/3/10
+-- FINAL / raw   (points; Holm over the 3 tralo_target contrasts; adam-null its own family of 1)
+   levels: clipper acc=56.55 macroF1=58.43 wF1=56.13 ccF1=66.62 | tralo_null acc=57.25 macroF1=58.63 wF1=56.57 ccF1=66.83 | tralo_adam acc=57.29 macroF1=57.54 wF1=56.32 ccF1=59.54
+           tralo_target acc=57.78 macroF1=59.15 wF1=57.15 ccF1=66.02 | sham_target acc=57.31 macroF1=58.63 wF1=56.65 ccF1=66.98
+   contrast     acc                                   macroF1                               wF1                                   ccF1                                  
+   target-clip  +1.23 sd3.82 [-0.39,+2.84] H0.389     +0.72 sd2.32 [-0.27,+1.70] H0.435     +1.02 sd2.62 [-0.09,+2.13] H0.207     -0.60 sd4.06 [-2.32,+1.11] H0.561       identical probs 0, preds 0; ccF1 W/T/L 10/0/14
+   target-sham  +0.46 sd3.22 [-0.90,+1.82] H0.783     +0.52 sd2.16 [-0.39,+1.44] H0.496     +0.49 sd2.42 [-0.53,+1.52] H0.422     -0.96 sd3.44 [-2.41,+0.50] H0.561       identical probs 0, preds 0; ccF1 W/T/L 9/0/15
+   target-null  +0.52 sd2.94 [-0.72,+1.77] H0.783     +0.51 sd2.21 [-0.42,+1.45] H0.496     +0.57 sd2.19 [-0.35,+1.50] H0.422     -0.81 sd3.43 [-2.25,+0.64] H0.561       identical probs 0, preds 0; ccF1 W/T/L 8/0/16
+   adam-null    +0.04 sd2.09 [-0.85,+0.92] H0.935     -1.09 sd2.79 [-2.27,+0.08] H0.067     -0.25 sd2.05 [-1.12,+0.62] H0.558     -7.29 sd8.97 [-11.07,-3.50] H0.001      identical probs 0, preds 0; ccF1 W/T/L 7/0/17
+-- ENS / capped_first   (points; Holm over the 3 tralo_target contrasts; adam-null its own family of 1)
+   levels: clipper acc=59.44 macroF1=60.29 wF1=58.68 ccF1=66.94 | tralo_null acc=59.10 macroF1=60.07 wF1=58.42 ccF1=66.53 | tralo_adam acc=59.67 macroF1=59.65 wF1=58.31 ccF1=66.67
+           tralo_target acc=59.68 macroF1=60.44 wF1=58.65 ccF1=67.26 | sham_target acc=59.16 macroF1=59.94 wF1=58.48 ccF1=66.12
+   contrast     acc                                   macroF1                               wF1                                   ccF1                                  
+   target-clip  +0.24 sd1.35 [-0.33,+0.81] H0.390     +0.15 sd0.80 [-0.19,+0.48] H0.369     -0.03 sd0.79 [-0.36,+0.31] H0.870     +0.32 sd1.93 [-0.49,+1.14] H0.424       identical probs 0, preds 0; ccF1 W/T/L 10/7/7
+   target-sham  +0.52 sd1.12 [+0.05,+1.00] H0.063     +0.50 sd1.01 [+0.08,+0.93] H0.067     +0.17 sd0.82 [-0.18,+0.51] H0.651     +1.14 sd2.14 [+0.24,+2.05] H0.045       identical probs 0, preds 0; ccF1 W/T/L 13/6/5
+   target-null  +0.58 sd0.95 [+0.18,+0.98] H0.020     +0.38 sd1.01 [-0.05,+0.80] H0.164     +0.23 sd0.73 [-0.08,+0.54] H0.400     +0.73 sd1.70 [+0.01,+1.45] H0.093       identical probs 0, preds 0; ccF1 W/T/L 12/5/7
+   adam-null    +0.57 sd1.06 [+0.12,+1.02] H0.015     -0.41 sd1.51 [-1.05,+0.23] H0.195     -0.11 sd0.89 [-0.48,+0.27] H0.562     +0.14 sd2.21 [-0.79,+1.07] H0.763       identical probs 0, preds 0; ccF1 W/T/L 8/5/11
+-- ENS / raw   (points; Holm over the 3 tralo_target contrasts; adam-null its own family of 1)
+   levels: clipper acc=59.69 macroF1=60.90 wF1=58.82 ccF1=69.35 | tralo_null acc=59.35 macroF1=60.67 wF1=58.57 ccF1=68.91 | tralo_adam acc=58.89 macroF1=58.52 wF1=57.36 ccF1=59.42
+           tralo_target acc=59.63 macroF1=60.35 wF1=58.58 ccF1=66.75 | sham_target acc=59.45 macroF1=60.74 wF1=58.69 ccF1=68.87
+   contrast     acc                                   macroF1                               wF1                                   ccF1                                  
+   target-clip  -0.06 sd1.42 [-0.66,+0.54] H1.000     -0.55 sd1.00 [-0.97,-0.13] H0.040     -0.24 sd0.88 [-0.61,+0.14] H0.609     -2.60 sd2.57 [-3.69,-1.51] H0.000       identical probs 0, preds 0; ccF1 W/T/L 4/0/20
+   target-sham  +0.18 sd1.26 [-0.36,+0.71] H1.000     -0.39 sd1.10 [-0.85,+0.08] H0.198     -0.11 sd0.90 [-0.49,+0.27] H1.000     -2.12 sd2.83 [-3.32,-0.93] H0.002       identical probs 0, preds 0; ccF1 W/T/L 6/0/18
+   target-null  +0.28 sd0.98 [-0.14,+0.69] H0.540     -0.32 sd1.01 [-0.74,+0.11] H0.198     +0.02 sd0.76 [-0.31,+0.34] H1.000     -2.16 sd2.80 [-3.34,-0.98] H0.002       identical probs 0, preds 0; ccF1 W/T/L 5/0/19
+   adam-null    -0.46 sd1.18 [-0.96,+0.04] H0.068     -2.15 sd1.18 [-2.65,-1.66] H0.000     -1.20 sd1.01 [-1.63,-0.78] H0.000     -9.49 sd4.05 [-11.20,-7.78] H0.000      identical probs 0, preds 0; ccF1 W/T/L 1/0/23
+==============================================================================================================
+claude-repl-rgy: 24 seeds 3101-3124, cap 76; duplicates dropped: none
+-- FINAL / capped_first   (points; Holm over the 3 tralo_target contrasts; adam-null its own family of 1)
+   levels: clipper acc=56.98 macroF1=58.35 wF1=56.13 ccF1=66.90 | tralo_null acc=56.27 macroF1=58.27 wF1=55.84 ccF1=66.07 | tralo_adam acc=56.26 macroF1=53.98 wF1=54.69 ccF1=62.27
+           tralo_target acc=57.30 macroF1=58.18 wF1=56.19 ccF1=66.25 | sham_target acc=56.92 macroF1=58.25 wF1=56.11 ccF1=66.35
+   contrast     acc                                   macroF1                               wF1                                   ccF1                                  
+   target-clip  +0.32 sd2.38 [-0.68,+1.33] H0.872     -0.17 sd2.24 [-1.12,+0.77] H1.000     +0.06 sd1.98 [-0.77,+0.90] H1.000     -0.64 sd3.27 [-2.02,+0.74] H1.000       identical probs 0, preds 0; ccF1 W/T/L 9/2/13
+   target-sham  +0.38 sd2.37 [-0.62,+1.38] H0.872     -0.07 sd1.66 [-0.77,+0.63] H1.000     +0.08 sd1.86 [-0.70,+0.87] H1.000     -0.09 sd3.17 [-1.43,+1.25] H1.000       identical probs 0, preds 0; ccF1 W/T/L 8/4/12
+   target-null  +1.03 sd2.19 [+0.11,+1.96] H0.090     -0.10 sd2.08 [-0.97,+0.78] H1.000     +0.35 sd1.94 [-0.47,+1.17] H1.000     +0.18 sd3.20 [-1.17,+1.54] H1.000       identical probs 0, preds 0; ccF1 W/T/L 10/2/12
+   adam-null    -0.02 sd2.60 [-1.11,+1.08] H0.978     -4.29 sd4.49 [-6.19,-2.39] H0.000     -1.16 sd2.36 [-2.15,-0.16] H0.025     -3.80 sd5.33 [-6.05,-1.55] H0.002       identical probs 0, preds 0; ccF1 W/T/L 4/2/18
+-- FINAL / raw   (points; Holm over the 3 tralo_target contrasts; adam-null its own family of 1)
+   levels: clipper acc=57.19 macroF1=58.50 wF1=56.18 ccF1=68.63 | tralo_null acc=56.44 macroF1=58.33 wF1=55.87 ccF1=67.48 | tralo_adam acc=54.93 macroF1=53.60 wF1=52.99 ccF1=48.03
+           tralo_target acc=57.20 macroF1=58.05 wF1=56.08 ccF1=65.52 | sham_target acc=57.09 macroF1=58.30 wF1=56.15 ccF1=68.00
+   contrast     acc                                   macroF1                               wF1                                   ccF1                                  
+   target-clip  +0.01 sd2.49 [-1.04,+1.06] H1.000     -0.46 sd2.68 [-1.59,+0.67] H1.000     -0.11 sd2.19 [-1.03,+0.82] H1.000     -3.11 sd3.93 [-4.77,-1.45] H0.002       identical probs 0, preds 0; ccF1 W/T/L 5/0/19
+   target-sham  +0.11 sd2.46 [-0.93,+1.15] H1.000     -0.25 sd2.15 [-1.16,+0.66] H1.000     -0.07 sd2.16 [-0.98,+0.84] H1.000     -2.48 sd5.38 [-4.75,-0.20] H0.034       identical probs 0, preds 0; ccF1 W/T/L 5/0/19
+   target-null  +0.77 sd2.23 [-0.17,+1.71] H0.316     -0.28 sd2.27 [-1.24,+0.68] H1.000     +0.21 sd2.08 [-0.67,+1.09] H1.000     -1.96 sd3.66 [-3.51,-0.41] H0.030       identical probs 0, preds 0; ccF1 W/T/L 6/0/18
+   adam-null    -1.50 sd3.05 [-2.79,-0.22] H0.024     -4.73 sd3.49 [-6.21,-3.26] H0.000     -2.88 sd2.89 [-4.10,-1.65] H0.000     -19.45 sd11.36 [-24.25,-14.65] H0.000   identical probs 0, preds 0; ccF1 W/T/L 2/0/22
+-- ENS / capped_first   (points; Holm over the 3 tralo_target contrasts; adam-null its own family of 1)
+   levels: clipper acc=58.70 macroF1=60.08 wF1=57.71 ccF1=68.86 | tralo_null acc=58.47 macroF1=60.03 wF1=57.42 ccF1=68.36 | tralo_adam acc=58.83 macroF1=56.72 wF1=56.42 ccF1=65.80
+           tralo_target acc=59.08 macroF1=59.63 wF1=57.50 ccF1=68.59 | sham_target acc=58.82 macroF1=60.27 wF1=57.86 ccF1=68.77
+   contrast     acc                                   macroF1                               wF1                                   ccF1                                  
+   target-clip  +0.38 sd1.46 [-0.23,+1.00] H0.423     -0.46 sd1.29 [-1.00,+0.09] H0.193     -0.21 sd1.16 [-0.70,+0.28] H0.767     -0.27 sd2.06 [-1.14,+0.59] H1.000       identical probs 0, preds 0; ccF1 W/T/L 9/5/10
+   target-sham  +0.26 sd1.23 [-0.26,+0.78] H0.423     -0.64 sd1.42 [-1.24,-0.04] H0.114     -0.35 sd1.06 [-0.80,+0.09] H0.341     -0.18 sd2.04 [-1.04,+0.68] H1.000       identical probs 0, preds 0; ccF1 W/T/L 8/4/12
+   target-null  +0.61 sd1.31 [+0.05,+1.16] H0.100     -0.41 sd1.31 [-0.96,+0.15] H0.193     +0.08 sd1.18 [-0.42,+0.58] H0.767     +0.23 sd1.34 [-0.33,+0.79] H1.000       identical probs 0, preds 0; ccF1 W/T/L 9/8/7
+   adam-null    +0.36 sd1.51 [-0.28,+1.00] H0.258     -3.32 sd2.47 [-4.36,-2.27] H0.000     -0.99 sd1.29 [-1.54,-0.45] H0.001     -2.56 sd3.20 [-3.92,-1.21] H0.001       identical probs 0, preds 0; ccF1 W/T/L 5/1/18
+-- ENS / raw   (points; Holm over the 3 tralo_target contrasts; adam-null its own family of 1)
+   levels: clipper acc=59.00 macroF1=60.66 wF1=57.89 ccF1=71.32 | tralo_null acc=58.73 macroF1=60.45 wF1=57.55 ccF1=70.75 | tralo_adam acc=56.53 macroF1=53.51 wF1=53.42 ccF1=44.14
+           tralo_target acc=58.97 macroF1=59.50 wF1=57.37 ccF1=67.86 | sham_target acc=59.21 macroF1=60.90 wF1=58.12 ccF1=71.81
+   contrast     acc                                   macroF1                               wF1                                   ccF1                                  
+   target-clip  -0.03 sd1.33 [-0.59,+0.53] H1.000     -1.16 sd1.22 [-1.68,-0.65] H0.000     -0.52 sd1.07 [-0.97,-0.07] H0.053     -3.46 sd2.24 [-4.41,-2.52] H0.000       identical probs 0, preds 0; ccF1 W/T/L 2/0/22
+   target-sham  -0.23 sd1.24 [-0.76,+0.29] H1.000     -1.40 sd1.40 [-1.99,-0.81] H0.000     -0.74 sd1.13 [-1.22,-0.26] H0.012     -3.95 sd2.35 [-4.94,-2.96] H0.000       identical probs 0, preds 0; ccF1 W/T/L 1/0/23
+   target-null  +0.25 sd1.35 [-0.32,+0.82] H1.000     -0.95 sd1.41 [-1.54,-0.35] H0.003     -0.18 sd1.19 [-0.68,+0.33] H0.476     -2.90 sd2.57 [-3.99,-1.81] H0.000       identical probs 0, preds 0; ccF1 W/T/L 2/0/22
+   adam-null    -2.20 sd1.66 [-2.90,-1.50] H0.000     -6.93 sd2.08 [-7.81,-6.05] H0.000     -4.13 sd1.63 [-4.82,-3.44] H0.000     -26.61 sd6.45 [-29.33,-23.88] H0.000    identical probs 0, preds 0; ccF1 W/T/L 0/0/24
+==============================================================================================================
+SECOND CHOICE: claude-target-20260925 (ResNet18, cap 76), FINAL, capped_first, tralo_target vs clipper, 24 seeds
+  evicted by tralo_target (in clipper set, not in tralo_target set): 455 items, 48.1% truly grade 3
+    tralo_target reassigns them correctly: 155/455 = 34.1% overall; 155/236 = 65.7% of the truly non-3
+    clipper's own second choice (argmax excluding 3) on the same items is correct: 152/455 = 33.4%
+  admitted by tralo_target (in tralo_target set, not in clipper set): 455 items, 53.8% truly grade 3; clipper had 29.5% of them right
+  net correct grade-3 slots (tralo_target - clipper)                      +1.08 [ -0.31,  +2.48] per seed  p=0.1210
+  net correct items overall (accuracy x 826)                              +1.54 [ -8.57, +11.66] per seed  p=0.7554
+    of which: evicted items                                               -2.67 [ -4.18,  -1.15] per seed  p=0.0013
+    of which: admitted items                                              +4.62 [ +3.03,  +6.22] per seed  p=0.0000
+    of which: items outside both grade-3 sets (non-3 argmax changes)      -0.42 [-10.73,  +9.90] per seed  p=0.9341

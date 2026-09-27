@@ -1,0 +1,217 @@
+{
+ "alloc_random_integer_caps": {
+  "trials": 300,
+  "identical": 300,
+  "max_items_differing": 0
+ },
+ "noninteger_fill": [
+  [
+   66.9,
+   67
+  ],
+  [
+   111.5,
+   112
+  ],
+  [
+   156.1,
+   157
+  ],
+  [
+   200.7,
+   201
+  ],
+  [
+   76.0,
+   76
+  ],
+  [
+   75.5,
+   76
+  ]
+ ],
+ "alloc_exact_ties": {
+  "trials": 200,
+  "selected_set_differs": 53,
+  "note": "only possible when tied p3 values straddle the cut rank"
+ },
+ "knee_stored": {
+  "n": 826,
+  "true_grade3": 106,
+  "class_counts": [
+   328,
+   153,
+   212,
+   106,
+   27
+  ],
+  "val_order_is_class_sorted": true,
+  "rows": 72,
+  "identical_all": true,
+  "max_items_differ": 0,
+  "any_straddle_tie": false,
+  "max_p3_eq_1": 1,
+  "max_dup_p3": 1,
+  "macro_ours_eq_sklearn": true,
+  "raw_grade3_counts_clipper": [
+   122,
+   83,
+   67,
+   87,
+   87,
+   93,
+   85,
+   98,
+   49,
+   91,
+   79,
+   84,
+   91,
+   85,
+   95,
+   53,
+   79,
+   95,
+   89,
+   90,
+   125,
+   79,
+   91,
+   85
+  ],
+  "report_crosscheck_1801_clipper": {
+   "stored_ccf1": 0.6923076923076923,
+   "recomputed": 0.6923076923076923,
+   "stored_acc": 0.6004842615012107,
+   "recomputed_acc": 0.6004842615012107
+  }
+ },
+ "knee_per_arm_means": {
+  "clipper": {
+   "acc_ours": 0.5885290556900726,
+   "ccf1_ours": 0.6497252747252747,
+   "macro_ours": 0.5947556929752628,
+   "weighted_sklearn": 0.5767227392818515,
+   "n": 24
+  },
+  "tralo_null": {
+   "acc_ours": 0.585905972558515,
+   "ccf1_ours": 0.652014652014652,
+   "macro_ours": 0.592138675106694,
+   "weighted_sklearn": 0.5770884109404962,
+   "n": 24
+  },
+  "tralo_target": {
+   "acc_ours": 0.5903954802259888,
+   "ccf1_ours": 0.6616300366300366,
+   "macro_ours": 0.5957216569590118,
+   "weighted_sklearn": 0.5760350003659057,
+   "n": 24
+  }
+ },
+ "knee_paired": {
+  "tralo_target-clipper:acc_ours": {
+   "n": 24,
+   "mean": 0.001866424535916053,
+   "lo": -0.01037859540947589,
+   "hi": 0.014111444481307996
+  },
+  "tralo_target-clipper:ccf1_ours": {
+   "n": 24,
+   "mean": 0.011904761904761882,
+   "lo": -0.003388596810949201,
+   "hi": 0.027198120620472964
+  },
+  "tralo_target-clipper:macro_ours": {
+   "n": 24,
+   "mean": 0.000965963983749013,
+   "lo": -0.007547079315413006,
+   "hi": 0.009479007282911033
+  },
+  "tralo_target-clipper:weighted_sklearn": {
+   "n": 24,
+   "mean": -0.0006877389159456413,
+   "lo": -0.008739249950885727,
+   "hi": 0.007363772118994445
+  },
+  "tralo_target-tralo_null:acc_ours": {
+   "n": 24,
+   "mean": 0.004489507667473765,
+   "lo": -0.005555931900066418,
+   "hi": 0.014534947235013949
+  },
+  "tralo_target-tralo_null:ccf1_ours": {
+   "n": 24,
+   "mean": 0.009615384615384581,
+   "lo": -0.00955658176632342,
+   "hi": 0.028787350997092582
+  },
+  "tralo_target-tralo_null:macro_ours": {
+   "n": 24,
+   "mean": 0.003582981852317748,
+   "lo": -0.006734587595315764,
+   "hi": 0.01390055129995126
+  },
+  "tralo_target-tralo_null:weighted_sklearn": {
+   "n": 24,
+   "mean": -0.0010534105745904077,
+   "lo": -0.009540615741620602,
+   "hi": 0.007433794592439787
+  }
+ },
+ "customloss": {
+  "ce_mean": 3.8789596557617188,
+  "custom_C1": 3.8764119148254395,
+  "abs_diff_C1": 0.002547740936279297,
+  "custom_C": 6.29046106338501,
+  "expected_weighted_ce": 6.295262813568115,
+  "grad_max_abs_diff_vs_weighted_ce": 0.0007249339832924306,
+  "frac_pred_k": 0.20751953125
+ },
+ "customloss_near_tie_grad_norm": 14348.8349609375,
+ "customloss_normal_grad_norm": 0.5007980465888977,
+ "F_and_update": [
+  {
+   "N_K_p": 60,
+   "F": 0.0,
+   "dF": 0.0,
+   "C_increment": 0.0
+  },
+  {
+   "N_K_p": 76,
+   "F": 0.0,
+   "dF": 0.0,
+   "C_increment": 0.0
+  },
+  {
+   "N_K_p": 77,
+   "F": 2.0,
+   "dF": 4.0,
+   "C_increment": 0.05333333333333334
+  },
+  {
+   "N_K_p": 90,
+   "F": 392.0,
+   "dF": 56.0,
+   "C_increment": 0.7466666666666667
+  },
+  {
+   "N_K_p": 120,
+   "F": 3872.0,
+   "dF": 176.0,
+   "C_increment": 2.3466666666666667
+  },
+  {
+   "N_K_p": 150,
+   "F": 10952.0,
+   "dF": 296.0,
+   "C_increment": 3.9466666666666668
+  },
+  {
+   "N_K_p": 200,
+   "F": 30752.0,
+   "dF": 496.0,
+   "C_increment": 6.613333333333334
+  }
+ ]
+}

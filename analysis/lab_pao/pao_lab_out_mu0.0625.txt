@@ -1,0 +1,24 @@
+cap 76; pool 826; mu 0.00083 (x0.0625); seeds 100 per regime; results C:\Users\roeym\AppData\Local\Temp\claude\C--Users-roeym-Desktop-projects-OptimizationLoss\984497b4-5277-4623-b16c-f19a291bdfaf\scratchpad\pao_lab_results_mu0.0625.json
+
+=== regime es: binds 96/100, PAO converged 30/100, mean iterations 7.01
+PTO: epochs 12.1, train acc 0.742, memorised 0/100, train FP at deploy 68.5, live FP/epoch 81.1 (last5 59.4), pool hard 123.2
+PAO final: epochs 11.5, C_other 1.62, train acc 0.732, train FP at deploy 37.0, live FP/epoch (C>1 weighted) 64.0 (last5 49.8), pool hard 83.9
+TraLO step (n=96): demotion mass on true-k 0.402 vs true-k share of soft count 0.417; PTO precision@cap 0.549
+cc_f1     means: pto 0.4543  pao 0.4469  tralo 0.4430  sham 0.4539
+   pao-pto    -0.0075 [-0.0143, -0.0007]
+   tralo-pto    -0.0114 [-0.0143, -0.0084]
+   sham-pto    -0.0004 [-0.0012, +0.0004]
+   tralo-sham   -0.0109 [-0.0140, -0.0078]
+   pao-tralo  +0.0039 [-0.0031, +0.0110]
+accuracy  means: pto 0.6476  pao 0.6459  tralo 0.6462  sham 0.6474
+   pao-pto    -0.0017 [-0.0045, +0.0012]
+   tralo-pto    -0.0014 [-0.0023, -0.0005]
+   sham-pto    -0.0001 [-0.0005, +0.0002]
+   tralo-sham   -0.0012 [-0.0022, -0.0003]
+   pao-tralo  -0.0003 [-0.0033, +0.0027]
+macro_f1  means: pto 0.5484  pao 0.5456  tralo 0.5466  sham 0.5482
+   pao-pto    -0.0028 [-0.0070, +0.0014]
+   tralo-pto    -0.0018 [-0.0031, -0.0005]
+   sham-pto    -0.0002 [-0.0006, +0.0002]
+   tralo-sham   -0.0016 [-0.0029, -0.0003]
+   pao-tralo  -0.0010 [-0.0054, +0.0033]
