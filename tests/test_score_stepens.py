@@ -12,6 +12,14 @@ from tralo.global_report import evaluate_global  # noqa: E402
 N, CAPS = 826, [None, None, None, 76, None]
 
 
+def arch_of(seed):
+    if seed == 4300 or 4700 <= seed < 4800:
+        return 'mobilenet_v3_large', 'MobileNetV3'
+    if seed == 4100 or 4800 <= seed < 4900:
+        return 'efficientnet_b5', 'EfficientNet'
+    return ('regnet_y_400mf', 'RegNet') if seed == 4400 or 4600 <= seed < 4700 else ('resnet18', 'ResNet')
+
+
 def tree(root, seeds, signal=0.1, best=6, run=9, edit=None, arch=None):
     """Write knee_yuval-shaped seed directories with snapshot steps; the tralo snapshots carry extra grade-3 signal."""
     g = torch.Generator().manual_seed(0)
@@ -44,8 +52,7 @@ def tree(root, seeds, signal=0.1, best=6, run=9, edit=None, arch=None):
             edit(summary)
         (d / 'summary.json').write_text(json.dumps(summary))
         (d / 'manifest.json').write_text(json.dumps(dict(rows=rows)))
-        regnet = seed == 4400 or 4600 <= seed < 4700
-        architecture, cls = arch or (('regnet_y_400mf', 'RegNet') if regnet else ('resnet18', 'ResNet'))
+        architecture, cls = arch or arch_of(seed)
         event = dict(event='model_initialized', architecture=architecture, model_class=cls, initial_sha256=f'init{seed}')
         (d / 'events.jsonl').write_text(json.dumps(dict(event='run_started')) + '\n' + json.dumps(event) + '\n')
 
@@ -66,13 +73,21 @@ def test_ensembles_average_the_window_and_recover_the_built_in_signal(tmp_path, 
     tree(tmp_path / 'rgy', (4600, 4601, 4671))
     se.main(tmp_path / 'rgy')
     assert 'regnet_y_400mf: 3 complete seeds of 72' in capsys.readouterr().out
-    for name, seeds, arch in (('foreign', (4572,), None), ('mixed', (4500, 4600), None), ('pilot', (4400,), None)):
+    for name, seeds, backbone, n in (('mn3', (4700, 4771), 'mobilenet_v3_large', 72), ('b5', (4800, 4847), 'efficientnet_b5', 48)):
+        tree(tmp_path / name, seeds)
+        se.main(tmp_path / name)
+        assert f'{backbone}: 2 complete seeds of {n}' in capsys.readouterr().out
+    for name, seeds, arch in (('foreign', (4572,), None), ('mixed', (4500, 4600), None), ('pilot', (4400,), None),
+                              ('beyond', (4848,), None), ('mn3b5', (4700, 4800), None), ('mn3pilot', (4300,), None)):
         tree(tmp_path / name, seeds, arch=arch)
         with pytest.raises(RuntimeError, match='not a study seed'):
             se.main(tmp_path / name)
     tree(tmp_path / 'wrongnet', (4600,), arch=('resnet18', 'ResNet'))
     with pytest.raises(RuntimeError, match='not trained on regnet_y_400mf'):
         se.main(tmp_path / 'wrongnet')
+    tree(tmp_path / 'wrongb5', (4800,), arch=('mobilenet_v3_large', 'MobileNetV3'))
+    with pytest.raises(RuntimeError, match='not trained on efficientnet_b5'):
+        se.main(tmp_path / 'wrongb5')
 
 
 def test_load_rejects_missing_or_out_of_spec_snapshot_steps(tmp_path):
@@ -134,3 +149,24 @@ def test_gate_passes_only_a_byte_identical_pilot(tmp_path, capsys):
         dict(event='model_initialized', architecture='regnet_y_400mf', initial_sha256='another')) + '\n')
     with pytest.raises(SystemExit, match='initial weights'):
         se.gate(tmp_path / 'otherinit', tmp_path / 'otherref')
+
+
+def test_gate_on_dsisco02_compares_the_pilot_with_its_steps_off_reference(tmp_path, capsys):
+    for seed, backbone in ((4300, 'mobilenet_v3_large'), (4100, 'efficientnet_b5')):
+        base = tmp_path / str(seed)
+        pilot(base / 'pilot', seed)
+        tree(base / 'ref', (seed,))
+        with pytest.raises(SystemExit, match='no reference run'):     # a stored-run name is not this block's reference
+            se.gate(base / 'pilot', base / 'ref')
+        (base / 'ref' / f'seed{seed}').rename(base / 'ref' / f'seed{seed}_ref')
+        se.gate(base / 'pilot', base / 'ref')
+        assert f'PILOT GATE PASSED for {seed} ({backbone})' in capsys.readouterr().out
+        final = base / 'ref' / f'seed{seed}_ref' / 'retrain1' / 'final_probabilities.pt'
+        torch.save(torch.load(final, weights_only=True) * (1 + 1e-6), final)
+        with pytest.raises(SystemExit):
+            se.gate(base / 'pilot', base / 'ref')
+    pilot(tmp_path / 'b5asmn3', 4300, arch=('efficientnet_b5', 'EfficientNet'))
+    tree(tmp_path / 'mn3ref', (4300,))
+    (tmp_path / 'mn3ref' / 'seed4300').rename(tmp_path / 'mn3ref' / 'seed4300_ref')
+    with pytest.raises(SystemExit, match='initial weights'):
+        se.gate(tmp_path / 'b5asmn3', tmp_path / 'mn3ref')

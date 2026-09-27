@@ -129,6 +129,27 @@ def test_validate_admits_the_step_ensemble_study_only_on_its_seeds_and_pilot():
             validate(bad)
 
 
+def test_validate_admits_the_dsisco02_blocks_and_their_steps_off_references():
+    from tralo.knee_yuval import backbone_for
+    mn3 = dict(STEPENS, seed=4700, backbone='mobilenet_v3_large')
+    b5 = dict(STEPENS, seed=4800, backbone='efficientnet_b5')
+    for config in (mn3, dict(mn3, seed=4771), dict(mn3, seed=4300), b5, dict(b5, seed=4847), dict(b5, seed=4100),
+                   dict(mn3, seed=4300, snapshot_steps=False), dict(b5, seed=4100, snapshot_steps=False)):
+        validate(config)
+    assert [backbone_for(s) for s in (4699, 4700, 4771, 4799, 4800, 4847, 4899, 4900)] == [
+        'regnet_y_400mf', 'mobilenet_v3_large', 'mobilenet_v3_large', 'mobilenet_v3_large',
+        'efficientnet_b5', 'efficientnet_b5', 'efficientnet_b5', 'resnet18']
+    for bad in (dict(mn3, seed=4772), dict(b5, seed=4848), dict(mn3, snapshot_steps=False), dict(b5, snapshot_steps=False),
+                dict(mn3, seed=4771, snapshot_steps=False), dict(b5, seed=4101), dict(b5, seed=4101, snapshot_steps=False),
+                dict(mn3, seed=4301), dict(mn3, seed=4301, snapshot_steps=False), dict(mn3, backbone='resnet18'),
+                dict(b5, backbone='mobilenet_v3_large'), dict(b5, seed=4100, snapshot_steps=False, max_retrains=2),
+                dict(b5, seed=4100, snapshot_steps=None), dict(b5, seed=4100, snapshot_steps=0),
+                {k: v for k, v in b5.items() if k != 'backbone'}, dict(CONFIG, seed=4700, backbone='mobilenet_v3_large'),
+                dict(mn3, seed=4300, snapshot_steps=False, max_retrains=1.0), dict(mn3, seed=4300, cap=50)):
+        with pytest.raises(ValueError):
+            validate(bad)
+
+
 class _Fake(Images):
     def __init__(self, n, seed):
         g = torch.Generator().manual_seed(seed)

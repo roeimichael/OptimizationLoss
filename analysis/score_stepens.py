@@ -1,5 +1,6 @@
-"""Score the step-ensemble study (experiments/claude_stepens_prereg_20260927.md, ResNet18) or its RegNetY
-replication (experiments/claude_stepens_rgy_prereg_20260927.md).
+"""Score the step-ensemble study (experiments/claude_stepens_prereg_20260927.md, ResNet18), its RegNetY
+replication (experiments/claude_stepens_rgy_prereg_20260927.md) or a dsisco02 block on MobileNetV3 or B5
+(experiments/claude_stepens_d2_prereg_20260928.md).
 
 Usage: python analysis/score_stepens.py RUN_ROOT
        python analysis/score_stepens.py --gate PILOT_ROOT REFERENCE_ROOT   (pilot gate: integrity only, no score)
@@ -29,8 +30,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from score_yuval import CAP, METRICS, fmt, holm, load as load_yuval, metrics, paired  # noqa: E402
 from tralo.global_report import evaluate_global  # noqa: E402
 
-BLOCKS = (('resnet18', 'ResNet', range(4500, 4572), 4000),          # backbone, model class, study seeds, pilot;
-          ('regnet_y_400mf', 'RegNet', range(4600, 4672), 4400))    # the pilot job reruns that stored seed
+BLOCKS = (('resnet18', 'ResNet', range(4500, 4572), 4000, '4000'),   # backbone, model class, study seeds, pilot and
+          ('regnet_y_400mf', 'RegNet', range(4600, 4672), 4400, '4400'),   # the reference job its PTO must equal:
+          ('mobilenet_v3_large', 'MobileNetV3', range(4700, 4772), 4300, '4300_ref'),   # the stored run on dsisco01,
+          ('efficientnet_b5', 'EfficientNet', range(4800, 4848), 4100, '4100_ref'))     # a steps-off rerun on dsisco02
 SUFFIX = dict(ens_pto='', ens_tralo='_tralo', ens_sham='_sham')
 PRIMARY = (('E1 ens_tralo - ens_sham', 'ens_tralo', 'ens_sham'), ('E2 ens_tralo - ens_pto', 'ens_tralo', 'ens_pto'))
 SECONDARY = (('P2 tralo_final - sham_final (single model)', 'tralo_final', 'sham_final'),
@@ -134,12 +137,15 @@ def main(root):
 
 
 def gate(pilot_root, reference_root):
-    """The pilot (4000 or 4400): complete, every step in spec, and PTO byte-identical to the stored run at every epoch."""
+    """The pilot (4000, 4400, 4300 or 4100): complete, every step in spec, and PTO byte-identical to its reference run
+    (the stored run, or on dsisco02 a rerun with the steps off) at every epoch."""
     jobs = [x for x in sorted(Path(pilot_root).glob('seed*')) if x.is_dir()]
     block = next((b for b in BLOCKS if jobs and jobs[0].name == f'seed{b[3]}_stepens'), None)
     if block is None or len(jobs) != 1:
         raise SystemExit(f'PILOT GATE FAILED: unexpected seed directories {[x.name for x in jobs]}')
-    d, ref = jobs[0], Path(reference_root) / f'seed{block[3]}'
+    d, ref = jobs[0], Path(reference_root) / f'seed{block[4]}'
+    if not (ref / 'summary.json').exists():
+        raise SystemExit(f'PILOT GATE FAILED: no reference run at {ref}')
     row = initialised(d)       # the stored runs predate model_class: they are matched by their initial weights
     if ((row.get('architecture'), row.get('model_class')) != block[:2]
             or initialised(ref).get('initial_sha256') != row.get('initial_sha256')):
