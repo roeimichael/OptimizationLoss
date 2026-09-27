@@ -22,6 +22,10 @@ Arms, all deployed with capped_first at the same cap:
   sham_final   pto + the same radius in a seeded random direction
   pao          Yuval's PAO: the model of the last retrain
 Protocol: experiments/claude_yuval_pipeline_prereg_20260927.md (+ amendment 1: the B5 block).
+Recipe factorial (seeds 4200-4223, pilot 4299, ResNet18, experiments/claude_recipe_factorial_prereg_20260927.md):
+PTO only (max_retrains 1, no pao arm), with three switches that turn one part of the pipeline off:
+augment (off: the evaluation transform), balanced (off: a uniform permutation per epoch) and
+early_stop (off: exactly max_epochs epochs, the last one kept).
 """
 
 import copy
@@ -47,21 +51,26 @@ SHAM_OFFSET = 7
 MEAN, STD = [0.66133188] * 3, [0.21229856] * 3
 STUDY_SEEDS = tuple(range(4000, 4024)) + tuple(range(4100, 4124))
 PILOT_SEEDS = (4099, 4199)
+FACTORIAL_SEEDS = tuple(range(4200, 4224)) + (4299,)
 KEYS = {'seed', 'cap', 'max_epochs', 'patience', 'batch_size', 'lr', 'weight_decay', 'decay_epoch',
         'decay_factor', 'mu', 'b', 'development_batch_size'}
+RECIPE = ('augment', 'balanced', 'early_stop')
 B5_WEIGHTS = Path.home() / 'tralo-rebuild/data/weights/timm-efficientnet_b5.sw_in12k_ft_in1k/model.safetensors'
 B5_SHA256 = '0e5c09ad618a28d977acf8b7846105443c553a4b425dddb54598a0ac6088aca7'
 
 
 def backbone_for(seed):
-    return 'efficientnet_b5' if seed >= 4100 else 'resnet18'
+    return 'efficientnet_b5' if 4100 <= seed < 4200 else 'resnet18'
 
 
 def validate(config):
-    if set(config) - {'backbone'} != KEYS:
+    factorial = config.get('seed') in FACTORIAL_SEEDS
+    if set(config) - {'backbone'} != KEYS | ({'max_retrains', *RECIPE} if factorial else set()):
         raise ValueError('config keys differ from the declared experiment')
-    if config['seed'] not in STUDY_SEEDS + PILOT_SEEDS:
-        raise ValueError('seed is outside the preregistered blocks 4000-4023, 4100-4123 and pilots 4099, 4199')
+    if config['seed'] not in STUDY_SEEDS + PILOT_SEEDS + FACTORIAL_SEEDS:
+        raise ValueError('seed is outside the preregistered blocks 4000-4023, 4100-4123, 4200-4223 and pilots')
+    if factorial and (config['max_retrains'] != 1 or any(type(config[k]) is not bool for k in RECIPE)):
+        raise ValueError('the recipe factorial trains PTO once, with boolean switches')
     if config.get('backbone', 'resnet18') != backbone_for(config['seed']):
         raise ValueError('the backbone does not match the seed block (4100-4123, 4199: efficientnet_b5)')
     if config['cap'] != 76:
@@ -177,7 +186,10 @@ def train_run(model, data, stop, pool, config, C, emit, snapshot):
     seed = config['seed']
     torch.manual_seed(seed + AUGMENT_OFFSET)
     sampler = torch.Generator().manual_seed(seed + SAMPLER_OFFSET)
-    train_tf, _ = transforms_for()
+    train_tf, eval_tf = transforms_for()
+    if not config.get('augment', True):
+        train_tf = eval_tf
+    early_stop = config.get('early_stop', True)
     device = next(model.parameters()).device
     C = C.to(device)
     mean_c = float(C.mean())
@@ -188,7 +200,8 @@ def train_run(model, data, stop, pool, config, C, emit, snapshot):
     updates = 0
     for epoch in range(config['max_epochs']):
         base = config['lr'] * config['decay_factor'] ** (epoch // config['decay_epoch'])
-        order = torch.multinomial(weights, len(weights), replacement=True, generator=sampler)
+        order = (torch.multinomial(weights, len(weights), replacement=True, generator=sampler)
+                 if config.get('balanced', True) else torch.randperm(len(weights), generator=sampler))
         if first_order is None:
             first_order = hashlib.sha256(order.numpy().tobytes()).hexdigest()
         model.train()
@@ -226,9 +239,12 @@ def train_run(model, data, stop, pool, config, C, emit, snapshot):
         emit(dict(event='epoch', epoch=epoch + 1, training_loss=total / len(order), stop_loss=held,
                   base_lr=base, last_lr=lr, mean_gate=gates / len(order), live_false_positives=live,
                   hard_counts=hard, soft_count_capped=float(probabilities[:, CAPPED].sum()), improved=improved))
-        if waited >= config['patience']:
+        if early_stop and waited >= config['patience']:
             break
-    model.load_state_dict(best_state)
+    if early_stop:
+        model.load_state_dict(best_state)
+    else:                                         # a fixed schedule keeps the last epoch
+        best, best_epoch = held, epoch + 1
     return dict(best_epoch=best_epoch, epochs_run=epoch + 1, best_stop_loss=best, task_updates=updates,
                 first_order_sha256=first_order, first_batch_sha256=first_batch)
 
@@ -267,12 +283,15 @@ def run(data_root, config_path, output):
         base = build_model('resnet18') if backbone == 'resnet18' else efficientnet_b5()
         initial_sha = _state_hash(base)
         log.emit('model_initialized', initial_sha256=initial_sha, architecture=backbone,
-                 transform='Yuval RGB: hflip, rotate 3, affine t0.1 s0.9-1.1, jitter 0.2, mean .6613 std .2123',
-                 sampler='class-balanced with replacement', train_label_counts=[data.labels.count(c) for c in range(5)])
+                 transform=('Yuval RGB: hflip, rotate 3, affine t0.1 s0.9-1.1, jitter 0.2, mean .6613 std .2123'
+                            if config.get('augment', True) else 'Yuval RGB, no augmentation: resize 224, mean .6613 std .2123'),
+                 sampler=('class-balanced with replacement' if config.get('balanced', True) else 'uniform permutation'),
+                 early_stop=config.get('early_stop', True), train_label_counts=[data.labels.count(c) for c in range(5)])
         started = time.monotonic()
         C = torch.ones(5)
         retrains, final = [], {}
-        for r in range(1, MAX_RETRAINS + 1):
+        max_retrains = config.get('max_retrains', MAX_RETRAINS)
+        for r in range(1, max_retrains + 1):
             directory = output / f'retrain{r}'
             directory.mkdir()
             with audited_arm_log(directory / 'events.jsonl') as rlog:
@@ -330,7 +349,7 @@ def run(data_root, config_path, output):
                  seconds=time.monotonic() - started)
         labels = [r['label'] for r in val_rows]
         summary = dict(seed=seed, cap=cap, converged=converged, retrains=retrains, steps=steps, arms={})
-        for arm in ('pto', 'tralo_final', 'sham_final', 'pao'):
+        for arm in ('pto', 'tralo_final', 'sham_final') + (('pao',) if max_retrains > 1 else ()):
             probabilities = torch.load(final[arm], map_location='cpu', weights_only=True)
             report = evaluate_global(probabilities.tolist(), labels, caps, val_ids)
             (output / arm).mkdir(exist_ok=True)

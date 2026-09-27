@@ -63,6 +63,19 @@ def test_validate_rejects_other_seeds_caps_and_keys():
             validate(bad)
 
 
+FACTORIAL = dict(CONFIG, seed=4299, max_retrains=1, augment=True, balanced=True, early_stop=True)
+
+
+def test_validate_admits_the_recipe_factorial_only_on_its_seeds():
+    validate(FACTORIAL)
+    validate(dict(FACTORIAL, seed=4200, augment=False, balanced=False, early_stop=False))
+    for bad in (dict(FACTORIAL, max_retrains=2), dict(FACTORIAL, augment=1), dict(FACTORIAL, seed=4224),
+                {k: v for k, v in FACTORIAL.items() if k != 'early_stop'}, dict(FACTORIAL, seed=4000),
+                dict(CONFIG, augment=False), dict(FACTORIAL, backbone='efficientnet_b5')):
+        with pytest.raises(ValueError):
+            validate(bad)
+
+
 class _Fake(Images):
     def __init__(self, n, seed):
         g = torch.Generator().manual_seed(seed)
@@ -130,6 +143,31 @@ def test_early_stopping_restores_an_earlier_best_epoch():
     assert result['best_epoch'] < result['epochs_run'] == result['best_epoch'] + CONFIG['patience']
     assert torch.equal(infer(model, pool), snaps[result['best_epoch']])
     assert not torch.equal(snaps[result['best_epoch']], snaps[result['epochs_run']])
+
+
+def test_recipe_switches_remove_augmentation_balancing_and_early_stopping():
+    import hashlib
+    from tralo.knee_yuval import SAMPLER_OFFSET, transforms_for
+    from tralo.knee_end_to_end import infer
+    _, eval_tf = transforms_for()
+    held = _Fake(12, 2)
+    held.labels = [(y + 2) % 5 for y in held.labels]      # early stopping would stop before max_epochs
+    stop = [held.batch(list(range(i, min(i + 8, 12))), eval_tf) for i in range(0, 12, 8)]
+    config = dict(CONFIG, lr=1e-2, augment=False, balanced=False, early_stop=False)
+    model, data, _, pool = _setup()
+    snaps = {}
+    result = train_run(model, data, stop, pool, config, torch.ones(5), lambda row: None,
+                       lambda e, v: snaps.__setitem__(e, v))
+    order = torch.randperm(40, generator=torch.Generator().manual_seed(CONFIG['seed'] + SAMPLER_OFFSET))
+    assert result['first_order_sha256'] == hashlib.sha256(order.numpy().tobytes()).hexdigest()
+    first = data.batch(order[:CONFIG['batch_size']].tolist(), eval_tf)[0]
+    assert result['first_batch_sha256'] == hashlib.sha256(first.numpy().tobytes()).hexdigest()
+    assert result['epochs_run'] == result['best_epoch'] == CONFIG['max_epochs']
+    assert torch.equal(infer(model, pool), snaps[CONFIG['max_epochs']])
+    model, data, _, pool = _setup()
+    stopped = train_run(model, data, stop, pool, dict(config, early_stop=True), torch.ones(5), lambda row: None,
+                        lambda e, v: None)
+    assert stopped['best_epoch'] < CONFIG['max_epochs']   # so it is the switch that keeps the last epoch
 
 
 def test_efficientnet_b5_has_a_fresh_five_way_head():
