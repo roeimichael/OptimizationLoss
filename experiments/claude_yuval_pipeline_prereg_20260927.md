@@ -158,3 +158,28 @@ huggingface.co/timm/efficientnet_b5.sw_in12k_ft_in1k and uploaded to
   result.
 - **Cost.** Benchmarked at 0.27 s per training step (44 s of GPU per epoch, 10.6 GB peak) plus
   the serial augmentation. About 12-15 min per early-stopped retrain.
+
+## Pilots
+
+**ResNet18 pilot, seed 4099** (release bcf5d010, dsisco01 GPU0): the gate passed on every item.
+
+| Gate item | Result |
+|---|---|
+| Completion | exit 0 in 706 s |
+| Common random numbers | 2 retrains with identical first-epoch sampler order (`0225fa4c...`) and first augmented batch (`cc55a941...`) |
+| Best-weight restore | reproduced in both retrains; the runner raises otherwise |
+| TraLO step | applied, hard count 106 -> 76 |
+| Sham | same radius 0.010483; its hard count stays 106 |
+| Cap binding | binds (pto hard count 106) |
+
+- Carve: 5,218 train / 560 early-stop. Train label counts: 2062/950/1364/697/145.
+- Retrain 1: best epoch 15 of 20.
+- PAO: C = 2.6 after one update, and retrain 2 converged with a hard count of 57. It
+  overshoots the cap, as the synthetic lab predicted for this pool size.
+- The pool's argmax grade-3 count swings 57-140 from epoch to epoch within one retrain, so the
+  outer loop steers on a noisy count.
+- No pilot score was read.
+
+The ResNet18 study (seeds 4000-4023) was launched at 09:20 server time on release bcf5d010,
+in 9 queues on GPU0/2/3, into `runs/claude-yuval-r18`. The B5 pilot 4199 (release 0d70d993,
+GPU1) was still running.
