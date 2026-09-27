@@ -24,6 +24,7 @@ from score_yuval import CAP, METRICS, fmt, holm, load, metrics, paired  # noqa: 
 ARMS = ('pto', 'tralo_final', 'sham_final')
 BLOCKS = (('MobileNetV3', 'mobilenet_v3_large', 'MobileNetV3', range(4300, 4324)),
           ('RegNetY', 'regnet_y_400mf', 'RegNet', range(4400, 4424)))
+V3_SEEDS = {'mobilenet_v3_large': range(3001, 3025), 'regnet_y_400mf': range(3101, 3125)}   # claude-repl-mn3 / -rgy
 PILOTS = {4399: ('mobilenet_v3_large', 'MobileNetV3'), 4499: ('regnet_y_400mf', 'RegNet')}
 CONTRASTS = (('P2 tralo_final - sham_final', 'tralo_final', 'sham_final'), ('P3 tralo_final - pto', 'tralo_final', 'pto'))
 
@@ -55,13 +56,20 @@ def block(root, backbone, cls, seeds):
     return kept
 
 
-def v3_clipper(v3_root):
+def v3_clipper(v3_root, backbone):
+    """The v3 study's clipper on the same backbone: its 24 seeds, each checked against the block."""
     out = []
     for d in sorted(Path(v3_root).glob('seed*')):
-        path = d / 'clipper' / 'report.json'
-        if path.exists():
-            rows = [r for r in json.loads((d / 'manifest.json').read_text())['rows'] if r['split'] == 'val']
-            out.append(metrics([r['label'] for r in rows], json.loads(path.read_text())['capped_first']['predictions']))
+        if not d.is_dir():
+            continue
+        config = json.loads((d / 'config.json').read_text())
+        if config['seed'] not in V3_SEEDS[backbone] or config.get('backbone') != backbone:
+            raise RuntimeError(f"{d}: seed {config['seed']}, backbone {config.get('backbone')}, expected {backbone}")
+        rows = [r for r in json.loads((d / 'manifest.json').read_text())['rows'] if r['split'] == 'val']
+        report = json.loads((d / 'clipper' / 'report.json').read_text())['capped_first']
+        out.append(metrics([r['label'] for r in rows], report['predictions']))
+    if len(out) != len(V3_SEEDS[backbone]):
+        raise RuntimeError(f'{v3_root}: {len(out)} v3 seeds, expected {len(V3_SEEDS[backbone])}')
     return out
 
 
@@ -73,12 +81,13 @@ def main(roots, v3_roots=(None, None)):
     primary = [paired([s['arms']['tralo_final']['cc_f1'] - s['arms']['sham_final']['cc_f1'] for s in kept])
                for _, kept in blocks]
     print('PRIMARY: P2 tralo_final - sham_final, capped_first cc-F1 (points), Holm over the two blocks')
-    for (name, kept), r, h in zip(blocks, primary, holm([r['p'] for r in primary])):
-        print(f'  {name:12s} n {len(kept):2d}  {fmt(r)}  Holm {h:.3f}')
-    for (name, kept), v3_root in zip(blocks, v3_roots):
+    for (name, kept), r, h, spec in zip(blocks, primary, holm([r['p'] for r in primary]), BLOCKS):
+        print(f'  {name:12s} n {len(kept):2d} of {len(spec[3])}  {fmt(r)}  Holm {h:.3f}')
+    for (name, kept), v3_root, spec in zip(blocks, v3_roots, BLOCKS):
         binds = [s for s in kept if s['retrains'][0]['hard_count'] > CAP]
         r1 = [s['retrains'][0] for s in kept]
-        print(f"\n=== {name}: seeds {[s['seed'] for s in kept]}")
+        missing = sorted(set(spec[3]) - {s['seed'] for s in kept})
+        print(f"\n=== {name}: {len(kept)} seeds scored; missing, incomplete or duplicated: {missing or 'none'}")
         print(f"  cap binds on pto's hard count in {len(binds)}/{len(kept)}; pto hard count mean "
               f"{np.mean([r['hard_count'] for r in r1]):.1f}; best epoch mean {np.mean([r['best_epoch'] for r in r1]):.1f}, "
               f"epochs run mean {np.mean([r['epochs_run'] for r in r1]):.1f}")
@@ -93,7 +102,7 @@ def main(roots, v3_roots=(None, None)):
                     r = paired([s['arms'][a][metric] - s['arms'][b][metric] for s in subset])
                     print(f'    {metric:12s} {label:28s} {fmt(r)}')
         if v3_root:
-            v3 = v3_clipper(v3_root)
+            v3 = v3_clipper(v3_root, spec[1])
             print(f'  recipe contrast (unpaired Welch): this pto (n {len(kept)}) vs the v3 clipper, same backbone (n {len(v3)})')
             for metric in METRICS:
                 a, b = np.array([s['arms']['pto'][metric] for s in kept]), np.array([r[metric] for r in v3])

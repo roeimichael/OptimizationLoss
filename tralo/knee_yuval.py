@@ -81,7 +81,7 @@ def validate(config):
         raise ValueError('seed is outside the preregistered blocks 4000-4423 and pilots')
     if factorial and (config['max_retrains'] != 1 or any(type(config[k]) is not bool for k in RECIPE)):
         raise ValueError('the recipe factorial trains PTO once, with boolean switches')
-    if small and config['max_retrains'] != 1:
+    if small and (type(config['max_retrains']) is not int or config['max_retrains'] != 1):
         raise ValueError('the small-backbone blocks train PTO once')
     if config.get('backbone', 'resnet18') != backbone_for(config['seed']):
         raise ValueError('the backbone does not match the seed block (4100s: efficientnet_b5, '

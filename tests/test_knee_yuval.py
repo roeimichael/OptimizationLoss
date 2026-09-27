@@ -92,7 +92,8 @@ def test_validate_admits_the_small_backbone_blocks_only_with_their_backbone_and_
                            (4499, 'regnet_y_400mf')):
         validate(dict(SMALL, seed=seed, backbone=backbone))
     assert (backbone_for(4000), backbone_for(4100), backbone_for(4200)) == ('resnet18', 'efficientnet_b5', 'resnet18')
-    for bad in (dict(SMALL, max_retrains=2), {k: v for k, v in SMALL.items() if k != 'max_retrains'},
+    for bad in (dict(SMALL, max_retrains=2), dict(SMALL, max_retrains=True), dict(SMALL, max_retrains=1.0),
+                {k: v for k, v in SMALL.items() if k != 'max_retrains'},
                 {k: v for k, v in SMALL.items() if k != 'backbone'}, dict(SMALL, backbone='regnet_y_400mf'),
                 dict(SMALL, seed=4324), dict(SMALL, seed=4424, backbone='regnet_y_400mf'),
                 dict(SMALL, augment=True), dict(CONFIG, seed=4000, max_retrains=1)):
