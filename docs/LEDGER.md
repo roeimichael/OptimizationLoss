@@ -1183,8 +1183,17 @@ comparison against it is available until it is restored.
 
   - **P1:** his reported gain does not reproduce on either backbone. B5's +0.96 (0.9 slots) is below the effect of about 1.75 points that n=24 detects with 80% power. That is not enough measurement for a one-slot effect, not a proof of absence. Even if real, it is under a quarter of the ensemble's gain.
   - **P2:** TraLO's direction is not attributable in his pipeline. On B5 it also costs -1.87 [-3.19, -0.55] macro-F1 and -1.97 [-3.05, -0.88] weighted-F1 (secondary, p 0.007 and 0.001).
+  - **Why the step costs the other classes** (post hoc, `analysis/yuval_step_collateral.py`): it moves the shared representation and reorganises grades 0-2.
+    - On B5 it changes 105.8 predictions per seed against PTO; the same-radius sham changes 7.0. Grade-1 F1 falls 7.06 points against the sham.
+    - On ResNet18 it changes 41.4 per seed (sham 0.7), and grade-1 F1 falls 2.17.
+
+    The damage belongs to the count direction, not to the step size. It is a likely mechanism for the published `tralo_adam` arm's macro-F1 harm.
   - **Backbone:** B5 beats ResNet18 in the same pipeline on accuracy (+1.58, p 0.0002), not on cc-F1 (+0.18, p 0.81).
   - **Best system measured:** B5 in his pipeline, then the snapshot ensemble, then capped_first. That is about 74.0 cc-F1 and 66.9 accuracy, all post hoc.
+  - **At equal compute, plain models beat PAO** (exploratory, `analysis/yuval_deep_ensemble.py`). PAO trains 2.71 (B5) or 3.21 (ResNet18) models per seed.
+    - A 3-model ensemble of plain training scores 73.35 cc-F1 on B5 against PAO's 70.92, and 72.39 on ResNet18 against 69.69.
+    - One run's snapshot ensemble already matches it: 74.04 and 72.21.
+    - Ensembling all 24 B5 runs reaches 75.8 cc-F1 and 68.8 accuracy, which is about this pool's ceiling in his pipeline.
 
   Also measured, on both blocks:
   - **PAO is live but steers on noise.** At ResNet18's best epoch it has a median of 162 training false positives per epoch. The pool count's within-retrain sd is 19.3 (B5 19.5) against a cap of 76, and PAO overshoots the cap (95.2 -> 65.8; B5 99.1 -> 62.4).
