@@ -334,8 +334,8 @@ stored ones.
 
 - **At equal compute, three plain models beat PAO:** by 2.4 cc-F1 on B5 and 2.7 on ResNet18.
 - **One run's snapshot ensemble already matches three models,** at a third of the training.
-- **Past about 3 runs the gain flattens.** The measured ceiling of this pipeline on this pool is
-  about 75-76 cc-F1 and 68-69 accuracy (B5).
+- **Past about 3 runs the gain flattens.** The highest value measured in this pipeline on this pool
+  is 75.82 cc-F1 and 68.77 accuracy (B5, ENS of all 24 runs).
 - These are group means with no paired test; the group counts fall to 1-2 for k >= 12.
 
 ### Reading, against the readings fixed before the data
