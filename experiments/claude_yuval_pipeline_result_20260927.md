@@ -110,6 +110,7 @@ only the order of p3 can matter. PAO's loop steers the argmax count, which the c
 
 - **PAO moves the count, not the order.** Under the cap, its count change is neutralised.
 - **Without a cap it is worse.** Its overshoot (65.8 predictions against 106 true grade-3 knees in the pool) costs grade-3 recall.
+- **PAO does its job on the training set, and it does not transfer.** Retrain 2 (the first with C > 1) against PTO at the same epoch, 21 seeds (`analysis/yuval_r18_retrain_speed.txt`): 28-82 fewer live training false positives per epoch (epoch 1: -82 [-141, -22]). Yet development accuracy is 0.5-2 points lower at matched epochs (epoch 1: -1.8 [-3.2, -0.5]; most later CIs cover 0). Fitting the training false positives harder does not reorder unseen images.
 - **TraLO's step is the opposite.** It raises the precision of the capped slots by +0.9 [+0.1, +1.7] points (p 0.029), at a slightly lower AUC (-0.0014, p 0.028). It reorders items near the cut, not the whole ranking.
 
 **Mechanism, for context.**
