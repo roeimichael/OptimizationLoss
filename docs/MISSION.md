@@ -113,7 +113,13 @@ trade as a trade, and retract in place.**
 
 ---
 
-## RUN STATE -- checked 2026-09-27 09:24 IDT (server clock)
+## RUN STATE -- checked 2026-09-27 10:04 IDT (server clock)
+
+**Update 10:04:**
+- The B5 pilot 4199 passed its gate: 4 PAO retrains, the step landed at 101 -> 76, the sham radius matched.
+- **`claude-yuval-b5` (seeds 4100-4123, release 0d70d993) is LIVE** in claim queues (`tools/claude_claim_queue.sh` @ 00fde635) on all four GPUs. Queues are added as the ResNet18 queues drain.
+- `claude-yuval-r18` has 9/24 done. Its PAO loops random-walk on a noisy count (within-run sd about 23), so some seeds take 4+ retrains.
+- Mechanism diagnostic (LEDGER PART 2) is done: 3 bit-identical re-trains; the count gradient has cosine 0.95/0.99 with right/wrong items.
 
 **The Yuval investigation (the user's request of 2026-09-27).** The question: does anything in Yuval Kassif's repo (github.com/YuvalKassif/ConstrainedClassification @ 413d96c) explain why his PAO loss beats PTO while TraLO does not?
 
