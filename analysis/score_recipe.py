@@ -115,10 +115,16 @@ def main(root, v3_root=None, r18_root=None):
         raise SystemExit('fewer than two complete seeds')
     for seed, cells in complete.items():
         check(seed, cells)
-    hashes = [c['arms']['pto']['hash'] for cells in complete.values() for c in cells.values()]
-    if len(set(hashes)) != len(hashes):
-        raise RuntimeError('duplicate pto predictions across jobs')
-    print(f'integrity: {len(hashes)} jobs pass every gate item; all pto prediction vectors distinct\n')
+    owner = {}                   # a prediction vector may repeat only within a seed, as an E twin (best epoch 10)
+    for seed, cells in complete.items():
+        for cell, c in cells.items():
+            other = owner.setdefault(c['arms']['pto']['hash'], (seed, cell))
+            if other[0] != seed or other[1][:2] != cell[:2]:
+                raise RuntimeError(f'duplicate pto predictions: {other} and {(seed, cell)}')
+    twins = sum(cells[cell]['arms']['pto']['hash'] == cells[cell[:2] + (1,)]['arms']['pto']['hash']
+                for cells in complete.values() for cell in cells if cell[2] == 0)
+    print(f'integrity: {8 * len(complete)} jobs pass every gate item; no prediction vector repeats across seeds; '
+          f'{twins} E-off cells equal their E-on twin (best epoch 10, allowed by design)\n')
     seeds = list(complete.values())
     print('cell means, % (A S E: pto cc-F1 / acc; tralo_final - sham_final; ENS - best; best epoch, epochs run):')
     for cell in CELLS:

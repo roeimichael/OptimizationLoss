@@ -39,6 +39,10 @@ fill() {   # tag-prefix max-new jobs...: start queues where memory allows, one p
 }
 say "waiting for all 24 B5 seeds to be claimed"
 until [ "$(ls -d "$B5"/.claim_41[0-2][0-9] 2>/dev/null | wc -l)" -ge 24 ]; do sleep 60; done
+# A claim is made before its process allocates GPU memory: wait until the newest claim is 5 min old
+# (the 12:29 pilot OOMed on memory a just-claimed B5 seed took one second later).
+newest=$(stat -c %Y "$B5"/.claim_41[0-2][0-9] | sort -n | tail -1)
+while [ $(( $(date +%s) - newest )) -lt 300 ]; do sleep 30; done
 say "B5 fully claimed; pilot 4299 next"
 n=0
 until [ "$n" -ge 4 ]; do
