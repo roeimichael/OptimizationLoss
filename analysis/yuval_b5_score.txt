@@ -1,0 +1,88 @@
+(2026-09-27 13:40, dsisco01, run root ~/tralo-rebuild/runs/claude-yuval-b5)
+24 seeds scored ([4100, 4101, 4102, 4103, 4104, 4105, 4106, 4107, 4108, 4109, 4110, 4111, 4112, 4113, 4114, 4115, 4116, 4117, 4118, 4119, 4120, 4121, 4122, 4123])
+
+cap binds on pto's hard count: 21/24; PAO converged 24/24; retrains mean 2.71 (max 6)
+pto hard count mean 99.1; pao final hard count mean 62.4; pao final C (non-capped) mean 2.85
+pto best epoch mean 5.0, epochs run 10.0
+
+arm means (capped_first, %):
+  pto          cc_f1 69.96  accuracy 64.03  macro_f1 63.89  weighted_f1 63.22
+  tralo_final  cc_f1 69.55  accuracy 63.06  macro_f1 62.05  weighted_f1 61.23
+  sham_final   cc_f1 70.05  accuracy 64.00  macro_f1 63.92  weighted_f1 63.19
+  pao          cc_f1 70.92  accuracy 63.92  macro_f1 63.48  weighted_f1 62.40
+
+=== ALL seeds (intent to treat), n = 24 ===
+  cc_f1 (PRIMARY):
+    P1 pao - pto                 +0.96 [-0.28, +2.20] sd 2.94 p 0.123  Holm 0.368
+    P2 tralo_final - sham_final  -0.50 [-1.35, +0.34] sd 2.00 p 0.229  Holm 0.458
+    P3 tralo_final - pto         -0.41 [-1.25, +0.43] sd 1.99 p 0.322  Holm 0.458
+    pao - tralo_final            +1.37 [-0.18, +2.93] sd 3.68 p 0.081
+  accuracy (secondary):
+    P1 pao - pto                 -0.12 [-1.07, +0.84] sd 2.26 p 0.803  Holm 0.803
+    P2 tralo_final - sham_final  -0.94 [-1.77, -0.11] sd 1.97 p 0.028  Holm 0.069
+    P3 tralo_final - pto         -0.97 [-1.80, -0.15] sd 1.96 p 0.023  Holm 0.069
+    pao - tralo_final            +0.86 [-0.42, +2.14] sd 3.03 p 0.179
+  macro_f1 (secondary):
+    P1 pao - pto                 -0.40 [-1.73, +0.92] sd 3.14 p 0.537  Holm 0.537
+    P2 tralo_final - sham_final  -1.87 [-3.19, -0.55] sd 3.12 p 0.007  Holm 0.019
+    P3 tralo_final - pto         -1.84 [-3.10, -0.57] sd 3.00 p 0.006  Holm 0.019
+    pao - tralo_final            +1.43 [+0.09, +2.78] sd 3.18 p 0.038
+  weighted_f1 (secondary):
+    P1 pao - pto                 -0.81 [-2.07, +0.45] sd 2.98 p 0.194  Holm 0.194
+    P2 tralo_final - sham_final  -1.97 [-3.05, -0.88] sd 2.56 p 0.001  Holm 0.003
+    P3 tralo_final - pto         -1.99 [-3.08, -0.90] sd 2.58 p 0.001  Holm 0.003
+    pao - tralo_final            +1.17 [-0.11, +2.46] sd 3.05 p 0.071
+
+=== BINDING seeds only, n = 21 ===
+  cc_f1 (secondary):
+    P1 pao - pto                 +1.10 [-0.32, +2.52] sd 3.13 p 0.123  Holm 0.369
+    P2 tralo_final - sham_final  -0.58 [-1.55, +0.39] sd 2.13 p 0.230  Holm 0.460
+    P3 tralo_final - pto         -0.47 [-1.44, +0.50] sd 2.13 p 0.323  Holm 0.460
+    pao - tralo_final            +1.57 [-0.21, +3.35] sd 3.91 p 0.081
+  accuracy (secondary):
+    P1 pao - pto                 -0.13 [-1.23, +0.97] sd 2.42 p 0.804  Holm 0.804
+    P2 tralo_final - sham_final  -1.08 [-2.02, -0.13] sd 2.07 p 0.027  Holm 0.068
+    P3 tralo_final - pto         -1.11 [-2.05, -0.17] sd 2.06 p 0.023  Holm 0.068
+    pao - tralo_final            +0.98 [-0.49, +2.45] sd 3.23 p 0.180
+  macro_f1 (secondary):
+    P1 pao - pto                 -0.46 [-1.99, +1.07] sd 3.36 p 0.538  Holm 0.538
+    P2 tralo_final - sham_final  -2.14 [-3.62, -0.66] sd 3.25 p 0.007  Holm 0.018
+    P3 tralo_final - pto         -2.10 [-3.52, -0.67] sd 3.13 p 0.006  Holm 0.018
+    pao - tralo_final            +1.64 [+0.11, +3.17] sd 3.36 p 0.037
+  weighted_f1 (secondary):
+    P1 pao - pto                 -0.93 [-2.38, +0.52] sd 3.18 p 0.195  Holm 0.195
+    P2 tralo_final - sham_final  -2.25 [-3.44, -1.05] sd 2.63 p 0.001  Holm 0.002
+    P3 tralo_final - pto         -2.27 [-3.47, -1.07] sd 2.64 p 0.001  Holm 0.002
+    pao - tralo_final            +1.34 [-0.13, +2.81] sd 3.23 p 0.071
+
+=== recipe contrast (unpaired Welch): this study pto (n 24) vs v3 clipper (n 24) ===
+  cc_f1        yuval-recipe 69.96 (sd 2.17)  v3 64.97 (sd 3.29)  diff +4.99  p 0.0000
+  accuracy     yuval-recipe 64.03 (sd 1.35)  v3 58.85 (sd 2.59)  diff +5.18  p 0.0000
+  macro_f1     yuval-recipe 63.89 (sd 1.68)  v3 59.48 (sd 1.65)  diff +4.41  p 0.0000
+  weighted_f1  yuval-recipe 63.22 (sd 1.58)  v3 57.67 (sd 1.75)  diff +5.54  p 0.0000
+
+per seed (cc-F1 %, pto / tralo_final / sham_final / pao; pto hard; retrains; step radius):
+  4100  70.33 / 70.33 / 70.33 / 74.73  hard 88  retrains 3  radius 0.0008817
+  4101  70.33 / 70.33 / 70.33 / 68.13  hard 123  retrains 2  radius 0.005294
+  4102  70.33 / 68.13 / 70.33 / 62.64  hard 119  retrains 6  radius 0.005058
+  4103  69.23 / 69.23 / 69.23 / 69.23  hard 72  retrains 1  radius 0
+  4104  64.84 / 65.93 / 64.84 / 67.03  hard 104  retrains 2  radius 0.002409
+  4105  69.23 / 67.03 / 70.33 / 70.33  hard 115  retrains 2  radius 0.006039
+  4106  70.33 / 73.63 / 70.33 / 71.43  hard 111  retrains 5  radius 0.007344
+  4107  70.33 / 72.53 / 70.33 / 75.82  hard 102  retrains 2  radius 0.003545
+  4108  67.03 / 61.54 / 67.03 / 70.33  hard 103  retrains 3  radius 0.01203
+  4109  71.43 / 69.23 / 71.43 / 73.63  hard 93  retrains 2  radius 0.004697
+  4110  73.63 / 71.43 / 72.53 / 76.92  hard 99  retrains 3  radius 0.002903
+  4111  69.23 / 69.23 / 69.23 / 71.43  hard 98  retrains 3  radius 0.003676
+  4112  67.03 / 69.23 / 68.13 / 65.93  hard 98  retrains 2  radius 0.002135
+  4113  70.33 / 70.33 / 70.33 / 69.23  hard 82  retrains 2  radius 0.0003174
+  4114  68.13 / 65.93 / 68.13 / 74.73  hard 99  retrains 4  radius 0.001773
+  4115  67.03 / 67.03 / 67.03 / 70.33  hard 98  retrains 2  radius 0.003011
+  4116  72.53 / 71.43 / 72.53 / 72.53  hard 97  retrains 4  radius 0.001748
+  4117  71.43 / 71.43 / 71.43 / 71.43  hard 76  retrains 1  radius 0
+  4118  70.33 / 70.33 / 70.33 / 70.33  hard 61  retrains 1  radius 0
+  4119  71.43 / 74.73 / 71.43 / 70.33  hard 121  retrains 3  radius 0.008796
+  4120  70.33 / 69.23 / 70.33 / 68.13  hard 81  retrains 4  radius 0.0004181
+  4121  73.63 / 71.43 / 73.63 / 74.73  hard 111  retrains 2  radius 0.005303
+  4122  72.53 / 72.53 / 72.53 / 72.53  hard 105  retrains 4  radius 0.00166
+  4123  68.13 / 67.03 / 69.23 / 70.33  hard 122  retrains 2  radius 0.009543

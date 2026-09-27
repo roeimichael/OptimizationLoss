@@ -1,0 +1,5 @@
+(2026-09-27 13:40, dsisco01, run root ~/tralo-rebuild/runs/claude-yuval-b5)
+24 seeds; window = epochs max(1, best-2)..last, mean 7.8 snapshots
+  ENS - best cc_f1     +4.08 [+3.04, +5.11] p 0.000
+  ENS - best accuracy  +2.85 [+2.25, +3.44] p 0.000
+  ENS - best macro_f1  +4.08 [+3.39, +4.77] p 0.000

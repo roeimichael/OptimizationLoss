@@ -15,7 +15,8 @@ import numpy as np
 from scipy import stats
 
 STUDIES = (('ResNet18, v3 recipe, cap 76', 'claude-target-20260925'), ('MobileNetV3, v3 recipe', 'claude-repl-mn3'),
-           ('RegNetY, v3 recipe', 'claude-repl-rgy'), ('ResNet18, Yuval pipeline', 'claude-yuval-r18'))
+           ('RegNetY, v3 recipe', 'claude-repl-rgy'), ('ResNet18, Yuval pipeline', 'claude-yuval-r18'),
+           ('EfficientNet-B5, Yuval pipeline', 'claude-yuval-b5'))
 
 
 def main(runs):

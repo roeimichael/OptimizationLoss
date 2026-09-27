@@ -1,0 +1,8 @@
+(2026-09-27 13:50, dsisco01, run root ~/tralo-rebuild/runs/claude-yuval-r18, exploratory, post hoc)
+24 seeds
+  ENS - pao         cc_f1     +2.52 [+0.17, +4.86] p 0.0364; ENS better in 17, worse in 5 of 24
+  ENS - pao         accuracy  +2.40 [+1.15, +3.64] p 0.0006; ENS better in 20, worse in 3 of 24
+  ENS - pao         macro_f1  +3.31 [+1.95, +4.68] p 0.0000; ENS better in 22, worse in 2 of 24
+  ENS - tralo_final cc_f1     +1.69 [+0.17, +3.22] p 0.0308; ENS better in 13, worse in 4 of 24
+  ENS - tralo_final accuracy  +1.17 [+0.50, +1.83] p 0.0014; ENS better in 19, worse in 5 of 24
+  ENS - tralo_final macro_f1  +3.29 [+2.09, +4.49] p 0.0000; ENS better in 19, worse in 5 of 24

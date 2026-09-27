@@ -1,8 +1,19 @@
 # Result: TraLO and Yuval Kassif's PAO inside Yuval's pipeline (knee, cap 76)
 
 Preregistration: [claude_yuval_pipeline_prereg_20260927.md](claude_yuval_pipeline_prereg_20260927.md).
-Scorer: `analysis/score_yuval.py`, run on dsisco01 after all 24 seeds finished. Output:
-`analysis/yuval_r18_score.txt`.
+Scorer: `analysis/score_yuval.py`, run on dsisco01 after each block's 24 seeds finished. Outputs:
+`analysis/yuval_r18_score.txt` and `analysis/yuval_b5_score.txt`.
+
+## Both blocks
+
+- **Yuval's loss does not beat PTO on either backbone.** pao - pto is -0.09 [-2.85, +2.66] cc-F1 on
+  ResNet18 and +0.96 [-0.28, +2.20] on EfficientNet-B5, his backbone (Holm 0.95 and 0.37).
+- **TraLO's step is not attributable on either.** tralo_final - sham_final is +0.73 [+0.08, +1.38]
+  (Holm 0.088) on ResNet18 and -0.50 [-1.35, +0.34] (Holm 0.46) on B5. On B5 it also costs about 2
+  points of macro-F1 and weighted-F1.
+- **His pipeline helps every method.** It adds about 5 cc-F1 points on either backbone. The
+  snapshot ensemble adds a further +2.43 (ResNet18) and +4.08 (B5, preregistered). In a post-hoc
+  comparison it beats both constraint losses on both backbones.
 
 ## ResNet18 block (seeds 4000-4023, release bcf5d010), scored 2026-09-27 11:07
 
@@ -85,8 +96,9 @@ and both caps (+1.0 to +2.9 slots for the clipper and tralo_null).
 **The best system measured today is post hoc: Yuval's pipeline, then the snapshot ensemble, then
 capped_first.**
 
-**TraLO's step gain grows with how far PTO is over the cap.** Per seed, P2 against PTO's excess
-(argmax grade-3 count - 76), over the 21 binding seeds:
+**On ResNet18, TraLO's step gain grew with how far PTO is over the cap. B5 does not replicate
+it** (Spearman -0.03, p 0.914; B5 block below). Per seed, P2 against PTO's excess (argmax grade-3
+count - 76), over the 21 binding seeds:
 
 | Excess | Seeds | Mean P2 | In slots |
 |---|---|---|---|
@@ -101,7 +113,8 @@ of its jobs started). Across the v3-recipe studies the pattern is mixed: MobileN
 excess (median 26) and the only positive there (+1.47), but RegNetY (19, -0.09) is out of order, and no
 within-study correlation there is significant (-0.15, +0.17, +0.25).
 
-**What the step's swaps are** (top-76 sets by p3, development labels offline):
+**What the step's swaps are** (top-76 sets by p3, development labels offline; `analysis/yuval_r18_swaps.txt`).
+On B5 the direction does not replicate: share 0.477, net -9 slots (B5 block below).
 - TraLO's step swaps 62 slots over 24 seeds (0-7 per seed).
   - The items it brings in are 71.0% true grade 3; the items it pushes out are 45.2%.
   - That is a correct-direction share of 0.629, against 0.50 for CUTPAIR's hinge, and a net +16 slots.
@@ -118,8 +131,8 @@ within-study correlation there is significant (-0.15, +0.17, +0.25).
   - no reseed in `full_experiment.py`;
   - outcome filtering.
 
-  The B5 block (running) tests the backbone.
-- **P2 is not Holm-positive.** TraLO's direction has no attributable effect that survives correction in his pipeline either. It is directionally positive: +0.73 points, about 0.7 correct slots out of 76. In our recipe the same contrast was +0.14 [-1.21, +1.48] on ResNet18 and +1.47 [+0.43, +2.50] on MobileNetV3, the one attributable positive so far (LEDGER #9).
+  The B5 block tests the backbone. P1 is null there too (below).
+- **P2 is not Holm-positive.** TraLO's direction has no attributable effect that survives correction in his pipeline either. It is directionally positive: +0.73 points, about 0.7 correct slots out of 76. In our recipe the same contrast was +0.14 [-1.21, +1.48] on ResNet18 and +1.47 [+0.43, +2.50] on MobileNetV3, the one attributable positive so far (LEDGER #9). On B5 in his pipeline it is -0.50 (below).
 - **The recipe effect is positive.** That is a practical gain for every method, including the post-hoc clipper. It is not evidence for any constraint loss.
 
 **Why PAO cannot help under the cap (post hoc, `analysis/yuval_ranking.py`, output
@@ -142,3 +155,168 @@ only the order of p3 can matter. PAO's loop steers the argmax count, which the c
 **Mechanism, for context.**
 - In the lab, the step's direction cannot separate right from wrong items even with oracle pool labels (`analysis/lab_pao/fp_lab_out.txt`).
 - On these real models, TraLO's count gradient has cosine 0.95 with the gradient over true grade-3 knees and 0.99 with the gradient over the rest (`analysis/grad_alignment_out/`).
+
+## EfficientNet-B5 block (seeds 4100-4123, release 0d70d993), scored 2026-09-27 13:40
+
+Yuval's backbone: timm `efficientnet_b5`, weights `sw_in12k_ft_in1k` (prereg Amendment 1). The
+runner, pipeline, arms, cap and endpoints are those of the ResNet18 block. P1-P3 form their own Holm
+family.
+
+**Finding: on his own backbone, his loss still does not beat PTO. TraLO's step is null on cc-F1 and
+lowers his other metrics. The post-hoc snapshot ensemble beats both.**
+- pao - pto is **+0.96 cc-F1 [-0.28, +2.20]** (Holm 0.37). The sign matches his report, but the
+  interval covers 0.
+- tralo_final - sham_final is **-0.50 [-1.35, +0.34]** (Holm 0.46).
+- The snapshot ensemble adds **+4.08 [+3.04, +5.11]** cc-F1 to PTO, which confirms Amendment 2.
+- The backbone buys accuracy (+1.58 over ResNet18 in the same pipeline, p 0.0002) but not cc-F1
+  (+0.18, p 0.81).
+
+### Integrity
+
+- **Runs.** 24 starts and 24 exit-0 ends across the 8 queue logs (queue tooling from 00fde635).
+  Every seed's recorded `tralo/` source hashes equal release 0d70d993's.
+- **Built-in checks.** The runner checks common random numbers and the best-weight restore, as in the
+  ResNet18 block.
+  - All 21 applied steps landed exactly on 76.
+  - Three seeds do not bind: 4103, 4117 and 4118, with PTO hard counts 72, 76 and 61.
+- **Sham.** Each sham used the target radius. It moved the hard count by -4 to +1, and by 0 in 11 of
+  21 seeds. On ResNet18 it moved the count by at most 1.
+- **Duplicates.** No probability vector is shared within an arm across the 48 seeds of both blocks
+  (144 vectors checked).
+- **Determinism.** Not re-checked by re-training on B5. On ResNet18 three seeds reproduced byte for
+  byte.
+
+### Primary: cc-F1 of grade 3 under capped_first
+
+n = 24 paired seeds, intent to treat, Holm over P1-P3 within this block.
+
+| Contrast | Mean [95% t CI], points | sd | p | Holm |
+|---|---|---|---|---|
+| P1 pao - pto | +0.96 [-0.28, +2.20] | 2.94 | 0.123 | 0.368 |
+| P2 tralo_final - sham_final | -0.50 [-1.35, +0.34] | 2.00 | 0.229 | 0.458 |
+| P3 tralo_final - pto | -0.41 [-1.25, +0.43] | 1.99 | 0.322 | 0.458 |
+
+- **Binding seeds only (n = 21).** P1 is +1.10 [-0.32, +2.52] and P2 is -0.58 [-1.55, +0.39].
+- **Power.** With sd 2.94 and n = 24, a two-sided test at 0.05 has 80% power only for an effect of
+  about 1.75 points (1.6 slots). P1's +0.96 is below that. So P1 is "not enough measurement for a
+  one-slot effect", not "no effect".
+
+### Yuval's own metrics (secondary, no family claim)
+
+| Contrast | Accuracy | Macro-F1 | Weighted-F1 |
+|---|---|---|---|
+| P1 pao - pto | -0.12 [-1.07, +0.84] | -0.40 [-1.73, +0.92] | -0.81 [-2.07, +0.45] |
+| P2 tralo_final - sham_final | -0.94 [-1.77, -0.11] | -1.87 [-3.19, -0.55] | -1.97 [-3.05, -0.88] |
+| P3 tralo_final - pto | -0.97 [-1.80, -0.15] | -1.84 [-3.10, -0.57] | -1.99 [-3.08, -0.90] |
+
+TraLO's step costs about 2 points of macro-F1 and weighted-F1 on B5 (unadjusted p 0.007 and 0.001).
+On ResNet18 the same contrasts were -0.19 and -0.40, neither significant.
+
+### How PAO behaved
+
+- **Converged 24/24 within 6 retrains.**
+
+  | Retrains | 1 (cap not binding) | 2 | 3 | 4 | 5 | 6 |
+  |---|---|---|---|---|---|---|
+  | Seeds | 3 | 10 | 5 | 4 | 1 | 1 |
+
+- **It overshoots.** The pool grade-3 count falls from a PTO mean of 99.1 to a final mean of 62.4,
+  against the cap of 76. The final C (non-capped classes) averages 2.85.
+- **It steers on noise.** Within one retrain, the pool count's epoch-to-epoch sd (epochs 3 onward) has
+  a median of 19.5 (range 7.6-56.4). Consecutive retrains differ by a median of 18 (max 65)
+  (`analysis/yuval_b5_count_noise.txt`).
+- **It fits the training false positives, and that does not transfer.** Retrain 2 against retrain 1 at
+  the same epoch, 21 seeds (`analysis/yuval_b5_retrain_speed.txt`):
+  - 130 [111, 149] fewer live training false positives at epoch 1, and 20-78 fewer at epochs 2-9;
+  - development accuracy is unchanged at every epoch (every interval covers 0).
+- **PTO stops early.** Its best epoch averages 5.0 of 10.0 epochs run.
+
+### Ranking (post hoc, `analysis/yuval_b5_ranking.txt`)
+
+| Contrast, n = 24 | Mean [95% CI] | p |
+|---|---|---|
+| pao - pto: AUC of p3, grade 3 vs rest | -0.0004 [-0.0069, +0.0061] | 0.90 |
+| pao - pto: precision of the 76 capped slots | +1.15 [-0.34, +2.64] points | 0.12 |
+| pao - pto: raw argmax grade-3 count, no cap | -36.7 [-45.6, -27.8] | < 0.001 |
+| pao - pto: raw argmax grade-3 F1, no cap | -8.2 [-10.9, -5.4] points | < 0.001 |
+| pao - pto: raw argmax accuracy, no cap | -1.3 [-2.4, -0.2] points | 0.023 |
+| tralo_final - sham_final: AUC of p3 | -0.0052 [-0.0098, -0.0006] | 0.029 |
+| tralo_final - sham_final: precision of the capped slots | -0.60 [-1.61, +0.41] points | 0.23 |
+
+- **PAO still moves the count, not the order.** Its capped-slot gain (+1.15 points, p 0.12) is the
+  whole of P1. The same gain on ResNet18 was -0.1.
+- **TraLO's step swaps more, and in the wrong direction** (`analysis/yuval_b5_swaps.txt`).
+  - It swaps 199 slots over 24 seeds, against 62 on ResNet18.
+  - The items it brings in are 63.8% true grade 3 (127/199); the items it pushes out are 68.3%
+    (136/199).
+  - That is a correct-direction share of 0.477, net -9 slots (-0.38 per seed). On ResNet18 the share
+    was 0.629, net +16.
+  - The sham swaps 14 slots, net +2.
+- **The dose pattern does not replicate.** P2 against PTO's excess over the cap has Spearman -0.03
+  (p 0.914) over the 21 binding seeds, with a median excess of 23. On ResNet18 it was +0.49 (p 0.024).
+  Both are post hoc; the recipe factorial tests the pattern prospectively (its amendment 1).
+
+### Recipe and backbone (secondary, unpaired)
+
+| Metric (%) | B5, Yuval's pipeline | ResNet18, Yuval's pipeline | ResNet18, our v3 recipe |
+|---|---|---|---|
+| cc-F1 | 69.96 (sd 2.17) | 69.78 (sd 3.07) | 64.97 (sd 3.29) |
+| Accuracy | 64.03 (sd 1.35) | 62.45 (sd 1.31) | 58.85 (sd 2.59) |
+| Macro-F1 | 63.89 (sd 1.68) | 62.83 (sd 2.22) | 59.48 (sd 1.65) |
+| Weighted-F1 | 63.22 (sd 1.58) | 61.25 (sd 1.82) | 57.67 (sd 1.75) |
+
+- **B5 against the v3 clipper:** +4.99 cc-F1 and +5.18 accuracy (Welch p < 1e-4 on every metric).
+- **B5 against ResNet18 in the same pipeline:** +0.18 cc-F1 (p 0.81), +1.58 accuracy (p 0.0002),
+  +1.06 macro-F1 (p 0.069). The backbone buys overall accuracy, not grade-3 F1 under the cap.
+- **Against his reported accuracies.** Our B5 PTO reaches 64.4% raw accuracy on the development pool.
+  His hard-coded unconstrained accuracies are 66-69%, but on his test split, with a stopping rule that
+  reads the test loss. That gap is therefore not attributable.
+- **Caveat.** These are three different seed sets, and the v3 clipper uses a different recipe.
+
+### Snapshot ensemble (Amendment 2, confirmatory for this block)
+
+capped_first on the mean of retrain 1's snapshots from epoch max(1, best - 2) to the last epoch
+(7.8 snapshots on average), against PTO's restored best epoch (`analysis/yuval_b5_ensemble.txt`):
+
+| Metric | ENS - best [95% t CI] | p |
+|---|---|---|
+| cc-F1 | +4.08 [+3.04, +5.11] (+3.7 slots of 76) | < 0.001 |
+| Accuracy | +2.85 [+2.25, +3.44] | < 0.001 |
+| Macro-F1 | +4.08 [+3.39, +4.77] | < 0.001 |
+
+The interval is above 0. By the reading fixed in Amendment 2, the ensemble gain holds on Yuval's
+backbone in Yuval's pipeline, so the post-hoc bar there is the ensembled clipper.
+
+**Exploratory: the ensemble against the constraint methods** (post hoc,
+`analysis/yuval_ens_vs_pao.py`; outputs `analysis/yuval_{b5,r18}_ens_vs_pao.txt`). Paired by seed,
+with counts of seeds where the ensemble is better / worse:
+
+| Block | ENS - pao, cc-F1 | ENS - tralo_final, cc-F1 | ENS - pao, accuracy |
+|---|---|---|---|
+| B5 | +3.11 [+1.60, +4.62], 20 / 2 | +4.49 [+3.05, +5.93], 20 / 3 | +2.96 [+2.07, +3.85], 23 / 0 |
+| ResNet18 | +2.52 [+0.17, +4.86], 17 / 5 | +1.69 [+0.17, +3.22], 13 / 4 | +2.40 [+1.15, +3.64], 20 / 3 |
+
+The script recomputes pao's and tralo_final's capped_first scores and asserts that they match the
+stored ones.
+
+### Reading, against the readings fixed before the data
+
+- **P1 is null on both backbones.** By the prereg reading, the advantage in his paper then rests on
+  its evaluation artefacts, not on the backbone:
+  - a single seed;
+  - a cap and a stopping rule that read the test set;
+  - no reseed;
+  - outcome filtering.
+
+  B5's point estimate is positive, +0.96 points (0.9 slots), and n = 24 cannot exclude a gain of
+  that size. Even if real, it is under a quarter of what the post-hoc ensemble adds on the same
+  backbone.
+- **P2 is null on both backbones, and harmful on B5's secondaries.** TraLO's direction has no
+  attributable cc-F1 effect in his pipeline.
+  - On B5 it lowers macro-F1 and weighted-F1 by about 2 points, and its swaps are net wrong-way.
+  - The ResNet18 block's +0.73, its swap direction and its dose pattern do not replicate. Read them
+    as ResNet18-specific or as noise.
+- **The recipe effect is positive on both backbones.** It is about +5 cc-F1 for every method.
+- **Amendment 2 is confirmed.** The best system measured today is post hoc: B5 in Yuval's pipeline,
+  then the snapshot ensemble, then capped_first. That is about 74.0 cc-F1 (69.96 + 4.08) and 66.9
+  accuracy (64.03 + 2.85).

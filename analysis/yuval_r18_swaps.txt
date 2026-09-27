@@ -1,0 +1,5 @@
+(2026-09-27 13:40, dsisco01, run root ~/tralo-rebuild/runs/claude-yuval-r18)
+24 seeds
+  tralo_final swapped 62 slots; in true-3 44/62 = 0.710; out true-3 28/62 = 0.452; correct-direction share 0.629; net +16
+  sham_final  swapped 1 slots; in true-3 0/1 = 0.000; out true-3 0/1 = 0.000; correct-direction share 0.500; net +0
+  net slots per seed +0.67; P2 vs excess over the cap (binding, n 21): Spearman +0.49 p 0.024

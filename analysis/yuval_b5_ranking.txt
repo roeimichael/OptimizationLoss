@@ -1,0 +1,24 @@
+(2026-09-27 13:40, dsisco01, run root ~/tralo-rebuild/runs/claude-yuval-b5)
+24 seeds; 21 where PAO retrained at least once
+
+auc          pto 0.9476  pao 0.9471  tralo_final 0.9424  sham_final 0.9476
+prec_at_cap  pto 0.8377  pao 0.8492  tralo_final 0.8328  sham_final 0.8388
+raw_count    pto 99.0833  pao 62.3750  tralo_final 75.2083  sham_final 98.7083
+raw_f1       pto 0.7291  pao 0.6475  tralo_final 0.6855  sham_final 0.7284
+raw_acc      pto 0.6444  pao 0.6313  tralo_final 0.6295  sham_final 0.6436
+
+paired, all seeds:
+  pao - pto          auc          -0.0004 [-0.0069, +0.0061] p 0.897
+  pao - pto          prec_at_cap  +0.0115 [-0.0034, +0.0264] p 0.123
+  pao - pto          raw_count    -36.7083 [-45.5942, -27.8225] p 0.000
+  pao - pto          raw_f1       -0.0815 [-0.1092, -0.0539] p 0.000
+  pao - pto          raw_acc      -0.0131 [-0.0241, -0.0020] p 0.023
+  tralo_final - sham auc          -0.0052 [-0.0098, -0.0006] p 0.029
+  tralo_final - sham prec_at_cap  -0.0060 [-0.0161, +0.0041] p 0.229
+
+paired, seeds where PAO retrained (n 21):
+  pao - pto          auc          -0.0005 [-0.0080, +0.0070] p 0.897
+  pao - pto          prec_at_cap  +0.0132 [-0.0039, +0.0302] p 0.123
+  pao - pto          raw_count    -41.9524 [-49.5454, -34.3594] p 0.000
+  pao - pto          raw_f1       -0.0932 [-0.1212, -0.0651] p 0.000
+  pao - pto          raw_acc      -0.0149 [-0.0275, -0.0024] p 0.022
