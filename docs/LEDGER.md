@@ -1351,6 +1351,20 @@ tests; they cannot establish the new campaign's success or failure.
 | Margin-aware soft count | A push already lands on 87% of the optimal set | **Closed.** |
 | Weight decay, label smoothing | -- | **Rejected by the user as cheating.** Not to be used. |
 
+- ⛔ **CLOSED IN THE LAB 2026-09-27: A LABEL-AWARE DIRECTION DOES NOT RESCUE THE COUNT-SIZED STEP -- NOT EVEN AN ORACLE ONE.**
+  Setup: synthetic pre-screen, 100 paired seeds, early-stopped. Each step keeps TraLO's radius rule (the smallest move that brings the pool hard count to the cap); only the direction changes.
+
+  | Direction | cc-F1 | Demotion on true-k |
+  |---|---|---|
+  | Label-free TraLO (pool soft count) | -1.14 vs PTO | 0.402 |
+  | Demote TRAINING false positives (Yuval's information) | -1.03 [-1.31, -0.75] vs its own sham; +0.06 vs label-free | 0.404 |
+  | ORACLE: demote the pool's own false positives, using pool labels | -1.12 vs PTO | 0.406 |
+  | ORACLE ranking direction: push pool false positives down and true positives up | -0.23 [-0.60, +0.13] | 0.364 |
+
+  **The blocker is the step machinery, not missing information.** In parameter space, lowering p_k on the wrong items and on the right items is, to first order, the same move. A count-sized step is dominated by that shared, prior-like component, which is exactly the shift the post-hoc cut already makes. Only the difference of the two gradients discriminates, and even with oracle labels it does not reach the capped set in one step.
+
+  Not taken to GPU. Receipt: `analysis/lab_pao/fp_lab_out.txt` on `claude/bandcons-20260926`.
+
 ---
 
 ## PART 5 -- Live candidates, not yet tested
