@@ -239,7 +239,7 @@ Each trap below produced a wrong conclusion at least once.
   - **Outcome filtering.** `weights_impact.py` keeps only runs where PAO accuracy beats PTO.
   - **Bundled confounds.** A lower effective LR (divided by mean(C)) and a C-weighted early-stop criterion ride along with the false-positive weighting.
 
-  **Measured 2026-09-27 (PART 3):** with those artefacts removed, PAO - PTO is -0.09 [-2.85, +2.66] cc-F1 over 24 seeds. One seed alone could have reported anything from +12.1 (seed 4012) to -25.3 (seed 4023).
+  **Measured 2026-09-27 (PART 3):** with those artefacts removed, PAO - PTO is -0.09 [-2.85, +2.66] cc-F1 over 24 ResNet18 seeds, and +0.96 [-0.28, +2.20] over 24 seeds of his own EfficientNet-B5. One seed alone could have reported anything from +12.1 (seed 4012) to -25.3 (seed 4023) on ResNet18, or from +6.6 (seed 4114) to -7.7 (seed 4102) on B5.
   Neither his allocator nor ours is at fault: they agree on 72/72 stored knee runs.
   **Rule:** score a retrain loop against its first model only with:
   - common random numbers (same init, same sampler order, same augmentation);
@@ -1163,32 +1163,43 @@ comparison against it is available until it is restored.
 
 ### Yuval Kassif's method, tested (2026-09-27)
 
-- 📊 **HIS LOSS DOES NOT BEAT PTO IN HIS OWN PIPELINE; HIS PIPELINE BEATS OURS (2026-09-27, knee ResNet18, cap 76, seeds 4000-4023, n=24, preregistered).**
+- 📊 **HIS LOSS DOES NOT BEAT PTO IN HIS OWN PIPELINE ON EITHER BACKBONE; HIS PIPELINE BEATS OURS; THE POST-HOC ENSEMBLE BEATS BOTH LOSSES (2026-09-27, knee, cap 76, preregistered, n=24 per block, Holm within each block).**
+  Blocks: ResNet18 on seeds 4000-4023, and his timm EfficientNet-B5 on seeds 4100-4123.
   A paired, label-clean port of his pipeline, with common random numbers across retrains:
   - augmentation and a class-balanced sampler;
   - Adam with weight decay, LR x0.8 every 5 epochs;
   - early stopping on a train-carved subject split, with the best weights restored.
 
-  capped_first grade-3 F1, Holm over three:
-  - **P1 pao - pto -0.09 [-2.85, +2.66]** (Holm 0.95); accuracy -1.08 [-2.44, +0.28]. His reported gain does not reproduce; the interval excludes gains above 2.7 points.
-  - **P2 tralo_final - sham_final +0.73 [+0.08, +1.38]** (p 0.029, Holm 0.088): directional, about 0.7 of 76 slots. P3 is identical, because the sham leaves cc-F1 unchanged in every seed (it swaps one slot in one seed).
-  - **Recipe: his pipeline's PTO beats our v3 clipper by +4.81 cc-F1 and +3.60 accuracy** (unpaired Welch, p < 1e-4). This is a gain for every method, not evidence for a constraint loss. Which component carries it is not yet split.
+  capped_first grade-3 F1:
 
-  Also measured:
-  - **PAO is live but steers on noise.** At the best epoch it has a median of 162 training false positives per epoch. The pool count's within-retrain sd is 19.3 against a cap of 76, and PAO overshoots it (95.2 -> 65.8).
-  - **PAO moves the argmax count, not the p3 order** (post hoc, `analysis/yuval_ranking.py`). capped_first fills the slots by p3 rank, so the count is fixed by the cut. PAO - PTO:
-    - precision of the 76 capped slots -0.1 [-3.4, +3.2] points;
-    - AUC -0.006 (p 0.11);
-    - with no cap, its overshoot costs -6.6 raw grade-3 F1 and -1.8 accuracy.
+  | Contrast | ResNet18 | EfficientNet-B5 |
+  |---|---|---|
+  | **P1 pao - pto** | -0.09 [-2.85, +2.66], Holm 0.95 | +0.96 [-0.28, +2.20], Holm 0.37 |
+  | **P2 tralo_final - sham_final** | +0.73 [+0.08, +1.38], Holm 0.088 | -0.50 [-1.35, +0.34], Holm 0.46 |
+  | PTO in his pipeline - our v3 clipper (unpaired) | +4.81 | +4.99 |
+  | Snapshot ensemble - PTO | +2.43 [+0.82, +4.03], exploratory | **+4.08 [+3.04, +5.11], preregistered** |
+  | Ensemble - pao (post hoc) | +2.52 [+0.17, +4.86] | +3.11 [+1.60, +4.62] |
+  | Ensemble - tralo_final (post hoc) | +1.69 [+0.17, +3.22] | +4.49 [+3.05, +5.93] |
 
-    TraLO's step instead lifts capped-slot precision +0.9 [+0.1, +1.7] at AUC -0.0014: it reorders items at the cut only.
-  - **TraLO's swaps have a direction, but they are few** (post hoc).
-    - 62 swapped slots over 24 seeds: the items brought in are 71% true grade 3, the items pushed out 45%. That is a 0.63 correct-direction share against CUTPAIR's 0.50, net +16 slots. The sham swaps 1 slot in total.
-    - The gain grows with PTO's excess over the cap: Spearman 0.49 (p 0.024), +2.0 slots at excess >= 30 against +0.1 below 20. Across the v3-recipe backbones the pattern is mixed (RegNetY out of order; no within-study correlation significant).
-    - It cannot be bought with a deeper push (#10). The recipe factorial tests the dose relation prospectively.
-  - **Exploratory:** the snapshot ensemble adds +2.43 [+0.82, +4.03] on top of his pipeline.
+  - **P1:** his reported gain does not reproduce on either backbone. B5's +0.96 (0.9 slots) is below the effect of about 1.75 points that n=24 detects with 80% power. That is not enough measurement for a one-slot effect, not a proof of absence. Even if real, it is under a quarter of the ensemble's gain.
+  - **P2:** TraLO's direction is not attributable in his pipeline. On B5 it also costs -1.87 [-3.19, -0.55] macro-F1 and -1.97 [-3.05, -0.88] weighted-F1 (secondary, p 0.007 and 0.001).
+  - **Backbone:** B5 beats ResNet18 in the same pipeline on accuracy (+1.58, p 0.0002), not on cc-F1 (+0.18, p 0.81).
+  - **Best system measured:** B5 in his pipeline, then the snapshot ensemble, then capped_first. That is about 74.0 cc-F1 and 66.9 accuracy, all post hoc.
 
-  Record: `experiments/claude_yuval_pipeline_result_20260927.md` on `claude/bandcons-20260926`. The B5 block is in PART 5.
+  Also measured, on both blocks:
+  - **PAO is live but steers on noise.** At ResNet18's best epoch it has a median of 162 training false positives per epoch. The pool count's within-retrain sd is 19.3 (B5 19.5) against a cap of 76, and PAO overshoots the cap (95.2 -> 65.8; B5 99.1 -> 62.4).
+  - **PAO moves the argmax count, not the p3 order** (post hoc, `analysis/yuval_ranking.py`). capped_first fills the slots by p3 rank, so the count is fixed by the cut.
+    - Precision of the 76 capped slots: -0.1 [-3.4, +3.2] points on ResNet18; +1.15 [-0.34, +2.64] on B5, which is the whole of B5's P1.
+    - AUC: -0.006 and -0.0004.
+    - With no cap, its overshoot costs -6.6 and -8.2 raw grade-3 F1.
+  - **PAO fits the training false positives, and it does not transfer.** Retrain 2 has 82 fewer at epoch 1 (B5: 130 fewer), and development accuracy does not rise at any epoch.
+  - ⛔ **Retracted in place: "TraLO's swaps have a direction, and the gain grows with PTO's excess over the cap".** On ResNet18 the swaps had a 0.63 correct-direction share, net +16 slots, and Spearman 0.49 (p 0.024). B5 does not replicate either:
+    - share 0.477, net -9 slots, over 199 swapped slots;
+    - Spearman -0.03 (p 0.91).
+
+    Read the ResNet18 pattern as backbone-specific or as noise. Across the v3-recipe backbones it was already mixed. The recipe factorial tests the dose relation prospectively.
+
+  Record: `experiments/claude_yuval_pipeline_result_20260927.md` on `claude/bandcons-20260926`.
 - 📊 **TraLO SCORED ON YUVAL'S METRICS IS NO BETTER (2026-09-27, directional, 4 knee studies x 24 seeds).**
   Metrics: accuracy, macro-F1 and weighted-F1 under capped_first, the metrics Yuval reports.
   **No final-model tralo_target contrast survives Holm in any study.** For example, ResNet18 cap 76 target - clipper:
@@ -1208,7 +1219,7 @@ comparison against it is available until it is restored.
   - **Memorised:** PAO never converges, has 0 training false positives at deployment, and gives +0.56 [+0.03, +1.10], marginal.
   - **TraLO's step is label-blind:** 0.40 of its demotion mass lands on true-k items, whose share of the soft count is 0.42. It is -1.1 vs sham.
 
-  It predicted a null-to-negative PAO - PTO on real data. The ResNet18 GPU block measured -0.09 [-2.85, +2.66], a null, consistent with that prediction.
+  It predicted a null-to-negative PAO - PTO on real data. The ResNet18 GPU block measured -0.09 [-2.85, +2.66], a null, consistent with that prediction. The B5 block measured +0.96 [-0.28, +2.20]: also a null, but its interval excludes the lab's early-stopped -1.74, so the lab's size and sign do not carry to B5.
   Receipt: `analysis/lab_pao/`.
 
 ---
@@ -1409,26 +1420,25 @@ tests; they cannot establish the new campaign's success or failure.
 
   Not taken to GPU. Receipt: `analysis/lab_pao/fp_lab_out.txt` on `claude/bandcons-20260926`.
 
+- ⛔ **CLOSED 2026-09-27: YUVAL'S PAO LOSS AS AN IMPROVEMENT OVER PTO UNDER THE CAP.**
+  - **P1 is null on both backbones** (preregistered, n=24 each): ResNet18 -0.09 [-2.85, +2.66], his EfficientNet-B5 +0.96 [-0.28, +2.20].
+  - **Mechanism:** PAO moves the argmax count, which capped_first already fixes, not the p3 order.
+  - **The post-hoc snapshot ensemble of PTO beats it** by +2.52 and +3.11 cc-F1.
+  - **Open residual:** a gain of up to one slot on B5 is not excluded. Buying the power for it (about 75 seeds) would not reach the post-hoc bar, so it is not queued.
+
+  Details in PART 3. The retraining loop is his; the label-aware direction it suggests was already closed in the lab (entry above).
+
 ---
 
 ## PART 5 -- Live candidates, not yet tested
 
-- 🔁 **LIVE 2026-09-27: TraLO and Yuval's PAO INSIDE YUVAL'S PIPELINE (knee, cap 76).**
-  - **Pipeline:** his augmentation, class-balanced sampler, Adam + weight decay (every arm), LR x0.8 every 5 epochs, and early stopping on a train-carved subject split with the best weights restored.
-  - **PAO outer loop:** counts on development images against the label-free cap.
-  - **Arms:** pto / tralo_final / sham_final / pao.
-  - **Blocks:**
-    - ResNet18 4000-4023 (release bcf5d010): **DONE, scored 11:07, result in PART 3.**
-    - His timm EfficientNet-B5 4100-4123 (release 0d70d993): **live, 5/24 at 11:12**, with 8 queues on 4 GPUs.
-  - **Primary:** P1 pao - pto, P2 tralo_final - sham_final, P3 tralo_final - pto; cc-F1, Holm within each block.
-
-  Prereg with fixed readings: `experiments/claude_yuval_pipeline_prereg_20260927.md`. Amendment 2, committed before any B5 seed was scored, adds the snapshot ensemble as a fresh B5 confirmation.
-
-- 🔁 **QUEUED 2026-09-27: THE RECIPE FACTORIAL -- which part of Yuval's pipeline carries its +4.8, and does TraLO's step help in any recipe (knee ResNet18, cap 76).**
+- 🔁 **LIVE 2026-09-27: THE RECIPE FACTORIAL -- which part of Yuval's pipeline carries its +4.8, and does TraLO's step help in any recipe (knee ResNet18, cap 76).**
   - **Design:** augmentation x balanced sampler x early stopping, all 8 cells per seed on fresh seeds 4200-4223 (pilot 4299). PTO only, with TraLO's step and its sham in every cell. Common random numbers within a seed.
   - **Primary, Holm over four:** the three main effects on pto cc-F1, and P2-pooled (tralo_final - sham_final averaged over the 8 cells per seed).
-  - **Prior:** augmentation alone gave +3.48 in our recipe (CUTPAIR).
-  - **State:** release 67ecde20; 13/13 runner mutations caught. The launcher (`tools/claude_recipe_launcher.sh`) starts it once every B5 seed is claimed, runs the pilot's integrity gate, then the study.
+  - **Prior:** augmentation alone gave +3.48 in our recipe (CUTPAIR). The Yuval-pipeline study (PART 3) is now done on both backbones.
+  - **State, checked 13:56:** release 67ecde20; 13/13 runner mutations caught.
+    - The pilot's integrity gate passed at 13:38:40, after a re-run. The first pilot at 12:29 died of an OOM race with the last B5 seed; its outputs are quarantined in `runs/claude-recipe/failed_pilot_oom_20260927_1229/`.
+    - Study: 12/192 done, 0 failures, 12 processes on dsisco01 GPUs 0-3. The machine is CPU-bound (load 123 on 96 cores), so about 3-5 more hours.
 
   Prereg: `experiments/claude_recipe_factorial_prereg_20260927.md` on `claude/bandcons-20260926`.
 
