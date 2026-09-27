@@ -140,24 +140,28 @@ trade as a trade, and retract in place.**
 
 ---
 
-## RUN STATE -- checked 2026-09-27 20:05 IDT (server clock)
+## RUN STATE -- checked 2026-09-28 00:09 IDT (server clock)
 
-**Live: `claude-stepens`, the step-ensemble study** (release 129134dd, seeds 4500-4571, plus the pilot job `4000_stepens`).
-- It asks whether TraLO's step survives snapshot ensembling.
-- **Launcher:** started 18:43, PID 1216284, log `lab/stepens/launcher.log`. It runs in three stages:
-  - the pilot ran 18:43-18:58 on GPU 0, alone, at about 61 s per epoch;
-  - **the gate PASSED at 18:59**. PTO was byte-identical to the stored seed-4000 run at all 14 epochs and at the restored best, and all 14 epochs stepped (`runs/claude-stepens-pilot/pilot_gate.txt`);
-  - 72 one-seed queues, 3 per GPU on dsisco01. At 20:05, 22 of 72 were done with 0 failures, and every finished seed's step records were in spec. The run should end around 21:30.
-- dsisco02 is not used. Another user holds its GPUs 0-1, and a run there could not be byte-identical to dsisco01's.
-- **Score at 72/72:** `CUDA_VISIBLE_DEVICES="" PYTHONPATH=$REL python $REL/analysis/score_stepens.py ~/tralo-rebuild/runs/claude-stepens`, with REL=`~/tralo-rebuild/releases/129134dd87504446a81228e777c7849229be05af`.
-- **Prereg:** `experiments/claude_stepens_prereg_20260927.md`, with fixed readings for E1 ens_tralo - ens_sham and E2 ens_tralo - ens_pto.
+**Scored tonight: the ResNet18 step-ensemble study** (72/72, 0 failures) clears its preregistered bar. E1 is +1.10 [+0.77, +1.43] and E2 is +1.11 [+0.78, +1.45], both Holm < 0.001 (LEDGER PART 3; `analysis/stepens_r18_score.txt`).
 
-**Queued: `claude-stepens-rgy`, the RegNetY replication** (release f2580776, seeds 4600-4671, pilot job `4400_stepens`).
-- The prereg was committed at 19:06:53 (f2580776), before any ResNet18 study result: `experiments/claude_stepens_rgy_prereg_20260927.md`.
-- **Launcher:** PID 1247860, log `lab/stepens-rgy/launcher.log`.
-  - The pilot ran 19:19-20:04. **Its gate PASSED at 20:04:** PTO was byte-identical to `runs/claude-yuval-rgy/seed4400` at all 18 epochs and at the restored best, and all 18 epochs stepped.
-  - The 72 study seeds start only once the ResNet18 launcher (PID 1216284) exits. That is about 3-4 h of work, ending after midnight.
-- **Score:** the same scorer on `runs/claude-stepens-rgy`, from release f2580776.
+**Live on dsisco01: `claude-stepens-rgy`, the RegNetY replication** (release f2580776, seeds 4600-4671).
+- The pilot gate passed at 20:04: byte-identical at all 18 epochs, and all 18 stepped.
+- The study started at 21:33, after the ResNet18 launcher exited. At 00:08, 40 of 72 were done with 0 failures. It should end around 02:30.
+- Launcher PID 1247860, log `lab/stepens-rgy/launcher.log`. Score it with `analysis/score_stepens.py` from release f2580776.
+
+**Live on dsisco02: the step-ensemble study on MobileNetV3 and EfficientNet-B5** (release 72201e78).
+- The prereg `experiments/claude_stepens_d2_prereg_20260928.md` was committed at 23:52:07 on 09-27, before any run.
+- It uses GPUs 2-3 only, because another user holds GPUs 0-1. At most 6 of our processes run per GPU, and a failed job stops its launcher.
+- **`mn3`, seeds 4700-4771 (n = 72):** the pilot 4300 is gated against a same-host reference run with the steps off. **The gate PASSED at about 00:07**: PTO was byte-identical at all 10 epochs and at the restored best, and 10 of 10 epochs stepped. The study started at 00:07. Log: `lab/stepens-mn3/launcher.log`.
+- **`b5`, seeds 4800-4847 (n = 48):** the pilot is 4100.
+  - The reference finished its 11 epochs by about 00:06.
+  - The pilot takes about 4.5 min per epoch, because B5's steps are costly, and its gate follows.
+  - Log: `lab/stepens-b5/launcher.log`.
+- Score: `analysis/score_stepens.py runs/claude-stepens-mn3` (and `-b5`), from release 72201e78.
+
+**Being prepared: fmow2 satellite images, a second dataset and a second modality**, for dsisco01 after RegNetY.
+- The code is committed at 0399d9e4 (`tralo/fmow_yuval.py`, `analysis/score_fmow_stepens.py`), and 18 of 18 mutations are caught.
+- A 4-epoch smoke run on dsisco02 GPU 3 checks the code path and PTO's predicted class-1 count before a prereg fixes the cap. It is not a study run, and its labels are not read.
 
 **Done today, all scored.** The Yuval investigation, which the user asked for on 2026-09-27, is complete. THE COURSE above has the verdict.
 
@@ -169,11 +173,12 @@ trade as a trade, and retract in place.**
 | `claude-yuval-r18` (ResNet18) | bcf5d010 | 4000-4023 | **DONE** 11:07. P1 null; P2 Holm 0.088; recipe +4.81 | same file |
 
 **Next:**
-- At 72/72, score the ResNet18 study against its fixed readings and write it up.
-- Check that the RegNetY pilot holds a CUDA context and passes its gate.
-- Score the replication at 72/72, and read the two studies together by the joint readings of its prereg.
+- Score RegNetY at 72/72, and read it with ResNet18 by the joint readings of its prereg.
+- Watch the B5 gate. Score both dsisco02 blocks when complete.
+- fmow2: prereg, then the launch on dsisco01 after RegNetY.
+- Morning PDF report: sections are being drafted and fact-checked in `report/` on `claude/bandcons-20260926`.
 
-All live work is on **dsisco01**, under `~/tralo-rebuild/runs/`. Releases are immutable clones by SHA in `~/tralo-rebuild/releases/`, and the code is on branch `claude/bandcons-20260926`.
+Live work is on **dsisco01** and **dsisco02**, under `~/tralo-rebuild/runs/` on the shared NFS home. Releases are immutable clones by SHA in `~/tralo-rebuild/releases/`, and the code is on branch `claude/bandcons-20260926`.
 
 | run | release | seeds | state | scored by |
 |---|---|---|---|---|

@@ -1507,7 +1507,7 @@ tests; they cannot establish the new campaign's success or failure.
   - **State:** release 129134dd, with 18/18 mutations caught and 27 tests passing on the server. The launcher started at 18:43 (`lab/stepens/launcher.log`). The pilot gate passed at 18:59: PTO was byte-identical to the stored run at all 14 epochs, and all 14 epochs stepped. The 72 study seeds started at 18:59.
 
   Prereg: `experiments/claude_stepens_prereg_20260927.md`.
-- 🔁 **QUEUED 2026-09-27: the same study replicated on RegNetY** (knee, Yuval's pipeline, cap 76, seeds 4600-4671, n = 72).
+- 🔁 **LIVE since 2026-09-27 21:33: the same study replicated on RegNetY** (knee, Yuval's pipeline, cap 76, seeds 4600-4671, n = 72). At 00:08 on 09-28, 40 of 72 were done with 0 failures.
   - **Why:** the ResNet18 prereg makes a positive a thesis claim only after a preregistered replication on a second backbone. RegNetY is the other backbone whose single-model step points up (+0.55, Holm 0.073).
   - **When it was fixed:** committed at 19:06:53 (f2580776), before any ResNet18 study result existed.
   - **Joint readings:** the thesis claim needs E1 and E2 above 0 in both studies. There is no pooled primary.
@@ -1515,6 +1515,18 @@ tests; they cannot establish the new campaign's success or failure.
   - **State:** release f2580776, with 30/30 mutations caught and 17 tests passing on the server. The launcher started at 19:08 as PID 1247860 (`lab/stepens-rgy/launcher.log`). The pilot gate passed at 20:04: PTO was byte-identical to the stored seed-4400 run at all 18 epochs, and all 18 epochs stepped. The study seeds wait until the ResNet18 launcher (PID 1216284) exits.
 
   Prereg: `experiments/claude_stepens_rgy_prereg_20260927.md`.
+- 🔁 **LIVE since 2026-09-28 00:07 on dsisco02: the same study on MobileNetV3 (seeds 4700-4771, n = 72) and EfficientNet-B5 (4800-4847, n = 48).**
+  - **Why:** do the step-ensemble gains carry to a small backbone and to Yuval's own backbone?
+  - **Readings:** each block is read on its own (E1 and E2 above 0 after Holm). There is no pooling. The thesis claim stays with ResNet18 plus RegNetY. These blocks measure how far the result generalises.
+  - **Pilot gate:** each pilot is gated against a same-host rerun with the steps off, because bit-determinism does not cross hosts. The MobileNetV3 gate passed, byte-identical at all 10 epochs.
+  - **State:** release 72201e78, with 15/15 mutations caught. GPUs 2-3 only.
+
+  Prereg: `experiments/claude_stepens_d2_prereg_20260928.md`, committed 23:52:07 on 09-27.
+- 🔧 **IN PREPARATION 2026-09-28: fmow2 satellite images, a second dataset and modality.**
+  - **Design:** MobileNetV3 in Yuval's pipeline. Class 1 (crop_field) is capped at pool // 10.
+  - **Roles by country:** a 14-country early-stopping carve of train; a 5-country development pool (1673 items); 5 reserved test countries that are never used.
+  - **Seeds:** 5000-5047, with pilot 5099 gated against a same-host reference.
+  - **State:** code at 0399d9e4, with 18/18 mutations caught. The prereg follows the smoke run.
 
 - ⛔ **RETRACTED AS A CANDIDATE -- OPTION C HAS NOW RUN AND IS CLOSED ON BOTH
   BACKBONES (2026-09-20).** MobileNetV3 refuted (252 runs, 12 seeds), ViTB16
