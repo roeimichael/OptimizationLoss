@@ -28,8 +28,8 @@ n = 24 paired seeds, intent to treat, Holm over P1-P3.
 | P2 tralo_final - sham_final | +0.73 [+0.08, +1.38] | 1.54 | 0.029 | 0.088 |
 | P3 tralo_final - pto | +0.73 [+0.08, +1.38] | 1.54 | 0.029 | 0.088 |
 
-The sham step never changed the 76-slot grade-3 set: sham equals pto on cc-F1 in 24 of 24 seeds, so
-P2 equals P3. On the 21 seeds where the cap binds, P2 is +0.84 [+0.10, +1.58] and P1 is -0.10.
+The sham step leaves cc-F1 unchanged in 24 of 24 seeds (it swaps one slot in one seed, seed 4016, with no
+effect on cc-F1), so P2 equals P3. On the 21 seeds where the cap binds, P2 is +0.84 [+0.10, +1.58] and P1 is -0.10.
 
 ### Yuval's own metrics (secondary)
 
@@ -41,7 +41,7 @@ P2 equals P3. On the 21 seeds where the cap binds, P2 is +0.84 [+0.10, +1.58] an
 
 ### How PAO behaved
 
-- **Live, not inert.** At PTO's best epoch there were 97-231 training false positives per epoch (median 162); these are the items PAO up-weights. Training loss was 0.63. The null is not a dead signal.
+- **Live, not inert.** At PTO's best epoch there were 97-231 training false positives per epoch (median 162); these are the items PAO up-weights. The median training loss there was 0.63. The null is not a dead signal.
 - **Converged 24/24 within 8 retrains.**
 
   | Retrains | 1 (cap not binding) | 2 | 3 | 4 | 6 | 7 | 8 |
@@ -49,7 +49,7 @@ P2 equals P3. On the 21 seeds where the cap binds, P2 is +0.84 [+0.10, +1.58] an
   | Seeds | 3 | 9 | 3 | 5 | 2 | 1 | 1 |
 
 - **It overshoots.** The pool grade-3 count falls from a PTO mean of 95.2 to a final mean of 65.8, against the cap of 76.
-- **It steers on noise.** Within one retrain, the pool count's epoch-to-epoch sd has a median of 19.3 (range 8.7-32.0); consecutive retrains differ by a median of 12 (max 75). For example, seed 4003 needed 8 retrains, with counts 91, 96, 84, 86, 88, 79, 80, 68 while C rose from 1 to 4.84 (`analysis/yuval_r18_count_noise.txt`).
+- **It steers on noise.** Within one retrain, the pool count's epoch-to-epoch sd (epochs 3 onward) has a median of 19.3 (range 8.7-32.0); consecutive retrains differ by a median of 12 (max 75). For example, seed 4003 needed 8 retrains, with counts 91, 96, 84, 86, 88, 79, 80, 68 while C rose from 1 to 4.84 (`analysis/yuval_r18_count_noise.txt`).
 - **Each retrain is a fresh draw.** Per seed, PAO - PTO runs from +12.1 (seed 4012) to -25.3 (seed 4023); the paired mean is null.
 
 ### Recipe effect (secondary, unpaired)
@@ -65,7 +65,8 @@ This study's pto against the v3 ResNet18 clipper (seeds 1801-1824, same pool, sa
 
 Caveat: the comparison is unpaired and the recipes differ in several components at once:
 augmentation, balanced sampling, early stopping with the best checkpoint restored, weight decay and
-LR decay, normalisation, and a 10% early-stop carve. The factorial that would split them was not run.
+LR decay, normalisation, and a 10% early-stop carve. The recipe factorial
+([prereg](claude_recipe_factorial_prereg_20260927.md), queued) splits the first three.
 
 ### Exploratory (not preregistered for this study)
 
@@ -132,7 +133,7 @@ only the order of p3 can matter. PAO's loop steers the argmax count, which the c
 
 - **PAO moves the count, not the order.** Under the cap, its count change is neutralised.
 - **Without a cap it is worse.** Its overshoot (65.8 predictions against 106 true grade-3 knees in the pool) costs grade-3 recall.
-- **PAO does its job on the training set, and it does not transfer.** Retrain 2 (the first with C > 1) against PTO at the same epoch, 21 seeds (`analysis/yuval_r18_retrain_speed.txt`): 28-82 fewer live training false positives per epoch (epoch 1: -82 [-141, -22]). Yet development accuracy is 0.5-2 points lower at matched epochs (epoch 1: -1.8 [-3.2, -0.5]; most later CIs cover 0). Fitting the training false positives harder does not reorder unseen images.
+- **PAO does its job on the training set, and it does not transfer.** Retrain 2 (the first with C > 1) against PTO at the same epoch, 21 seeds (`analysis/yuval_r18_retrain_speed.txt`): 28-82 fewer live training false positives per epoch over epochs 1-9 (epoch 1: -82 [-141, -22]). Yet development accuracy is 0.1-2.0 points lower at each of epochs 1-9, significantly at epochs 1, 2 and 4 (epoch 1: -1.8 [-3.2, -0.5]). Fitting the training false positives harder does not reorder unseen images.
 - **TraLO's step is the opposite.** It raises the precision of the capped slots by +0.9 [+0.1, +1.7] points (p 0.029), at a slightly lower AUC (-0.0014, p 0.028). It reorders items near the cut, not the whole ranking.
 
 **Mechanism, for context.**
