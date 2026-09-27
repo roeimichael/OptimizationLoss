@@ -1182,6 +1182,10 @@ comparison against it is available until it is restored.
     - with no cap, its overshoot costs -6.6 raw grade-3 F1 and -1.8 accuracy.
 
     TraLO's step instead lifts capped-slot precision +0.9 [+0.1, +1.7] at AUC -0.0014: it reorders items at the cut only.
+  - **TraLO's swaps have a direction, but they are few** (post hoc).
+    - 62 swapped slots over 24 seeds: the items brought in are 71% true grade 3, the items pushed out 45%. That is a 0.63 correct-direction share against CUTPAIR's 0.50, net +16 slots. The sham swaps 1 slot in total.
+    - The gain grows with PTO's excess over the cap: Spearman 0.53 (p 0.013), +2.0 slots at excess >= 30 against +0.1 below 20.
+    - It cannot be bought with a deeper push (#10). The recipe factorial tests the dose relation prospectively.
   - **Exploratory:** the snapshot ensemble adds +2.43 [+0.82, +4.03] on top of his pipeline.
 
   Record: `experiments/claude_yuval_pipeline_result_20260927.md` on `claude/bandcons-20260926`. The B5 block is in PART 5.
