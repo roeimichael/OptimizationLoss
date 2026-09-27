@@ -1451,6 +1451,19 @@ tests; they cannot establish the new campaign's success or failure.
 
   Prereg: `experiments/claude_recipe_factorial_prereg_20260927.md` on `claude/bandcons-20260926`.
 
+- 🔁 **QUEUED 2026-09-27: DOES TraLO'S ONE POSITIVE SURVIVE A NON-MEMORISING RECIPE? MobileNetV3 and RegNetY inside Yuval's pipeline (knee, cap 76).**
+  - **Why:** the one attributable positive is MobileNetV3 in the v3 recipe (target - sham +1.47 [+0.43, +2.50]), and the v3 recipe memorises.
+  - **Design:** PTO only. Seeds 4300-4323 (MobileNetV3) and 4400-4423 (RegNetY); pilots 4399 and 4499.
+  - **Primary:** P2 tralo_final - sham_final per block, Holm over the two. About 75% power for the v3 effect size; a one-step effect (~0.5 slots) is not detectable at this n.
+  - **Secondary:** ENS confirmation sets 6 and 7.
+  - **State:** release 7d8f7dd7.
+    - The code review's 7 defects are fixed.
+    - 19/20 runner and 10/10 scorer mutations are caught.
+    - The new code reproduces the recorded initial weights of seeds 4000, 4017, 4100 and 4200 exactly.
+    - Launcher PID 932045 (`lab/smallbb/launcher.log`) starts it after the factorial's last claim.
+
+  Prereg: `experiments/claude_yuval_smallbb_prereg_20260927.md`.
+
 - ⛔ **RETRACTED AS A CANDIDATE -- OPTION C HAS NOW RUN AND IS CLOSED ON BOTH
   BACKBONES (2026-09-20).** MobileNetV3 refuted (252 runs, 12 seeds), ViTB16
   ambiguous-by-mapping and negative in direction (112 runs, 8 seeds). The

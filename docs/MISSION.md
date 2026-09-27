@@ -127,13 +127,13 @@ trade as a trade, and retract in place.**
 
 ---
 
-## RUN STATE -- checked 2026-09-27 13:56 IDT (server clock)
+## RUN STATE -- checked 2026-09-27 14:54 IDT (server clock)
 
 **Live: `claude-recipe`, the recipe factorial** (release 67ecde20, seeds 4200-4223 x 8 cells).
 - **Pilot:** the integrity gate passed at 13:38:40 on seed 4299, after a re-run.
   - The first pilot (12:29) started one second after the last B5 claim. That seed then took the memory, and all 8 pilot jobs died of CUDA OOM. No score was read, and the outputs are quarantined in `runs/claude-recipe/failed_pilot_oom_20260927_1229/`.
   - The launcher now waits for the newest claim to age 5 min.
-- **Study:** 12/192 done, 0 failures, 12 processes on dsisco01 GPUs 0-3. All four GPUs are ours, and the launcher caps them at 3 per GPU. The machine is CPU-bound (load 123 on 96 cores), so about 3-5 more hours. dsisco02 is fully held by another user.
+- **Study:** 79/192 done, 91 claimed, 0 failures; 12 queues alive on dsisco01 GPUs 0-3. All four GPUs are ours, and the launcher caps them at 3 per GPU. At about 1.3 jobs/min it ends around 16:25. dsisco02 is fully held by another user.
 - **Where things are:**
   - launcher `~/tralo-rebuild/lab/recipe/claude_recipe_launcher.sh`, log `lab/recipe/launcher.log`;
   - queue logs `runs/claude-recipe/queue_gpu*_s*.log`.
@@ -158,9 +158,16 @@ trade as a trade, and retract in place.**
 | `claude-yuval-b5-pilot` | 0d70d993 | 4199 | **DONE**: gate passed; 4 PAO retrains, step 101 -> 76 | prereg, Pilots section |
 | `claude-yuval-pilot` | bcf5d010 | 4099 | **DONE**: integrity gate passed; PAO converged in 2 retrains and overshot (106 -> 57 vs cap 76) | prereg, Pilots section |
 
+**Queued behind it: `claude-yuval-mn3` + `claude-yuval-rgy`**, TraLO's step on MobileNetV3 and RegNetY inside Yuval's pipeline. It asks whether the one attributable positive survives a non-memorising recipe.
+- Seeds 4300-4323 and 4400-4423, pilots 4399 and 4499, release 7d8f7dd7.
+- The launcher (PID 932045, log `lab/smallbb/launcher.log`, started 14:50) waits for the factorial's last claim. Then it runs the pilots, the gate (`analysis/score_smallbb.py --gate`) and 48 one-seed queues.
+- It refuses to start on non-empty roots, never uses a GPU with another user's process, and stops on any failed or lost job.
+- Prereg: `experiments/claude_yuval_smallbb_prereg_20260927.md`.
+- **Score:** `score_smallbb.py runs/claude-yuval-mn3 runs/claude-yuval-rgy runs/claude-repl-mn3 runs/claude-repl-rgy`, plus `yuval_ensemble.py` and `yuval_swaps.py` on each root.
+
 **Next:**
 - score the factorial against its fixed readings at 192/192, then write it up and update LEDGER, MISSION and the professor document;
-- keep the GPUs on preregistered work after it: the follow-up is chosen from the factorial's reading, not before.
+- check that the small-backbone pilots hold GPU contexts, then score that study at 48/48.
 
 All live work is on **dsisco01**, under `~/tralo-rebuild/runs/`. Releases are immutable clones by SHA in `~/tralo-rebuild/releases/`, and the code is on branch `claude/bandcons-20260926`.
 
