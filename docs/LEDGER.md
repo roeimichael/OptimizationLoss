@@ -239,6 +239,7 @@ Each trap below produced a wrong conclusion at least once.
   - **Outcome filtering.** `weights_impact.py` keeps only runs where PAO accuracy beats PTO.
   - **Bundled confounds.** A lower effective LR (divided by mean(C)) and a C-weighted early-stop criterion ride along with the false-positive weighting.
 
+  **Measured 2026-09-27 (PART 3):** with those artefacts removed, PAO - PTO is -0.09 [-2.85, +2.66] cc-F1 over 24 seeds. One seed alone could have reported anything from +12.1 (seed 4012) to -25.3 (seed 4023).
   Neither his allocator nor ours is at fault: they agree on 72/72 stored knee runs.
   **Rule:** score a retrain loop against its first model only with:
   - common random numbers (same init, same sampler order, same augmentation);
@@ -1160,6 +1161,24 @@ comparison against it is available until it is restored.
   absence**. The ViTB16 negatives do clear that bar, so the power caveat
   excuses the flat cells and not the negative ones.
 
+### Yuval Kassif's method, tested (2026-09-27)
+
+- 📊 **HIS LOSS DOES NOT BEAT PTO IN HIS OWN PIPELINE; HIS PIPELINE BEATS OURS (2026-09-27, knee ResNet18, cap 76, seeds 4000-4023, n=24, preregistered).**
+  A paired, label-clean port of his pipeline, with common random numbers across retrains:
+  - augmentation and a class-balanced sampler;
+  - Adam with weight decay, LR x0.8 every 5 epochs;
+  - early stopping on a train-carved subject split, with the best weights restored.
+
+  capped_first grade-3 F1, Holm over three:
+  - **P1 pao - pto -0.09 [-2.85, +2.66]** (Holm 0.95); accuracy -1.08 [-2.44, +0.28]. His reported gain does not reproduce; the interval excludes gains above 2.7 points.
+  - **P2 tralo_final - sham_final +0.73 [+0.08, +1.38]** (p 0.029, Holm 0.088): directional, about 0.7 of 76 slots. P3 is identical, because the sham never moves the set.
+  - **Recipe: his pipeline's PTO beats our v3 clipper by +4.81 cc-F1 and +3.60 accuracy** (unpaired Welch, p < 1e-4). This is a gain for every method, not evidence for a constraint loss. Which component carries it is not yet split.
+
+  Also measured:
+  - **PAO is live but steers on noise.** At the best epoch it has a median of 162 training false positives per epoch. The pool count's within-retrain sd is 19.3 against a cap of 76, and PAO overshoots it (95.2 -> 65.8).
+  - **Exploratory:** the snapshot ensemble adds +2.43 [+0.82, +4.03] on top of his pipeline.
+
+  Record: `experiments/claude_yuval_pipeline_result_20260927.md` on `claude/bandcons-20260926`. The B5 block is in PART 5.
 - 📊 **TraLO SCORED ON YUVAL'S METRICS IS NO BETTER (2026-09-27, directional, 4 knee studies x 24 seeds).**
   Metrics: accuracy, macro-F1 and weighted-F1 under capped_first, the metrics Yuval reports.
   **No final-model tralo_target contrast survives Holm in any study.** For example, ResNet18 cap 76 target - clipper:
@@ -1179,7 +1198,7 @@ comparison against it is available until it is restored.
   - **Memorised:** PAO never converges, has 0 training false positives at deployment, and gives +0.56 [+0.03, +1.10], marginal.
   - **TraLO's step is label-blind:** 0.40 of its demotion mass lands on true-k items, whose share of the soft count is 0.42. It is -1.1 vs sham.
 
-  Predicts null-to-negative PAO - PTO on real data; the GPU study tests it.
+  It predicted a null-to-negative PAO - PTO on real data. The ResNet18 GPU block measured -0.09 [-2.85, +2.66], a null, consistent with that prediction.
   Receipt: `analysis/lab_pao/`.
 
 ---
@@ -1388,7 +1407,9 @@ tests; they cannot establish the new campaign's success or failure.
   - **Pipeline:** his augmentation, class-balanced sampler, Adam + weight decay (every arm), LR x0.8 every 5 epochs, and early stopping on a train-carved subject split with the best weights restored.
   - **PAO outer loop:** counts on development images against the label-free cap.
   - **Arms:** pto / tralo_final / sham_final / pao.
-  - **Blocks:** ResNet18 4000-4023 (release bcf5d010) and his timm EfficientNet-B5 4100-4123 (release 0d70d993).
+  - **Blocks:**
+    - ResNet18 4000-4023 (release bcf5d010): **DONE, scored 11:07, result in PART 3.**
+    - His timm EfficientNet-B5 4100-4123 (release 0d70d993): **live, 5/24 at 11:12**, with 8 queues on 4 GPUs.
   - **Primary:** P1 pao - pto, P2 tralo_final - sham_final, P3 tralo_final - pto; cc-F1, Holm within each block.
 
   Prereg with fixed readings: `experiments/claude_yuval_pipeline_prereg_20260927.md`.

@@ -65,6 +65,15 @@ a real moderator; under the corrected cap it is not -- the one exception reverse
   The step evicts 83-87% the same items as the post-hoc cut. The published arm's extra damage
   is a 10x overshoot of the step size.
 
+- 🔑 **Yuval Kassif's PAO does not beat PTO either, even inside his own pipeline (2026-09-27,
+  LEDGER PART 3).** This was a preregistered, paired, label-clean port of his pipeline (ResNet18, cap 76, n=24):
+  - pao - pto is **-0.09 [-2.85, +2.66]** cc-F1;
+  - TraLO's step minus its sham is +0.73 [+0.08, +1.38], with Holm 0.088.
+
+  What his pipeline does carry is a **recipe gain for every method: +4.81 cc-F1 over ours**.
+  The best knee system measured is post hoc: his pipeline, then the snapshot ensemble, then
+  capped_first. His EfficientNet-B5 block is still running.
+
 **The mechanism is proved, not guessed** (LEDGER PART 2). The loss is a function
 of the multiset of test probabilities while the allocator is a function of their
 ranks (M1), so nothing in the objective can prefer a correct ordering over the
@@ -113,31 +122,40 @@ trade as a trade, and retract in place.**
 
 ---
 
-## RUN STATE -- checked 2026-09-27 10:04 IDT (server clock)
+## RUN STATE -- checked 2026-09-27 11:12 IDT (server clock)
 
-**Update 10:04:**
-- The B5 pilot 4199 passed its gate: 4 PAO retrains, the step landed at 101 -> 76, the sham radius matched.
-- **`claude-yuval-b5` (seeds 4100-4123, release 0d70d993) is LIVE** in claim queues (`tools/claude_claim_queue.sh` @ 00fde635) on all four GPUs. Queues are added as the ResNet18 queues drain.
-- `claude-yuval-r18` has 9/24 done. Its PAO loops random-walk on a noisy count (within-run sd about 23), so some seeds take 4+ retrains.
-- Mechanism diagnostic (LEDGER PART 2) is done: 3 bit-identical re-trains; the count gradient has cosine 0.95/0.99 with right/wrong items.
+**Update 11:12:**
+- **`claude-yuval-r18` is DONE and scored:**
+  - 24/24 exit 0, and each seed ran once: 24 starts, 5 skips;
+  - P1 pao - pto -0.09 [-2.85, +2.66];
+  - P2 +0.73 [+0.08, +1.38], Holm 0.088;
+  - recipe +4.81 cc-F1 over our v3 clipper.
+
+  Record: `experiments/claude_yuval_pipeline_result_20260927.md` @ e45a1bca.
+- **`claude-yuval-b5` (seeds 4100-4123, release 0d70d993) is LIVE at 5/24**, with 8 claim queues (`tools/claude_claim_queue.sh` @ 00fde635), two per GPU. A seed takes 21-57 min so far, set by its number of PAO retrains (4102 is past 70 min). At that rate it is done around 13:00-14:00.
 
 **The Yuval investigation (the user's request of 2026-09-27).** The question: does anything in Yuval Kassif's repo (github.com/YuvalKassif/ConstrainedClassification @ 413d96c) explain why his PAO loss beats PTO while TraLO does not?
 
-Offline answers so far:
+Answers so far:
 - **Audit:** no bug on our side. His loss is label-aware: it up-weights training false positives of the capped class, and that only acts in a recipe that does not memorise. His PAO > PTO is single-seed, steered by the test set, and outcome-filtered.
 - **On his metrics:** TraLO does not look better on accuracy, macro-F1 or weighted-F1 than on cc-F1.
-- **Synthetic lab:** a live PAO lowers cc-F1.
+- **Synthetic lab:** a live PAO lowers cc-F1, and even an oracle step direction does not help (LEDGER PART 4).
+- **In his pipeline, on GPU (ResNet18):**
+  - his loss is null against PTO;
+  - TraLO's step is directional but not significant after Holm;
+  - his pipeline itself is worth +4.8 cc-F1 to every method.
 - Prereg: `experiments/claude_yuval_pipeline_prereg_20260927.md`.
 
-**Live:** 10 of our processes on dsisco01, where all four GPUs are ours. dsisco02 is fully held by another user.
+**Live:** 8 of our processes on dsisco01, where all four GPUs are ours. dsisco02 is fully held by another user.
 
 | run | release | seeds | state | scored by |
 |---|---|---|---|---|
-| `claude-yuval-r18` (Yuval's pipeline + PAO outer loop + TraLO step arms, ResNet18, cap 76) | bcf5d010 | 4000-4023 | **LIVE** since 09:20, 9 queues on GPU0/2/3, about 12 min per seed | `analysis/score_yuval.py RUN_ROOT ~/tralo-rebuild/runs/claude-target-20260925` |
-| `claude-yuval-b5-pilot` (the same with Yuval's timm EfficientNet-B5) | 0d70d993 | 4199 | **LIVE** on GPU1: the pilot gate for the B5 block 4100-4123 | the same |
+| `claude-yuval-b5` (Yuval's pipeline + PAO outer loop + TraLO step arms, his timm EfficientNet-B5, cap 76) | 0d70d993 | 4100-4123 | **LIVE**, 5/24 at 11:12, 8 queues on GPU0-3 | `analysis/score_yuval.py RUN_ROOT ~/tralo-rebuild/runs/claude-target-20260925` (own Holm family) |
+| `claude-yuval-r18` (the same with ResNet18) | bcf5d010 | 4000-4023 | **DONE, scored** 11:07: P1 null, P2 Holm 0.088, recipe +4.81 | `experiments/claude_yuval_pipeline_result_20260927.md` |
+| `claude-yuval-b5-pilot` | 0d70d993 | 4199 | **DONE**: gate passed; 4 PAO retrains, step 101 -> 76 | prereg, Pilots section |
 | `claude-yuval-pilot` | bcf5d010 | 4099 | **DONE**: integrity gate passed; PAO converged in 2 retrains and overshot (106 -> 57 vs cap 76) | prereg, Pilots section |
 
-**Next:** when the B5 pilot passes, queue 4100-4123 as the ResNet18 queues drain. Then score both blocks against the fixed readings.
+**Next:** score the B5 block against the fixed readings when 24/24 land.
 
 All live work is on **dsisco01**, under `~/tralo-rebuild/runs/`. Releases are immutable clones by SHA in `~/tralo-rebuild/releases/`, and the code is on branch `claude/bandcons-20260926`.
 
