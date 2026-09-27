@@ -229,6 +229,25 @@ Each trap below produced a wrong conclusion at least once.
   with a code version that did not produce them.** Revert-and-retest is what
   distinguishes drift from damage; do it before believing the message.
 
+### A retrain loop scored against its own first model
+
+- 🛑 **PAO > PTO CAN BE MANUFACTURED BY THE EVALUATION (Yuval Kassif's repo @ 413d96c, audited 2026-09-27).**
+  Five artefacts, each able to create or inflate a gap:
+  - **One seed.**
+  - **The test set steers the method.** The cap is the TRUE test count x percent, and the outer loop stops on the TEST argmax count.
+  - **No reseed between retrains in `full_experiment.py`.** PAO - PTO then includes pure retraining noise; `main.py` does reseed.
+  - **Outcome filtering.** `weights_impact.py` keeps only runs where PAO accuracy beats PTO.
+  - **Bundled confounds.** A lower effective LR (divided by mean(C)) and a C-weighted early-stop criterion ride along with the false-positive weighting.
+
+  Neither his allocator nor ours is at fault: they agree on 72/72 stored knee runs.
+  **Rule:** score a retrain loop against its first model only with:
+  - common random numbers (same init, same sampler order, same augmentation);
+  - a label-free cap;
+  - the loop stopped on unlabeled deployment images;
+  - many seeds, reporting only the final iteration.
+
+  Receipt: `experiments/claude_yuval_repo_audit_20260927.md` on `claude/bandcons-20260926`.
+
 ---
 
 ## PART 2 -- Mechanism
@@ -1126,6 +1145,28 @@ comparison against it is available until it is restored.
   absence**. The ViTB16 negatives do clear that bar, so the power caveat
   excuses the flat cells and not the negative ones.
 
+- 📊 **TraLO SCORED ON YUVAL'S METRICS IS NO BETTER (2026-09-27, directional, 4 knee studies x 24 seeds).**
+  Metrics: accuracy, macro-F1 and weighted-F1 under capped_first, the metrics Yuval reports.
+  **No final-model tralo_target contrast survives Holm in any study.** For example, ResNet18 cap 76 target - clipper:
+  - accuracy +0.19 [-1.04, +1.41];
+  - macro-F1 +0.10;
+  - weighted-F1 -0.07;
+  - cc-F1 +1.19 [-0.34, +2.72].
+
+  MobileNetV3's cc-F1 positive (target - sham +1.47) does not carry into macro-F1 (+0.71, Holm .29).
+  The published `tralo_adam` arm HARMS macro-F1: -2.14 on ResNet18 cap 76 and -4.29 on RegNetY (Holm <= .008).
+  The only Holm-surviving gains are small ensemble-view accuracy gains (+0.6 to +1.1 points), exploratory given 64 cells looked at.
+  Why: TraLO's evicted slots are 48.1% true grade 3, and its reassignment of them is correct 34.1% of the time against the clipper's own 33.4%.
+  **Switching to Yuval's metrics does not rescue TraLO.** Scored raw, without the allocator, TraLO looks worse.
+  Receipt: `analysis/yuval_metrics_rescore.txt`.
+- 🔬 **SYNTHETIC LAB: A LIVE PAO LOWERS cc-F1 (2026-09-27, CPU, 100 paired seeds per regime, cap 76, pool 826).**
+  - **Early-stopped** (not memorised, 81 training false positives per epoch): PAO - PTO is -1.74 [-2.47, -1.01] points of cc-F1, and accuracy and macro-F1 fall too. It still costs -1.9 at mu/4, where the loop lands near the cap instead of overshooting it (123 -> 48 vs 76).
+  - **Memorised:** PAO never converges, has 0 training false positives at deployment, and gives +0.56 [+0.03, +1.10], marginal.
+  - **TraLO's step is label-blind:** 0.40 of its demotion mass lands on true-k items, whose share of the soft count is 0.42. It is -1.1 vs sham.
+
+  Predicts null-to-negative PAO - PTO on real data; the GPU study tests it.
+  Receipt: `analysis/lab_pao/`.
+
 ---
 
 ## PART 4 -- Closed and rejected
@@ -1313,6 +1354,15 @@ tests; they cannot establish the new campaign's success or failure.
 ---
 
 ## PART 5 -- Live candidates, not yet tested
+
+- 🔁 **LIVE 2026-09-27: TraLO and Yuval's PAO INSIDE YUVAL'S PIPELINE (knee, cap 76).**
+  - **Pipeline:** his augmentation, class-balanced sampler, Adam + weight decay (every arm), LR x0.8 every 5 epochs, and early stopping on a train-carved subject split with the best weights restored.
+  - **PAO outer loop:** counts on development images against the label-free cap.
+  - **Arms:** pto / tralo_final / sham_final / pao.
+  - **Blocks:** ResNet18 4000-4023 (release bcf5d010) and his timm EfficientNet-B5 4100-4123 (release 0d70d993).
+  - **Primary:** P1 pao - pto, P2 tralo_final - sham_final, P3 tralo_final - pto; cc-F1, Holm within each block.
+
+  Prereg with fixed readings: `experiments/claude_yuval_pipeline_prereg_20260927.md`.
 
 - ⛔ **RETRACTED AS A CANDIDATE -- OPTION C HAS NOW RUN AND IS CLOSED ON BOTH
   BACKBONES (2026-09-20).** MobileNetV3 refuted (252 runs, 12 seeds), ViTB16

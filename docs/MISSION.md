@@ -113,11 +113,27 @@ trade as a trade, and retract in place.**
 
 ---
 
-## RUN STATE -- checked 2026-09-26 20:32 IDT (server clock)
+## RUN STATE -- checked 2026-09-27 09:24 IDT (server clock)
 
-Nothing is running. All GPUs are free.
+**The Yuval investigation (the user's request of 2026-09-27).** The question: does anything in Yuval Kassif's repo (github.com/YuvalKassif/ConstrainedClassification @ 413d96c) explain why his PAO loss beats PTO while TraLO does not?
 
-All live work is on **dsisco01**, under `~/tralo-rebuild/runs/`. Releases are immutable clones by SHA in `~/tralo-rebuild/releases/`, and the code is on branch `claude/bandcons-20260926`. dsisco02 is fully held by another user. All four dsisco01 GPUs are ours only.
+Offline answers so far:
+- **Audit:** no bug on our side. His loss is label-aware: it up-weights training false positives of the capped class, and that only acts in a recipe that does not memorise. His PAO > PTO is single-seed, steered by the test set, and outcome-filtered.
+- **On his metrics:** TraLO does not look better on accuracy, macro-F1 or weighted-F1 than on cc-F1.
+- **Synthetic lab:** a live PAO lowers cc-F1.
+- Prereg: `experiments/claude_yuval_pipeline_prereg_20260927.md`.
+
+**Live:** 10 of our processes on dsisco01, where all four GPUs are ours. dsisco02 is fully held by another user.
+
+| run | release | seeds | state | scored by |
+|---|---|---|---|---|
+| `claude-yuval-r18` (Yuval's pipeline + PAO outer loop + TraLO step arms, ResNet18, cap 76) | bcf5d010 | 4000-4023 | **LIVE** since 09:20, 9 queues on GPU0/2/3, about 12 min per seed | `analysis/score_yuval.py RUN_ROOT ~/tralo-rebuild/runs/claude-target-20260925` |
+| `claude-yuval-b5-pilot` (the same with Yuval's timm EfficientNet-B5) | 0d70d993 | 4199 | **LIVE** on GPU1: the pilot gate for the B5 block 4100-4123 | the same |
+| `claude-yuval-pilot` | bcf5d010 | 4099 | **DONE**: integrity gate passed; PAO converged in 2 retrains and overshot (106 -> 57 vs cap 76) | prereg, Pilots section |
+
+**Next:** when the B5 pilot passes, queue 4100-4123 as the ResNet18 queues drain. Then score both blocks against the fixed readings.
+
+All live work is on **dsisco01**, under `~/tralo-rebuild/runs/`. Releases are immutable clones by SHA in `~/tralo-rebuild/releases/`, and the code is on branch `claude/bandcons-20260926`.
 
 | run | release | seeds | state | scored by |
 |---|---|---|---|---|
