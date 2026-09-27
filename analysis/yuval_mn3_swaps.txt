@@ -1,0 +1,4 @@
+24 seeds
+  tralo_final swapped 44 slots; in true-3 31/44 = 0.705; out true-3 23/44 = 0.523; correct-direction share 0.591; net +8
+  sham_final  swapped 2 slots; in true-3 1/2 = 0.500; out true-3 1/2 = 0.500; correct-direction share 0.500; net +0
+  net slots per seed +0.33; P2 vs excess over the cap (binding, n 22): Spearman +0.43 p 0.047

@@ -101,6 +101,21 @@ def test_validate_admits_the_small_backbone_blocks_only_with_their_backbone_and_
             validate(bad)
 
 
+STEPENS = dict(CONFIG, seed=4500, max_retrains=1, snapshot_steps=True)
+
+
+def test_validate_admits_the_step_ensemble_study_only_on_its_seeds_and_pilot():
+    for seed in (4500, 4571, 4000):                       # 4000: the pilot reruns a stored ResNet18 seed
+        validate(dict(STEPENS, seed=seed))
+    for bad in (dict(STEPENS, snapshot_steps=False), dict(STEPENS, snapshot_steps=1), dict(STEPENS, max_retrains=2),
+                dict(STEPENS, max_retrains=True), dict(STEPENS, seed=4572), dict(STEPENS, seed=4001),
+                dict(CONFIG, seed=4500), dict(CONFIG, seed=4500, max_retrains=1),
+                {k: v for k, v in STEPENS.items() if k != 'max_retrains'}, dict(STEPENS, backbone='mobilenet_v3_large'),
+                dict(STEPENS, augment=True), dict(FACTORIAL, snapshot_steps=True), dict(SMALL, snapshot_steps=True)):
+        with pytest.raises(ValueError):
+            validate(bad)
+
+
 class _Fake(Images):
     def __init__(self, n, seed):
         g = torch.Generator().manual_seed(seed)
@@ -193,6 +208,54 @@ def test_recipe_switches_remove_augmentation_balancing_and_early_stopping():
     stopped = train_run(model, data, stop, pool, dict(config, early_stop=True), torch.ones(5), lambda row: None,
                         lambda e, v: None)
     assert stopped['best_epoch'] < CONFIG['max_epochs']   # so it is the switch that keeps the last epoch
+
+
+def test_snapshot_steps_step_side_copies_and_leave_the_trajectory_byte_identical(tmp_path, monkeypatch):
+    import tralo.knee_yuval as ky
+    from tralo.knee_end_to_end import infer
+    caps = [None, None, None, 3, None]                    # the fixture over-calls grade 3 on a 12-item pool
+    runs = []
+    for steps in (False, True):
+        model, data, stop, pool = _setup()
+        snaps, records = {}, {}
+
+        def snapshot(e, v):
+            snaps[e] = v
+            if steps:
+                records[e] = ky.snapshot_steps(model, pool, caps, CONFIG['seed'], e, tmp_path)
+
+        result = train_run(model, data, stop, pool, CONFIG, torch.ones(5), lambda row: None, snapshot)
+        runs.append((result, snaps, [p.detach().clone() for p in model.parameters()]))
+    (a, sa, pa), (b, sb, pb) = runs
+    assert a == b and sa.keys() == sb.keys() and all(torch.equal(sa[e], sb[e]) for e in sa)
+    assert all(torch.equal(x, y) for x, y in zip(pa, pb))
+    applied = 0
+    for e, v in sb.items():
+        tralo = torch.load(tmp_path / f'epoch{e:02d}_tralo.pt', weights_only=True)
+        sham = torch.load(tmp_path / f'epoch{e:02d}_sham.pt', weights_only=True)
+        t, s = records[e]['tralo'], records[e]['sham']
+        assert t['hard_before'] == s['hard_before'] == int((v.argmax(1) == CAPPED).sum())
+        if t['applied']:
+            applied += 1
+            assert s['applied'] and t['radius'] == s['radius'] and t['hard_after'] <= 3
+            assert int((tralo.argmax(1) == CAPPED).sum()) <= 3 and not torch.equal(tralo, v) and not torch.equal(sham, v)
+            assert not torch.equal(sham, tralo)           # a random direction, not the targeted one
+        else:
+            assert torch.equal(tralo, v) and torch.equal(sham, v)
+    assert applied > 0
+    real = ky.targeted_step                               # a step that draws from the global RNG must not leak it
+
+    def drawing(*args, **kwargs):
+        torch.rand(5)
+        return real(*args, **kwargs)
+    monkeypatch.setattr(ky, 'targeted_step', drawing)
+    model, _, _, pool = _setup()
+    torch.manual_seed(3)
+    ky.snapshot_steps(model, pool, caps, CONFIG['seed'], 1, tmp_path)
+    after = torch.rand(4)
+    torch.manual_seed(3)
+    assert torch.equal(after, torch.rand(4))
+    assert torch.equal(infer(model, pool), infer(_setup()[0], pool))   # the stepped model itself is untouched
 
 
 def test_efficientnet_b5_has_a_fresh_five_way_head():

@@ -1,0 +1,4 @@
+24 seeds; window = epochs max(1, best-2)..last, mean 8.0 snapshots
+  ENS - best cc_f1     +1.24 [+0.51, +1.96] p 0.002
+  ENS - best accuracy  -0.75 [-1.52, +0.02] p 0.057
+  ENS - best macro_f1  +0.77 [+0.17, +1.37] p 0.015

@@ -29,6 +29,10 @@ early_stop (off: exactly max_epochs epochs, the last one kept).
 Small backbones (experiments/claude_yuval_smallbb_prereg_20260927.md): the full pipeline, PTO only
 (max_retrains 1), on torchvision mobilenet_v3_large (seeds 4300-4323, pilot 4399) and regnet_y_400mf
 (4400-4423, pilot 4499), built as in the v3 studies.
+Step ensemble (seeds 4500-4571, ResNet18, experiments/claude_stepens_prereg_20260927.md): the full
+pipeline, PTO only, with snapshot_steps: at every epoch TraLO's targeted step and its sham act on side
+copies of the model (epochNN_tralo.pt, epochNN_sham.pt), so each arm can be snapshot-ensembled. The pilot
+reruns stored seed 4000, whose PTO trajectory must stay byte-identical.
 """
 
 import copy
@@ -56,6 +60,7 @@ STUDY_SEEDS = tuple(range(4000, 4024)) + tuple(range(4100, 4124))
 PILOT_SEEDS = (4099, 4199)
 FACTORIAL_SEEDS = tuple(range(4200, 4224)) + (4299,)
 SMALL_SEEDS = tuple(range(4300, 4324)) + (4399,) + tuple(range(4400, 4424)) + (4499,)
+STEPENS_SEEDS, STEPENS_PILOT = tuple(range(4500, 4572)), 4000
 KEYS = {'seed', 'cap', 'max_epochs', 'patience', 'batch_size', 'lr', 'weight_decay', 'decay_epoch',
         'decay_factor', 'mu', 'b', 'development_batch_size'}
 RECIPE = ('augment', 'balanced', 'early_stop')
@@ -74,11 +79,17 @@ def backbone_for(seed):
 def validate(config):
     factorial = config.get('seed') in FACTORIAL_SEEDS
     small = config.get('seed') in SMALL_SEEDS
-    extra = {'max_retrains', *RECIPE} if factorial else {'max_retrains'} if small else set()
+    stepens = 'snapshot_steps' in config
+    extra = ({'max_retrains', *RECIPE} if factorial else {'max_retrains'} if small
+             else {'max_retrains', 'snapshot_steps'} if stepens else set())
     if set(config) - {'backbone'} != KEYS | extra:
         raise ValueError('config keys differ from the declared experiment')
-    if config['seed'] not in STUDY_SEEDS + PILOT_SEEDS + FACTORIAL_SEEDS + SMALL_SEEDS:
-        raise ValueError('seed is outside the preregistered blocks 4000-4423 and pilots')
+    if config['seed'] not in STUDY_SEEDS + PILOT_SEEDS + FACTORIAL_SEEDS + SMALL_SEEDS + STEPENS_SEEDS:
+        raise ValueError('seed is outside the preregistered blocks 4000-4571 and pilots')
+    if (stepens or config['seed'] in STEPENS_SEEDS) and not (
+            config.get('snapshot_steps') is True and config['seed'] in STEPENS_SEEDS + (STEPENS_PILOT,)
+            and type(config['max_retrains']) is int and config['max_retrains'] == 1):
+        raise ValueError('the step-ensemble study (seeds 4500-4571, pilot 4000) steps every snapshot and trains PTO once')
     if factorial and (config['max_retrains'] != 1 or any(type(config[k]) is not bool for k in RECIPE)):
         raise ValueError('the recipe factorial trains PTO once, with boolean switches')
     if small and (type(config['max_retrains']) is not int or config['max_retrains'] != 1):
@@ -195,6 +206,28 @@ def stop_loss(model, batches, C):
         return total / n
     finally:
         model.train(was_training)
+
+
+def snapshot_steps(model, pool, caps, seed, epoch, directory):
+    """TraLO's targeted step and its sham on side copies of one epoch's model (the step-ensemble study).
+
+    Training is untouched: both steps act on deep copies and the global RNG states are restored, so the
+    PTO trajectory stays byte-identical to a run without them. Writes epochNN_tralo.pt and epochNN_sham.pt."""
+    import torch
+    cpu = torch.get_rng_state()
+    cuda = torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None
+    steps = {}
+    for arm, sham in (('tralo', None), ('sham', torch.Generator().manual_seed(seed + SHAM_OFFSET + 1000 * epoch))):
+        side = copy.deepcopy(model)
+        steps[arm] = targeted_step(side, pool, caps, sham_generator=sham)
+        torch.save(infer(side, pool), Path(directory) / f'epoch{epoch:02d}_{arm}.pt')
+        del side
+    torch.set_rng_state(cpu)
+    if cuda is not None:
+        torch.cuda.set_rng_state_all(cuda)
+    if steps['tralo'].get('radius') != steps['sham'].get('radius'):
+        raise RuntimeError(f'epoch {epoch}: sham radius differs from the targeted radius')
+    return steps
 
 
 def train_run(model, data, stop, pool, config, C, emit, snapshot):
@@ -315,16 +348,20 @@ def run(data_root, config_path, output):
                 model = copy.deepcopy(base).cuda()
                 if _state_hash(model) != initial_sha:
                     raise RuntimeError('retrain initialization differs')
-                snaps = {}
+                snaps, side_steps = {}, {}
 
                 def snapshot(epoch, values):
                     path = directory / f'epoch{epoch:02d}.pt'
                     torch.save(values.cpu(), path)
                     snaps[epoch] = values
+                    if config.get('snapshot_steps'):
+                        side_steps[str(epoch)] = snapshot_steps(model, pool, caps, seed, epoch, directory)
 
                 result = train_run(model, data, stop, pool, config, C,
                                    lambda row: rlog.emit(row['event'], **{k: v for k, v in row.items() if k != 'event'}),
                                    snapshot)
+                if side_steps:
+                    result['snapshot_steps'] = side_steps
                 probabilities = infer(model, pool)
                 if not torch.equal(probabilities, snaps[result['best_epoch']]):
                     raise RuntimeError('restored best weights do not reproduce the best-epoch pool output')
