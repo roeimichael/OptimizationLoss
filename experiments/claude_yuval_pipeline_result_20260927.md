@@ -11,7 +11,10 @@ Scorer: `analysis/score_yuval.py`, run on dsisco01 after each block's 24 seeds f
 - **TraLO's step is not attributable on either.** tralo_final - sham_final is +0.73 [+0.08, +1.38]
   (Holm 0.088) on ResNet18 and -0.50 [-1.35, +0.34] (Holm 0.46) on B5. On B5 it also costs about 2
   points of macro-F1 and weighted-F1.
-- **His pipeline helps every method.** It adds about 5 cc-F1 points on either backbone. The
+- **His pipeline lifts plain training plus the cut.** Its PTO beats our recipe's clipper by about 5
+  cc-F1 points on either backbone (unpaired), and neither loss adds to it after correction. Only the
+  plain arm has a counterpart in our recipe, so this is not measured for the loss arms (corrected
+  15:40; it read "helps every method"). The
   snapshot ensemble adds a further +2.43 (ResNet18) and +4.08 (B5, preregistered). In a post-hoc
   comparison it beats both constraint losses on both backbones.
 
@@ -133,7 +136,7 @@ On B5 the direction does not replicate: share 0.477, net -9 slots (B5 block belo
 
   The B5 block tests the backbone. P1 is null there too (below).
 - **P2 is not Holm-positive.** TraLO's direction has no attributable effect that survives correction in his pipeline either. It is directionally positive: +0.73 points, about 0.7 correct slots out of 76. In our recipe the same contrast was +0.14 [-1.21, +1.48] on ResNet18 and +1.47 [+0.43, +2.50] on MobileNetV3, the one attributable positive so far (LEDGER #9). On B5 in his pipeline it is -0.50 (below).
-- **The recipe effect is positive.** That is a practical gain for every method, including the post-hoc clipper. It is not evidence for any constraint loss.
+- **The recipe effect is positive.** It is measured on plain training plus the cut, which is the post-hoc clipper itself. It is a practical gain, not evidence for any constraint loss.
 
 **Why PAO cannot help under the cap (post hoc, `analysis/yuval_ranking.py`, output
 `analysis/yuval_r18_ranking.txt`).** capped_first fills the 76 slots with the top 76 items by p3, so
@@ -352,7 +355,7 @@ stored ones.
   - On B5 it lowers macro-F1 and weighted-F1 by about 2 points, and its swaps are net wrong-way.
   - The ResNet18 block's +0.73, its swap direction and its dose pattern do not replicate. Read them
     as ResNet18-specific or as noise.
-- **The recipe effect is positive on both backbones.** It is about +5 cc-F1 for every method.
+- **The recipe effect is positive on both backbones.** Plain training plus the cut gains about +5 cc-F1 over our recipe's clipper (unpaired; the B5 figure also changes the backbone).
 - **Amendment 2 is confirmed.** The best system measured today is post hoc: B5 in Yuval's pipeline,
   then the snapshot ensemble, then capped_first. That is about 74.0 cc-F1 (69.96 + 4.08) and 66.9
   accuracy (64.03 + 2.85).
