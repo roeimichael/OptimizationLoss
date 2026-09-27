@@ -624,6 +624,21 @@ the suite.
 recoverable from git). **The LP rival cannot currently be run at all**, so no
 comparison against it is available until it is restored.
 
+- 🔑 **ON A REAL KNEE MODEL, THE COUNT GRADIENT POINTS AT RIGHT AND WRONG ITEMS ALIKE (2026-09-27, 3 seeds).**
+  Setup:
+  - Three ResNet18 PTO models from the Yuval-pipeline study, seeds 4001, 4004 and 4006, each re-trained in a separate process. All three are byte-identical to the study, which verifies the new runner's determinism.
+  - Parameter gradients of the grade-3 soft count over development-pool groups, in eval mode. Labels are read after training, for this diagnostic only.
+
+  | Gradient pair | Cosine (mean over 3 seeds) |
+  |---|---|
+  | TraLO's direction (the whole pool) vs the true grade-3 knees | 0.95 |
+  | TraLO's direction vs every other knee | 0.99 |
+  | True vs false positives inside the 76-slot capped set | 0.85 |
+
+  So stepping along the count demotes both groups together; this is the shared component the lab found. Only 17% of the count gradient's norm is in the classifier head; the rest moves the backbone. A discriminative direction does exist: the per-item difference of TP and FP gradients is about as large as their mean. But a label-free count cannot select it.
+  This is the real-data counterpart of the oracle-step lab (PART 4, 2026-09-27) and the parameter-space reason for #10.
+  Receipt: `analysis/grad_alignment_out/` and `analysis/grad_alignment.py` on `claude/bandcons-20260926`.
+
 ## PART 3 -- What is measured
 
 ### The settled table -- do not re-open without new evidence
