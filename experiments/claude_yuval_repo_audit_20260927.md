@@ -116,3 +116,15 @@ On his metrics, TraLO in our recipe is a null. The metric switch does not rescue
 - The likely difference is (B1) a label-aware false-positive-weighting signal, which only lives in a non-memorising recipe (B2-B4).
 - His reported PAO > PTO rests on single-seed, test-steered, partly outcome-filtered evidence with bundled confounds (C1-C6).
 - The fair test is PAO − PTO paired with common random numbers, over many seeds, in his recipe with an early-stop split carved from train, plus a uniform-C control retrain.
+
+## Addendum (2026-09-27): the other losses in his repository
+
+- **`SpoPlusLoss` (`losses.py`, used by `spo_plus_experiment.py`) has a sign error.**
+  - Standard SPO+ for min cᵀw is `max_w (c - 2ĉ)ᵀw + 2ĉᵀw*(c) - cᵀw*(c)` (Elmachtoub & Grigas). Its subgradient in ĉ is `2(z_true - z_spo)`.
+  - His code minimises `(2ĉ - c)ᵀ z_spo - ĉᵀ z_true`, whose gradient in ĉ is `2 z_spo - z_true`.
+  - Take an item where both assignments pick its true class j. There the gradient is +1 on ĉ_j (ĉ = 1 - p), so gradient descent LOWERS the probability of the correct, correctly assigned class. Standard SPO+ leaves it unchanged.
+  - Any SPO+ result from this code should not be read as SPO+.
+- **`LagrangianConstraintLoss`** is CE + λ(Σ_batch p_k - ratio·B)². It is a two-sided squared count penalty on each minibatch, the same family as our rival duals (LEDGER: the duals are one per-item gradient). It is not a new mechanism.
+- **The LP (Rabkin / OR-tools) allocation variants** match the exact-allocator direction that our LEDGER cancelled after it made real results worse in 14/14 cells.
+
+PAO (`CustomLoss` + outer loop) is therefore the one genuinely different mechanism in his repository. It is what the preregistered pipeline study tests.
