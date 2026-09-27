@@ -33,6 +33,10 @@ STUDY = range(4200, 4224)
 JOB = re.compile(r'seed(\d+)_a([01])s([01])e([01])$')
 
 
+def tensor_sha(path):
+    return hashlib.sha256(torch.load(path, weights_only=True).numpy().tobytes()).hexdigest() if path.exists() else None
+
+
 def load(d):
     summary = json.loads((d / 'summary.json').read_text())
     if len(summary['retrains']) != 1 or (d / 'pao').exists() or (d / 'retrain2').exists():
@@ -41,7 +45,8 @@ def load(d):
     initial = [e['initial_sha256'] for e in events if e['event'] == 'model_initialized']
     rows = [r for r in json.loads((d / 'manifest.json').read_text())['rows'] if r['split'] == 'val']
     labels, ids = [r['label'] for r in rows], [r['sample_id'] for r in rows]
-    out = dict(retrain=summary['retrains'][0], steps=summary['steps'], initial=initial[0], arms={})
+    out = dict(retrain=summary['retrains'][0], steps=summary['steps'], initial=initial[0], arms={},
+               final=tensor_sha(d / 'retrain1' / 'final_probabilities.pt'), epoch10=tensor_sha(d / 'retrain1' / 'epoch10.pt'))
     for arm in ARMS:
         report = json.loads((d / arm / 'report.json').read_text())['capped_first']
         m = metrics(labels, report['predictions'])
@@ -86,6 +91,9 @@ def check(seed, cells):
             raise RuntimeError(f'{seed} {cell}: early_stop off must keep epoch 10')
         if cell[2] == 1 and not r['best_epoch'] <= r['epochs_run'] <= 75:
             raise RuntimeError(f'{seed} {cell}: bad early-stopping record')
+        twin = cells[cell[:2] + (1,)]
+        if cell[2] == 0 and twin['retrain']['epochs_run'] >= 10 and c['final'] != twin['epoch10']:
+            raise RuntimeError(f'{seed} {cell}: early_stop off differs from its early_stop-on twin at epoch 10')
         t, s = c['steps']['tralo_final'], c['steps']['sham_final']
         if t.get('radius') != s.get('radius') or (t['applied'] and t['hard_after'] > CAP):
             raise RuntimeError(f'{seed} {cell}: step or sham out of spec')
@@ -190,7 +198,9 @@ def gate(root, seed):
         r, t = c['retrain'], c['steps']['tralo_final']
         print(f"  {cell}: best {r['best_epoch']}/{r['epochs_run']}, order {r['first_order_sha256'][:8]}, "
               f"batch {r['first_batch_sha256'][:8]}, step {'applied ' + str(t['hard_before']) + ' -> ' + str(t['hard_after']) if t['applied'] else 'not needed'}")
-    print(f'PILOT GATE PASSED for {seed}: 8 cells, one initialisation, shared order and batches, E-off keeps epoch 10')
+    twins = sum(cells[cell[:2] + (1,)]['retrain']['epochs_run'] >= 10 for cell in cells if cell[2] == 0)
+    print(f'PILOT GATE PASSED for {seed}: 8 cells, one initialisation, shared order and batches, E-off keeps epoch 10; '
+          f'{twins}/4 E-off cells bit-identical to their E-on twin at epoch 10 (the rest stopped earlier)')
 
 
 if __name__ == '__main__':

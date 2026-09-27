@@ -93,6 +93,9 @@ Seed 4299 runs all eight cells first. It must show:
 - a `first_batch_sha256` shared exactly by the cells with the same (A, S);
 - E-off cells that run exactly 10 epochs and keep epoch 10, and E-on cells that restore their best epoch;
 - every applied step at hard count <= 76, with the sham radius equal to the target radius.
+- added at 12:05, before any job started: each E-off cell bit-identical to its E-on twin's epoch-10 snapshot,
+  wherever the twin reached epoch 10. This checks the common random numbers across the whole trajectory. It is
+  applied to every study seed too.
 
 The pilot also reports wall time per cell, to plan the queues. No pilot score is read.
 

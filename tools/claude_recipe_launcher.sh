@@ -11,6 +11,7 @@ PY=/home/dsi/michaer8/anaconda3/envs/optloss/bin/python
 OUT=/home/dsi/michaer8/tralo-rebuild/runs/claude-recipe
 B5=/home/dsi/michaer8/tralo-rebuild/runs/claude-yuval-b5
 Q=$REL/tools/claude_claim_queue.sh
+GATE=/home/dsi/michaer8/tralo-rebuild/lab/recipe/score_recipe.py   # analysis code, newer than the training release
 NEED=6000
 mkdir -p "$OUT"
 say() { echo "[$(date '+%F %T')] $*"; }
@@ -50,8 +51,7 @@ until [ "$(ls "$OUT"/seed4299_*/summary.json 2>/dev/null | wc -l)" -ge 8 ]; do
   if grep -h "END 4299" "$OUT"/queue_gpu*_p*.log 2>/dev/null | grep -qv "exit 0"; then say "PILOT RUN FAILED"; exit 1; fi
   sleep 60
 done
-cd "$REL" || exit 2
-if ! CUDA_VISIBLE_DEVICES="" OMP_NUM_THREADS=8 "$PY" analysis/score_recipe.py --gate "$OUT" 4299 > "$OUT/pilot_gate.txt" 2>&1; then
+if ! CUDA_VISIBLE_DEVICES="" OMP_NUM_THREADS=8 PYTHONPATH="$REL" "$PY" "$GATE" --gate "$OUT" 4299 > "$OUT/pilot_gate.txt" 2>&1; then
   say "PILOT GATE FAILED (see $OUT/pilot_gate.txt)"; exit 1
 fi
 say "pilot gate passed; study queues next"
