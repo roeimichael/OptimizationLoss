@@ -1,0 +1,8 @@
+(2026-09-27 14:31, dsisco01, run root ~/tralo-rebuild/runs/claude-yuval-b5, post hoc)
+24 seeds; per-class capped_first F1 (%), grades 0-4
+  pto           74.67  31.94  62.51  69.96  80.35
+  tralo_final   73.61  24.69  61.81  69.55  80.59
+  sham_final    74.62  31.75  62.55  70.05  80.63
+  tralo - sham  -1.01  -7.06  -0.74  -0.50  -0.04
+  tralo_final: 2538 predictions differ from pto (105.8 per seed); largest moves: 1->0 624, 1->2 505, 0->2 341, 0->1 277, 2->0 179, 2->1 174
+  sham_final: 168 predictions differ from pto (7.0 per seed); largest moves: 0->1 40, 1->2 33, 1->0 25, 0->2 19, 2->1 18, 2->3 8

@@ -212,6 +212,24 @@ n = 24 paired seeds, intent to treat, Holm over P1-P3 within this block.
 TraLO's step costs about 2 points of macro-F1 and weighted-F1 on B5 (unadjusted p 0.007 and 0.001).
 On ResNet18 the same contrasts were -0.19 and -0.40, neither significant.
 
+**Where that cost comes from: the step moves the low grades** (post hoc, `analysis/yuval_step_collateral.py`;
+outputs `analysis/yuval_{b5,r18}_step_collateral.txt`). Per-class capped_first F1, tralo_final - sham_final:
+
+| Grade | 0 | 1 | 2 | 3 (capped) | 4 |
+|---|---|---|---|---|---|
+| B5 | -1.01 | **-7.06** | -0.74 | -0.50 | -0.04 |
+| ResNet18 | +0.29 | **-2.17** | -0.93 | +0.73 | +1.13 |
+
+- **B5.** The step changes 105.8 predictions per seed (of 826) against PTO; the same-radius sham
+  changes 7.0. Most moves are among grades 0-2: 1->0 624, 1->2 505, 0->2 341 and 0->1 277 over the
+  24 seeds.
+- **ResNet18.** The step changes 41.4 per seed and the sham 0.7, mostly 1->0 (490).
+- **Reading.** The step is sized to move about 23 grade-3 items, but it moves the shared
+  representation, so it reorganises the boundaries among grades 0-2. Grade 1 (doubtful), the hardest
+  class, pays most. A random move of the same size does none of this, so the damage belongs to the
+  count direction, not to the step size. It is also a likely mechanism for the published `tralo_adam`
+  arm's macro-F1 harm in our recipe (LEDGER PART 3).
+
 ### How PAO behaved
 
 - **Converged 24/24 within 6 retrains.**
