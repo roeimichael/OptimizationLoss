@@ -84,6 +84,28 @@ and both caps (+1.0 to +2.9 slots for the clipper and tralo_null).
 **The best system measured today is post hoc: Yuval's pipeline, then the snapshot ensemble, then
 capped_first.**
 
+**TraLO's step gain grows with how far PTO is over the cap.** Per seed, P2 against PTO's excess
+(argmax grade-3 count - 76), over the 21 binding seeds:
+
+| Excess | Seeds | Mean P2 | In slots |
+|---|---|---|---|
+| 1-19 | 10 | +0.11 | +0.1 |
+| 20-29 | 4 | +0.27 | +0.25 |
+| 30-48 | 7 | +2.20 | +2.0 |
+
+Spearman 0.53 (p 0.013), Pearson 0.61 (p 0.003); against the step radius, Spearman 0.45 (p 0.040).
+This is post hoc; the recipe factorial tests it prospectively (its amendment 1, committed before any
+of its jobs started). Source: the per-seed lines of `analysis/yuval_r18_score.txt`.
+
+**What the step's swaps are** (top-76 sets by p3, development labels offline):
+- TraLO's step swaps 62 slots over 24 seeds (0-7 per seed).
+  - The items it brings in are 71.0% true grade 3; the items it pushes out are 45.2%.
+  - That is a correct-direction share of 0.629, against 0.50 for CUTPAIR's hinge, and a net +16 slots.
+- The same-radius sham swaps 1 slot in total (seed 4016), which leaves cc-F1 unchanged.
+- Treating swaps as independent gives a binomial p of 0.005. They are not independent within a seed,
+  so the honest test is the per-seed P2 above (p 0.029, Holm 0.088).
+- A deeper push is not the way to use this: in our recipe, every depth past the cap cost slots (LEDGER #10).
+
 ### Reading, against the readings fixed before the data
 
 - **P1 is null.** His reported PAO > PTO does not reproduce under paired, label-clean conditions. With n = 24 the interval excludes gains above 2.7 points. His paper's advantage would rest on his evaluation artefacts or on his backbone:
