@@ -183,3 +183,24 @@ huggingface.co/timm/efficientnet_b5.sw_in12k_ft_in1k and uploaded to
 The ResNet18 study (seeds 4000-4023) was launched at 09:20 server time on release bcf5d010,
 in 9 queues on GPU0/2/3, into `runs/claude-yuval-r18`. The B5 pilot 4199 (release 0d70d993,
 GPU1) was still running.
+
+**EfficientNet-B5 pilot, seed 4199** (release 0d70d993, GPU1): the gate passed on every item.
+
+| Gate item | Result |
+|---|---|
+| Completion | exit 0 in 2,552 s |
+| Common random numbers | 4 retrains with identical first-epoch order (`544ac59d...`) and first batch (`38bb479d...`) |
+| TraLO step | applied, hard count 101 -> 76 |
+| Sham | same radius 0.003051; its count stays 101 |
+| Cap binding | binds |
+
+- Every retrain's best epoch is 4 of 9: B5 overfits fast in this recipe.
+- PAO's loop needed 4 retrains, with counts 101, 77, 107, 59 and C 1, 2.33, 2.39, 4.04.
+  - A count one item over the cap (77) produced almost no C change, and the next retrain landed at 107.
+  - Within a retrain the pool count has an epoch-to-epoch sd of about 23 (ResNet18 seeds, `analysis/yuval_count_noise.py`), so the loop steers on noise.
+- No pilot score was read.
+
+The B5 study (4100-4123) was launched at 10:01 server time on release 0d70d993, into
+`runs/claude-yuval-b5`. It uses `tools/claude_claim_queue.sh` from release 00fde635 (queue
+tooling only; `tralo/` is byte-identical to 0d70d993), which gives atomic per-seed claims so
+queues join as GPUs free.
