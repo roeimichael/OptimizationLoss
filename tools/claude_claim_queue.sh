@@ -16,5 +16,7 @@ for SEED in "$@"; do
   echo "[$(date '+%F %T')] gpu$GPU START $SEED"
   CUDA_VISIBLE_DEVICES="$GPU" "$PY" -u -m tralo.knee_yuval "$DATA" "experiments/configs/claude_yuval_$SEED.json" "$OUT/seed$SEED" > "$OUT/seed$SEED.log" 2>&1 < /dev/null
   rc=$?; echo "[$(date "+%F %T")] gpu$GPU END $SEED exit $rc"
+  # a failure (usually CUDA OOM) would recur on every job this queue claims next: stop, keep the rest unclaimed
+  [ "$rc" -eq 0 ] || { echo "QUEUE STOPPED after a failure"; exit "$rc"; }
 done
 echo QUEUE DONE

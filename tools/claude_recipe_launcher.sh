@@ -12,7 +12,7 @@ OUT=/home/dsi/michaer8/tralo-rebuild/runs/claude-recipe
 B5=/home/dsi/michaer8/tralo-rebuild/runs/claude-yuval-b5
 Q=$REL/tools/claude_claim_queue.sh
 GATE=/home/dsi/michaer8/tralo-rebuild/lab/recipe/score_recipe.py   # analysis code, newer than the training release
-NEED=6000
+NEED=3000      # MiB; a ResNet18 knee_yuval process peaks near 2.4 GB (measured 13:33)
 mkdir -p "$OUT"
 say() { echo "[$(date '+%F %T')] $*"; }
 cells() { for a in 1 0; do for s in 1 0; do for e in 1 0; do echo "${1}_a${a}s${s}e${e}"; done; done; done; }
@@ -32,7 +32,11 @@ fill() {   # tag-prefix max-new jobs...: start queues where memory allows, one p
   STARTED=0
   for g in 0 1 2 3; do
     [ "$STARTED" -ge "$max" ] && break
-    if [ "$(free_mib "$g")" -ge "$NEED" ] && [ "$(live_on "$g")" -lt 3 ]; then
+    # budget by process counts, not one reading: memory freed between B5 retrains or before a job
+    # reaches .cuda() is about to be taken back
+    b5=$(for p in $(nvidia-smi -i "$g" --query-compute-apps=pid --format=csv,noheader); do ps -o args= -p "$p"; done | grep -c "claude_yuval_41")
+    left=$(( $(nvidia-smi -i "$g" --query-gpu=memory.total --format=csv,noheader,nounits) - 11500 * b5 - 3000 * $(live_on "$g") ))
+    if [ "$(free_mib "$g")" -ge "$NEED" ] && [ "$left" -ge "$NEED" ] && [ "$(live_on "$g")" -lt 3 ]; then
       start_queue "$g" "${prefix}$(date +%H%M%S)" "$@"; STARTED=$((STARTED + 1))
     fi
   done
