@@ -1,0 +1,24 @@
+python analysis/yuval_ranking.py ~/tralo-rebuild/runs/claude-yuval-r18   (2026-09-27 11:58, post hoc, development labels offline)
+24 seeds; 21 where PAO retrained at least once
+
+auc          pto 0.9392  pao 0.9333  tralo_final 0.9378  sham_final 0.9392
+prec_at_cap  pto 0.8355  pao 0.8344  tralo_final 0.8443  sham_final 0.8355
+raw_count    pto 95.1667  pao 65.8333  tralo_final 75.5000  sham_final 95.2083
+raw_f1       pto 0.7189  pao 0.6526  tralo_final 0.6997  sham_final 0.7188
+raw_acc      pto 0.6262  pao 0.6085  tralo_final 0.6254  sham_final 0.6264
+
+paired, all seeds:
+  pao - pto          auc          -0.0058 [-0.0130, +0.0014] p 0.107
+  pao - pto          prec_at_cap  -0.0011 [-0.0341, +0.0319] p 0.946
+  pao - pto          raw_count    -29.3333 [-38.6736, -19.9931] p 0.000
+  pao - pto          raw_f1       -0.0663 [-0.0987, -0.0339] p 0.000
+  pao - pto          raw_acc      -0.0177 [-0.0318, -0.0035] p 0.017
+  tralo_final - sham auc          -0.0014 [-0.0027, -0.0002] p 0.028
+  tralo_final - sham prec_at_cap  +0.0088 [+0.0010, +0.0166] p 0.029
+
+paired, seeds where PAO retrained (n 21):
+  pao - pto          auc          -0.0067 [-0.0149, +0.0016] p 0.108
+  pao - pto          prec_at_cap  -0.0013 [-0.0394, +0.0369] p 0.946
+  pao - pto          raw_count    -33.5238 [-42.7986, -24.2490] p 0.000
+  pao - pto          raw_f1       -0.0758 [-0.1110, -0.0405] p 0.000
+  pao - pto          raw_acc      -0.0202 [-0.0362, -0.0041] p 0.016

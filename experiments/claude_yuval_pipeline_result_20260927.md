@@ -96,6 +96,22 @@ capped_first.**
 - **P2 is not Holm-positive.** TraLO's direction has no attributable effect that survives correction in his pipeline either. It is directionally positive: +0.73 points, about 0.7 correct slots out of 76. In our recipe the same contrast was +0.14 [-1.21, +1.48] on ResNet18 and +1.47 [+0.43, +2.50] on MobileNetV3, the one attributable positive so far (LEDGER #9).
 - **The recipe effect is positive.** That is a practical gain for every method, including the post-hoc clipper. It is not evidence for any constraint loss.
 
+**Why PAO cannot help under the cap (post hoc, `analysis/yuval_ranking.py`, output
+`analysis/yuval_r18_ranking.txt`).** capped_first fills the 76 slots with the top 76 items by p3, so
+only the order of p3 can matter. PAO's loop steers the argmax count, which the cut already fixes.
+
+| pao - pto, n = 24 | Mean [95% CI] | p |
+|---|---|---|
+| AUC of p3, grade 3 vs rest | -0.006 [-0.013, +0.001] | 0.11 |
+| Precision of the 76 capped slots | -0.1 [-3.4, +3.2] points | 0.95 |
+| Raw argmax grade-3 count, no cap | -29.3 [-38.7, -20.0] | < 0.001 |
+| Raw argmax grade-3 F1, no cap | -6.6 [-9.9, -3.4] points | < 0.001 |
+| Raw argmax accuracy, no cap | -1.8 [-3.2, -0.4] points | 0.017 |
+
+- **PAO moves the count, not the order.** Under the cap, its count change is neutralised.
+- **Without a cap it is worse.** Its overshoot (65.8 predictions against 106 true grade-3 knees in the pool) costs grade-3 recall.
+- **TraLO's step is the opposite.** It raises the precision of the capped slots by +0.9 [+0.1, +1.7] points (p 0.029), at a slightly lower AUC (-0.0014, p 0.028). It reorders items near the cut, not the whole ranking.
+
 **Mechanism, for context.**
 - In the lab, the step's direction cannot separate right from wrong items even with oracle pool labels (`analysis/lab_pao/fp_lab_out.txt`).
 - On these real models, TraLO's count gradient has cosine 0.95 with the gradient over true grade-3 knees and 0.99 with the gradient over the rest (`analysis/grad_alignment_out/`).
