@@ -138,3 +138,23 @@ above.
 About 10-25 min per early-stopped ResNet18 retrain on a Quadro RTX 6000. Per seed that is
 1 retrain plus the PAO retrains, 2-8 in total. The queue runs 2 processes per GPU on
 dsisco01's four free GPUs. dsisco02 is fully occupied by another user and is not used.
+
+## Amendment 1 (2026-09-27, 09:25, before any B5 output and before the ResNet18 pilot finished): the EfficientNet-B5 block
+
+Yuval's reported models use timm `efficientnet_b5`, with pretrained weights from timm's default
+tag `sw_in12k_ft_in1k`. His hard-coded unconstrained accuracies are 66-69%, against 58.9%
+for our ResNet18 clipper. So the backbone is the one pipeline difference the ResNet18 block
+cannot answer.
+
+The weights file (122,330,162 bytes, sha256 `0e5c09ad...6088aca7`) was downloaded from
+huggingface.co/timm/efficientnet_b5.sw_in12k_ft_in1k and uploaded to
+`~/tralo-rebuild/data/weights/`. The runner checks its hash before loading it.
+
+- **Block.** Seeds 4100-4123 (study) and 4199 (pilot) use `backbone: efficientnet_b5`: his
+  `get_model` call with a fresh 5-way classifier. The runner, pipeline, arms, cap 76, pilot
+  gate, endpoints and readings are exactly those above.
+- **Primary family.** P1-P3 are Holm-adjusted within this block, a separate family from the
+  ResNet18 block. A claim that holds "in both backbones" needs each block's own Holm-adjusted
+  result.
+- **Cost.** Benchmarked at 0.27 s per training step (44 s of GPU per epoch, 10.6 GB peak) plus
+  the serial augmentation. About 12-15 min per early-stopped retrain.

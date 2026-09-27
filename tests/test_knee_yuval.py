@@ -54,8 +54,11 @@ def test_carve_keeps_subjects_whole_and_holds_out_about_a_tenth():
 def test_validate_rejects_other_seeds_caps_and_keys():
     validate(CONFIG)
     validate(dict(CONFIG, seed=4000))
+    validate(dict(CONFIG, seed=4123, backbone='efficientnet_b5'))
+    validate(dict(CONFIG, seed=4199, backbone='efficientnet_b5'))
     for bad in (dict(CONFIG, seed=4024), dict(CONFIG, cap=50), dict(CONFIG, extra=1),
-                dict(CONFIG, patience=0), dict(CONFIG, mu=-1.0)):
+                dict(CONFIG, patience=0), dict(CONFIG, mu=-1.0), dict(CONFIG, seed=4100),
+                dict(CONFIG, backbone='efficientnet_b5'), dict(CONFIG, seed=4124, backbone='efficientnet_b5')):
         with pytest.raises(ValueError):
             validate(bad)
 
@@ -127,3 +130,10 @@ def test_early_stopping_restores_an_earlier_best_epoch():
     assert result['best_epoch'] < result['epochs_run'] == result['best_epoch'] + CONFIG['patience']
     assert torch.equal(infer(model, pool), snaps[result['best_epoch']])
     assert not torch.equal(snaps[result['best_epoch']], snaps[result['epochs_run']])
+
+
+def test_efficientnet_b5_has_a_fresh_five_way_head():
+    pytest.importorskip('timm')
+    from tralo.knee_yuval import efficientnet_b5
+    model = efficientnet_b5(pretrained=False)
+    assert model.classifier.out_features == 5 and model.classifier.in_features == 2048

@@ -14,13 +14,14 @@ Deviations, each forced by our evaluation rules or the offline server:
   * the outer loop counts argmax grade-3 predictions on development IMAGES against our
     label-free cap, not on the test set against a count of test labels;
   * at most MAX_RETRAINS retrains; a loop still above the cap is logged as unconverged;
-  * ResNet18 (cached ImageNet weights) instead of EfficientNet-B5.
+  * seeds 4000-4023 use ResNet18 (cached ImageNet weights); seeds 4100-4123 use Yuval's own
+    backbone, timm efficientnet_b5 (sw_in12k_ft_in1k, uploaded because the server is offline).
 Arms, all deployed with capped_first at the same cap:
   pto          Yuval's PTO: the first model of the loop (CustomLoss with C = 1, i.e. CE)
   tralo_final  pto + one tralo.targeted_step (TraLO's count direction, radius meeting the cap)
   sham_final   pto + the same radius in a seeded random direction
   pao          Yuval's PAO: the model of the last retrain
-Protocol: experiments/claude_yuval_pipeline_prereg_20260927.md.
+Protocol: experiments/claude_yuval_pipeline_prereg_20260927.md (+ amendment 1: the B5 block).
 """
 
 import copy
@@ -44,17 +45,25 @@ AUGMENT_OFFSET = 11     # torchvision draws augmentation from the global CPU RNG
 SAMPLER_OFFSET = 1
 SHAM_OFFSET = 7
 MEAN, STD = [0.66133188] * 3, [0.21229856] * 3
-STUDY_SEEDS = tuple(range(4000, 4024))
-PILOT_SEEDS = (4099,)
+STUDY_SEEDS = tuple(range(4000, 4024)) + tuple(range(4100, 4124))
+PILOT_SEEDS = (4099, 4199)
 KEYS = {'seed', 'cap', 'max_epochs', 'patience', 'batch_size', 'lr', 'weight_decay', 'decay_epoch',
         'decay_factor', 'mu', 'b', 'development_batch_size'}
+B5_WEIGHTS = Path.home() / 'tralo-rebuild/data/weights/timm-efficientnet_b5.sw_in12k_ft_in1k/model.safetensors'
+B5_SHA256 = '0e5c09ad618a28d977acf8b7846105443c553a4b425dddb54598a0ac6088aca7'
+
+
+def backbone_for(seed):
+    return 'efficientnet_b5' if seed >= 4100 else 'resnet18'
 
 
 def validate(config):
-    if set(config) != KEYS:
+    if set(config) - {'backbone'} != KEYS:
         raise ValueError('config keys differ from the declared experiment')
     if config['seed'] not in STUDY_SEEDS + PILOT_SEEDS:
-        raise ValueError('seed is outside the preregistered block 4000-4023 and pilot 4099')
+        raise ValueError('seed is outside the preregistered blocks 4000-4023, 4100-4123 and pilots 4099, 4199')
+    if config.get('backbone', 'resnet18') != backbone_for(config['seed']):
+        raise ValueError('the backbone does not match the seed block (4100-4123, 4199: efficientnet_b5)')
     if config['cap'] != 76:
         raise ValueError('the preregistered grade-3 cap is 76')
     for key in ('max_epochs', 'patience', 'batch_size', 'decay_epoch', 'development_batch_size'):
@@ -74,6 +83,18 @@ def transforms_for():
                        T.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2), T.ToTensor(), normalize])
     evaluation = T.Compose([T.Resize((224, 224)), T.ToTensor(), normalize])
     return train, evaluation
+
+
+def efficientnet_b5(pretrained=True):
+    """utils.get_model('EfficientNetB5'): timm efficientnet_b5 with a fresh 5-way classifier."""
+    import timm
+    import torch
+    if pretrained and digest(B5_WEIGHTS) != B5_SHA256:
+        raise RuntimeError('efficientnet_b5 weights differ from the uploaded file')
+    model = timm.create_model('efficientnet_b5', pretrained=pretrained,
+                              **(dict(pretrained_cfg_overlay=dict(file=str(B5_WEIGHTS))) if pretrained else {}))
+    model.classifier = torch.nn.Linear(model.classifier.in_features, 5)
+    return model
 
 
 def carve(rows):
@@ -242,9 +263,10 @@ def run(data_root, config_path, output):
         val_rows = [r for r in manifest['rows'] if r['split'] == 'val']
         val_ids = [r['sample_id'] for r in val_rows]
         torch.manual_seed(seed)
-        base = build_model('resnet18')
+        backbone = config.get('backbone', 'resnet18')
+        base = build_model('resnet18') if backbone == 'resnet18' else efficientnet_b5()
         initial_sha = _state_hash(base)
-        log.emit('model_initialized', initial_sha256=initial_sha, architecture='ResNet18',
+        log.emit('model_initialized', initial_sha256=initial_sha, architecture=backbone,
                  transform='Yuval RGB: hflip, rotate 3, affine t0.1 s0.9-1.1, jitter 0.2, mean .6613 std .2123',
                  sampler='class-balanced with replacement', train_label_counts=[data.labels.count(c) for c in range(5)])
         started = time.monotonic()
