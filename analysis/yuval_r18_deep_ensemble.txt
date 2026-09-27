@@ -1,0 +1,19 @@
+(2026-09-27 14:23, dsisco01, run root ~/tralo-rebuild/runs/claude-yuval-r18, exploratory, post hoc)
+24 seeds; groups of k consecutive seeds; mean [min, max] over groups, capped_first, %
+  DE-1  (24 groups)  cc_f1 69.78 [62.64, 76.92]  accuracy 62.45 [60.05, 64.53]  macro_f1 62.83 [57.72, 66.81]
+  ENS-DE-1  (24 groups)  cc_f1 72.21 [68.13, 74.73]  accuracy 63.77 [61.62, 65.38]  macro_f1 65.95 [63.39, 67.47]
+  DE-2  (12 groups)  cc_f1 71.52 [67.03, 74.73]  accuracy 64.30 [62.71, 66.22]  macro_f1 64.06 [60.05, 68.43]
+  ENS-DE-2  (12 groups)  cc_f1 73.53 [72.53, 74.73]  accuracy 64.28 [61.74, 65.86]  macro_f1 66.71 [65.69, 68.47]
+  DE-3  ( 8 groups)  cc_f1 72.39 [69.23, 75.82]  accuracy 64.92 [63.80, 65.74]  macro_f1 64.68 [62.63, 66.71]
+  ENS-DE-3  ( 8 groups)  cc_f1 73.49 [71.43, 75.82]  accuracy 64.91 [63.92, 66.46]  macro_f1 67.24 [66.61, 68.21]
+  DE-4  ( 6 groups)  cc_f1 72.53 [71.43, 74.73]  accuracy 64.79 [63.68, 65.62]  macro_f1 64.49 [62.71, 66.20]
+  ENS-DE-4  ( 6 groups)  cc_f1 73.99 [72.53, 75.82]  accuracy 65.03 [64.29, 65.50]  macro_f1 67.44 [66.03, 68.45]
+  DE-6  ( 4 groups)  cc_f1 72.53 [71.43, 74.73]  accuracy 65.01 [64.53, 65.38]  macro_f1 64.76 [63.98, 65.43]
+  ENS-DE-6  ( 4 groups)  cc_f1 74.45 [73.63, 74.73]  accuracy 65.41 [64.65, 65.98]  macro_f1 67.84 [67.34, 68.28]
+  DE-8  ( 3 groups)  cc_f1 72.53 [71.43, 73.63]  accuracy 65.54 [64.89, 66.59]  macro_f1 64.68 [63.57, 66.79]
+  ENS-DE-8  ( 3 groups)  cc_f1 74.36 [73.63, 74.73]  accuracy 65.38 [64.89, 65.86]  macro_f1 67.80 [67.40, 68.49]
+  DE-12 ( 2 groups)  cc_f1 74.18 [73.63, 74.73]  accuracy 65.74 [65.62, 65.86]  macro_f1 65.50 [65.27, 65.72]
+  ENS-DE-12 ( 2 groups)  cc_f1 74.18 [73.63, 74.73]  accuracy 65.74 [65.74, 65.74]  macro_f1 67.99 [67.80, 68.19]
+  DE-24 ( 1 groups)  cc_f1 73.63 [73.63, 73.63]  accuracy 66.22 [66.22, 66.22]  macro_f1 66.14 [66.14, 66.14]
+  ENS-DE-24 ( 1 groups)  cc_f1 74.73 [74.73, 74.73]  accuracy 65.98 [65.98, 65.98]  macro_f1 68.45 [68.45, 68.45]
+  PAO, one seed each, 3.21 trainings per seed on average  cc_f1 69.69  accuracy 61.38  macro_f1 62.63

@@ -299,6 +299,24 @@ with counts of seeds where the ensemble is better / worse:
 The script recomputes pao's and tralo_final's capped_first scores and asserts that they match the
 stored ones.
 
+**Exploratory: ensembles across seeds, and PAO at equal compute** (post hoc,
+`analysis/yuval_deep_ensemble.py`; outputs `analysis/yuval_{b5,r18}_deep_ensemble.txt`).
+- The 24 seeds are cut into disjoint groups of k consecutive seeds. Each group's mean probability is
+  deployed with capped_first; the table gives the mean over groups.
+- PAO costs one training per retrain: 2.71 per seed on B5 and 3.21 on ResNet18. Its equal-compute
+  rival is the 3-model ensemble.
+
+| cc-F1 (accuracy), % | 1 model | ENS of 1 run | 3 models (8 groups) | ENS of 3 runs | ENS of all 24 runs | PAO |
+|---|---|---|---|---|---|---|
+| B5 | 69.96 (64.03) | 74.04 (66.88) | 73.35 (66.51) | 74.45 (68.11) | 75.82 (68.77) | 70.92 (63.92) |
+| ResNet18 | 69.78 (62.45) | 72.21 (63.77) | 72.39 (64.92) | 73.49 (64.91) | 74.73 (65.98) | 69.69 (61.38) |
+
+- **At equal compute, three plain models beat PAO:** by 2.4 cc-F1 on B5 and 2.7 on ResNet18.
+- **One run's snapshot ensemble already matches three models,** at a third of the training.
+- **Past about 3 runs the gain flattens.** The measured ceiling of this pipeline on this pool is
+  about 75-76 cc-F1 and 68-69 accuracy (B5).
+- These are group means with no paired test; the group counts fall to 1-2 for k >= 12.
+
 ### Reading, against the readings fixed before the data
 
 - **P1 is null on both backbones.** By the prereg reading, the advantage in his paper then rests on
