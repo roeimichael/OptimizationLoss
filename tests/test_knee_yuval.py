@@ -105,13 +105,26 @@ STEPENS = dict(CONFIG, seed=4500, max_retrains=1, snapshot_steps=True)
 
 
 def test_validate_admits_the_step_ensemble_study_only_on_its_seeds_and_pilot():
+    from tralo.knee_yuval import backbone_for
     for seed in (4500, 4571, 4000):                       # 4000: the pilot reruns a stored ResNet18 seed
         validate(dict(STEPENS, seed=seed))
+    rgy = dict(STEPENS, seed=4600, backbone='regnet_y_400mf')
+    for seed in (4600, 4671, 4400):                       # the RegNetY replication; 4400 reruns a stored RegNetY seed
+        validate(dict(rgy, seed=seed))
+    validate(dict(SMALL, seed=4400, backbone='regnet_y_400mf'))   # without snapshot_steps it is still the small block
+    assert [backbone_for(s) for s in (4499, 4500, 4571, 4599, 4600, 4671, 4699)] == [
+        'regnet_y_400mf', 'resnet18', 'resnet18', 'resnet18', 'regnet_y_400mf', 'regnet_y_400mf', 'regnet_y_400mf']
     for bad in (dict(STEPENS, snapshot_steps=False), dict(STEPENS, snapshot_steps=1), dict(STEPENS, max_retrains=2),
                 dict(STEPENS, max_retrains=True), dict(STEPENS, seed=4572), dict(STEPENS, seed=4001),
                 dict(CONFIG, seed=4500), dict(CONFIG, seed=4500, max_retrains=1),
                 {k: v for k, v in STEPENS.items() if k != 'max_retrains'}, dict(STEPENS, backbone='mobilenet_v3_large'),
-                dict(STEPENS, augment=True), dict(FACTORIAL, snapshot_steps=True), dict(SMALL, snapshot_steps=True)):
+                dict(STEPENS, augment=True), dict(FACTORIAL, snapshot_steps=True), dict(SMALL, snapshot_steps=True),
+                dict(rgy, seed=4672), dict(rgy, seed=4599), dict(rgy, seed=4401), dict(rgy, seed=4499),
+                dict(rgy, backbone='resnet18'), {k: v for k, v in rgy.items() if k != 'backbone'},
+                dict(rgy, seed=4000), dict(rgy, max_retrains=2), dict(rgy, snapshot_steps=False),
+                dict(CONFIG, seed=4600, backbone='regnet_y_400mf'),
+                dict(CONFIG, seed=4600, backbone='regnet_y_400mf', max_retrains=1),
+                dict(rgy, seed=4400, max_retrains=2), dict(rgy, seed=4400, backbone='resnet18')):
         with pytest.raises(ValueError):
             validate(bad)
 

@@ -32,7 +32,9 @@ Small backbones (experiments/claude_yuval_smallbb_prereg_20260927.md): the full 
 Step ensemble (seeds 4500-4571, ResNet18, experiments/claude_stepens_prereg_20260927.md): the full
 pipeline, PTO only, with snapshot_steps: at every epoch TraLO's targeted step and its sham act on side
 copies of the model (epochNN_tralo.pt, epochNN_sham.pt), so each arm can be snapshot-ensembled. The pilot
-reruns stored seed 4000, whose PTO trajectory must stay byte-identical.
+reruns stored seed 4000, whose PTO trajectory must stay byte-identical. Its replication on regnet_y_400mf
+(seeds 4600-4671, experiments/claude_stepens_rgy_prereg_20260927.md) is the same design, and its pilot reruns
+stored seed 4400.
 """
 
 import copy
@@ -60,7 +62,8 @@ STUDY_SEEDS = tuple(range(4000, 4024)) + tuple(range(4100, 4124))
 PILOT_SEEDS = (4099, 4199)
 FACTORIAL_SEEDS = tuple(range(4200, 4224)) + (4299,)
 SMALL_SEEDS = tuple(range(4300, 4324)) + (4399,) + tuple(range(4400, 4424)) + (4499,)
-STEPENS_SEEDS, STEPENS_PILOT = tuple(range(4500, 4572)), 4000
+STEPENS_SEEDS = tuple(range(4500, 4572)) + tuple(range(4600, 4672))     # ResNet18, then its RegNetY replication
+STEPENS_PILOTS = (4000, 4400)
 KEYS = {'seed', 'cap', 'max_epochs', 'patience', 'batch_size', 'lr', 'weight_decay', 'decay_epoch',
         'decay_factor', 'mu', 'b', 'development_batch_size'}
 RECIPE = ('augment', 'balanced', 'early_stop')
@@ -71,32 +74,33 @@ B5_SHA256 = '0e5c09ad618a28d977acf8b7846105443c553a4b425dddb54598a0ac6088aca7'
 def backbone_for(seed):
     if 4300 <= seed < 4400:
         return 'mobilenet_v3_large'
-    if 4400 <= seed < 4500:
+    if 4400 <= seed < 4500 or 4600 <= seed < 4700:
         return 'regnet_y_400mf'
     return 'efficientnet_b5' if 4100 <= seed < 4200 else 'resnet18'
 
 
 def validate(config):
     factorial = config.get('seed') in FACTORIAL_SEEDS
-    small = config.get('seed') in SMALL_SEEDS
     stepens = 'snapshot_steps' in config
-    extra = ({'max_retrains', *RECIPE} if factorial else {'max_retrains'} if small
-             else {'max_retrains', 'snapshot_steps'} if stepens else set())
+    small = config.get('seed') in SMALL_SEEDS
+    extra =({'max_retrains', *RECIPE} if factorial else {'max_retrains', 'snapshot_steps'} if stepens
+             else {'max_retrains'} if small else set())
     if set(config) - {'backbone'} != KEYS | extra:
         raise ValueError('config keys differ from the declared experiment')
     if config['seed'] not in STUDY_SEEDS + PILOT_SEEDS + FACTORIAL_SEEDS + SMALL_SEEDS + STEPENS_SEEDS:
-        raise ValueError('seed is outside the preregistered blocks 4000-4571 and pilots')
+        raise ValueError('seed is outside the preregistered blocks 4000-4671 and pilots')
     if (stepens or config['seed'] in STEPENS_SEEDS) and not (
-            config.get('snapshot_steps') is True and config['seed'] in STEPENS_SEEDS + (STEPENS_PILOT,)
+            config.get('snapshot_steps') is True and config['seed'] in STEPENS_SEEDS + STEPENS_PILOTS
             and type(config['max_retrains']) is int and config['max_retrains'] == 1):
-        raise ValueError('the step-ensemble study (seeds 4500-4571, pilot 4000) steps every snapshot and trains PTO once')
+        raise ValueError('the step-ensemble studies (seeds 4500-4571 and 4600-4671, pilots 4000 and 4400) step every '
+                         'snapshot and train PTO once')
     if factorial and (config['max_retrains'] != 1 or any(type(config[k]) is not bool for k in RECIPE)):
         raise ValueError('the recipe factorial trains PTO once, with boolean switches')
     if small and (type(config['max_retrains']) is not int or config['max_retrains'] != 1):
         raise ValueError('the small-backbone blocks train PTO once')
     if config.get('backbone', 'resnet18') != backbone_for(config['seed']):
         raise ValueError('the backbone does not match the seed block (4100s: efficientnet_b5, '
-                         '4300s: mobilenet_v3_large, 4400s: regnet_y_400mf)')
+                         '4300s: mobilenet_v3_large, 4400s and 4600s: regnet_y_400mf)')
     if config['cap'] != 76:
         raise ValueError('the preregistered grade-3 cap is 76')
     for key in ('max_epochs', 'patience', 'batch_size', 'decay_epoch', 'development_batch_size'):

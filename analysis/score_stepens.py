@@ -1,9 +1,10 @@
-"""Score the step-ensemble study (experiments/claude_stepens_prereg_20260927.md).
+"""Score the step-ensemble study (experiments/claude_stepens_prereg_20260927.md, ResNet18) or its RegNetY
+replication (experiments/claude_stepens_rgy_prereg_20260927.md).
 
 Usage: python analysis/score_stepens.py RUN_ROOT
        python analysis/score_stepens.py --gate PILOT_ROOT REFERENCE_ROOT   (pilot gate: integrity only, no score)
 
-RUN_ROOT holds seed<seed>/ directories written by tralo.knee_yuval with snapshot_steps. Every epoch e of
+RUN_ROOT holds seed<seed>/ directories of one block, written by tralo.knee_yuval with snapshot_steps. Every epoch e of
 retrain1 has epoch<e>.pt (PTO's pool probabilities) and, from side copies of that epoch's model,
 epoch<e>_tralo.pt (TraLO's targeted step) and epoch<e>_sham.pt (the same radius, a seeded random
 direction). Each ensemble averages one of the three over the window max(1, best - 2)..last
@@ -28,14 +29,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from score_yuval import CAP, METRICS, fmt, holm, load as load_yuval, metrics, paired  # noqa: E402
 from tralo.global_report import evaluate_global  # noqa: E402
 
-STUDY = range(4500, 4572)
-PILOT, PILOT_JOB = 4000, 'seed4000_stepens'     # the pilot job reruns stored seed 4000 under its own config
+BLOCKS = (('resnet18', 'ResNet', range(4500, 4572), 4000),          # backbone, model class, study seeds, pilot;
+          ('regnet_y_400mf', 'RegNet', range(4600, 4672), 4400))    # the pilot job reruns that stored seed
 SUFFIX = dict(ens_pto='', ens_tralo='_tralo', ens_sham='_sham')
 PRIMARY = (('E1 ens_tralo - ens_sham', 'ens_tralo', 'ens_sham'), ('E2 ens_tralo - ens_pto', 'ens_tralo', 'ens_pto'))
 SECONDARY = (('P2 tralo_final - sham_final (single model)', 'tralo_final', 'sham_final'),
              ('ens_pto - pto (ensemble confirmation, set 8)', 'ens_pto', 'pto'),
              ('ens_sham - ens_pto (a random move, ensembled)', 'ens_sham', 'ens_pto'))
 SLOT = 2 / (CAP + 106)                 # one grade-3 slot in cc-F1: F1 = 2 TP / (76 + 106 true grade-3 knees)
+
+
+def initialised(seed_dir):
+    """The run's model_initialized event: its architecture, model class and initial weights' hash."""
+    for line in (seed_dir / 'events.jsonl').read_text().splitlines():
+        row = json.loads(line)
+        if row.get('event') == 'model_initialized':
+            return row
+    raise RuntimeError(f'{seed_dir.name}: no model_initialized event')
 
 
 def window(retrain):
@@ -72,16 +82,21 @@ def load(d):
 
 
 def main(root):
+    dirs = [d for d in sorted(Path(root).glob('seed*')) if d.is_dir()]
+    block = next((b for b in BLOCKS if dirs and int(dirs[0].name[4:]) in b[2]), None)
     seeds = {}
-    for d in sorted(Path(root).glob('seed*')):
-        if not d.is_dir():
-            continue
-        if int(d.name[4:]) not in STUDY:
-            raise RuntimeError(f'{d.name} is not a study seed')
+    for d in dirs:
+        if block is None or int(d.name[4:]) not in block[2]:
+            raise RuntimeError(f'{d.name} is not a study seed of one block')
         if (d / 'summary.json').exists():
+            row = initialised(d)
+            if (row.get('architecture'), row.get('model_class')) != block[:2]:
+                raise RuntimeError(f"{d.name} was not trained on {block[0]}: {row.get('architecture')}")
             seeds[int(d.name[4:])] = load(d)
-    missing = sorted(set(STUDY) - set(seeds))
-    print(f'{len(seeds)} complete seeds of {len(STUDY)}; missing or incomplete: {missing or "none"}')
+    study = block[2] if block else ()
+    missing = sorted(set(study) - set(seeds))
+    print(f'{block[0] if block else "no block"}: {len(seeds)} complete seeds of {len(study)}; '
+          f'missing or incomplete: {missing or "none"}')
     owner = {}
     for seed, s in seeds.items():
         other = owner.setdefault(s['arms']['pto']['hash'], seed)
@@ -119,11 +134,16 @@ def main(root):
 
 
 def gate(pilot_root, reference_root):
-    """Pilot 4000: complete, every step in spec, and PTO byte-identical to the stored run at every epoch."""
-    d, ref = Path(pilot_root) / PILOT_JOB, Path(reference_root) / f'seed{PILOT}'
-    others = sorted(x.name for x in Path(pilot_root).glob('seed*') if x.is_dir() and x != d)
-    if others:
-        raise SystemExit(f'PILOT GATE FAILED: unexpected seed directories {others}')
+    """The pilot (4000 or 4400): complete, every step in spec, and PTO byte-identical to the stored run at every epoch."""
+    jobs = [x for x in sorted(Path(pilot_root).glob('seed*')) if x.is_dir()]
+    block = next((b for b in BLOCKS if jobs and jobs[0].name == f'seed{b[3]}_stepens'), None)
+    if block is None or len(jobs) != 1:
+        raise SystemExit(f'PILOT GATE FAILED: unexpected seed directories {[x.name for x in jobs]}')
+    d, ref = jobs[0], Path(reference_root) / f'seed{block[3]}'
+    row = initialised(d)       # the stored runs predate model_class: they are matched by their initial weights
+    if ((row.get('architecture'), row.get('model_class')) != block[:2]
+            or initialised(ref).get('initial_sha256') != row.get('initial_sha256')):
+        raise SystemExit(f'PILOT GATE FAILED: {d.name} is not {block[0]} from the initial weights of the stored run')
     s = load(d)
     run, stored = s['retrains'][0], json.loads((ref / 'summary.json').read_text())['retrains'][0]
     problems = []
@@ -139,7 +159,7 @@ def gate(pilot_root, reference_root):
         print('PILOT GATE FAILED:\n  ' + '\n  '.join(problems))
         raise SystemExit(1)
     stepped = sum(x['tralo']['applied'] for x in run['snapshot_steps'].values())
-    print(f"PILOT GATE PASSED for {PILOT}: PTO byte-identical to the stored run at all {run['epochs_run']} epochs "
+    print(f"PILOT GATE PASSED for {block[3]} ({block[0]}): PTO byte-identical to the stored run at all {run['epochs_run']} epochs "
           f"and the restored best; {stepped} of {run['epochs_run']} epochs stepped, every sham on the same radius")
 
 
