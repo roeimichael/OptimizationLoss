@@ -79,7 +79,8 @@ snapshots from epoch best-2 to the stopping epoch, against PTO's restored best e
 | Macro-F1 | +3.12 [+2.04, +4.19] | < 0.001 |
 
 Source: `analysis/yuval_r18_ensemble.txt`. This matches the ensemble finding in our recipe, which was
-found post hoc on two seed sets and confirmed, preregistered, on two fresh ones (+1.6 to +2.9 slots).
+found post hoc on two seed sets and confirmed, preregistered, on four fresh ones across three backbones
+and both caps (+1.0 to +2.9 slots for the clipper and tralo_null).
 **The best system measured today is post hoc: Yuval's pipeline, then the snapshot ensemble, then
 capped_first.**
 

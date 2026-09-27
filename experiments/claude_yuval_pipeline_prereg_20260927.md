@@ -159,6 +159,22 @@ huggingface.co/timm/efficientnet_b5.sw_in12k_ft_in1k and uploaded to
 - **Cost.** Benchmarked at 0.27 s per training step (44 s of GPU per epoch, 10.6 GB peak) plus
   the serial augmentation. About 12-15 min per early-stopped retrain.
 
+## Amendment 2 (2026-09-27, 11:25, before any B5 seed is scored): the snapshot ensemble, B5 block
+
+The ResNet18 block found, exploratory, that the snapshot ensemble adds +2.43 [+0.82, +4.03] cc-F1 on
+top of this pipeline (`analysis/yuval_r18_ensemble.txt`). At 11:12, 5 of 24 B5 seeds had finished and
+none had been scored. The B5 block therefore tests it as a fresh confirmation on a fourth backbone:
+
+- **Secondary, confirmatory for the B5 block only:** ENS - best on the pto arm, cc-F1. ENS is
+  capped_first on the mean of retrain 1's development snapshots from epoch max(1, best - 2) to the
+  last epoch run; best is the restored best epoch. The rule is fixed by `analysis/yuval_ensemble.py`
+  @ e45a1bca, unchanged. One contrast, so no family correction. Accuracy and macro-F1 are reported
+  with it, with no family claim.
+- **Reading.** A CI above 0 means the ensemble gain holds on Yuval's backbone in Yuval's pipeline, so
+  the post-hoc bar is the ensembled clipper there too. A CI covering 0 means the ensemble gain does not
+  transfer to an early-stopped B5.
+- P1-P3 and their readings are unchanged.
+
 ## Pilots
 
 **ResNet18 pilot, seed 4099** (release bcf5d010, dsisco01 GPU0): the gate passed on every item.
