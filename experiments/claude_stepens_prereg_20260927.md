@@ -1,6 +1,7 @@
 # Preregistration: does TraLO's step survive snapshot ensembling, and does TraLO plus the ensemble beat the ensembled clipper? (knee, cap 76)
 
-Written 2026-09-27 at about 19:00, before any run of this study. Runner: `tralo/knee_yuval.py` with
+Committed 2026-09-27 at 18:41:43 (129134dd), before any run of this study (the header first said "about 19:00";
+see the erratum). Runner: `tralo/knee_yuval.py` with
 `snapshot_steps`. Scorer: `analysis/score_stepens.py`. Launcher: `tools/claude_stepens_launcher.sh`.
 
 ## Why
@@ -120,3 +121,6 @@ The first bullet of Why said the factorial's effect was the first Holm-significa
 of TraLO's step. It is the first on ResNet18 only: our recipe's MobileNetV3 block had one, +1.47 [+0.43,
 +2.50] (Holm 0.016), which did not replicate in Yuval's pipeline. The design, endpoints and readings are
 unchanged.
+
+The header's time was also wrong. It said "about 19:00", but the prereg was committed at 18:41:43, before the
+launcher started at 18:43.

@@ -1,6 +1,6 @@
 # Preregistration: the step-ensemble study replicated on RegNetY (knee, cap 76)
 
-Written 2026-09-27 at about 19:10, before any run of this study. At that point the ResNet18 study
+Committed 2026-09-27 at 19:06:53 (f2580776), before any run of this study (the header first said "about 19:10"). At that point the ResNet18 study
 ([prereg](claude_stepens_prereg_20260927.md)) had passed its pilot gate, which is integrity only and prints
 no score, and none of its study seeds had finished. Runner: `tralo/knee_yuval.py` with `snapshot_steps`.
 Scorer: `analysis/score_stepens.py`. Launcher: `tools/claude_stepens_launcher.sh <sha> rgy <pid>`.
