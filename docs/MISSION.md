@@ -139,16 +139,24 @@ trade as a trade, and retract in place.**
 
 ---
 
-## RUN STATE -- checked 2026-09-27 18:50 IDT (server clock)
+## RUN STATE -- checked 2026-09-27 19:10 IDT (server clock)
 
 **Live: `claude-stepens`, the step-ensemble study** (release 129134dd, seeds 4500-4571, plus the pilot job `4000_stepens`).
 - It asks whether TraLO's step survives snapshot ensembling.
 - **Launcher:** started 18:43, PID 1216284, log `lab/stepens/launcher.log`. It runs in three stages:
-  - the pilot, alone on GPU 0 since 18:43:12 with a CUDA context (2.4 GB), at about 61 s per epoch. Seed 4000's first training ran 14 epochs, so the pilot ends near 19:00;
-  - the gate: `analysis/score_stepens.py --gate runs/claude-stepens-pilot runs/claude-yuval-r18`, which requires PTO byte-identical to the stored seed-4000 run at every epoch;
-  - 72 one-seed queues, at most 3 per GPU on dsisco01, for about 2 h. dsisco02 is fully held by another user.
+  - the pilot ran 18:43-18:58 on GPU 0, alone, at about 61 s per epoch;
+  - **the gate PASSED at 18:59**. PTO was byte-identical to the stored seed-4000 run at all 14 epochs and at the restored best, and all 14 epochs stepped (`runs/claude-stepens-pilot/pilot_gate.txt`);
+  - 72 one-seed queues, 3 per GPU on dsisco01. 12 were running at 19:03 (4500-4511), and the run should end around 21:30.
+- dsisco02 is not used. Another user holds its GPUs 0-1, and a run there could not be byte-identical to dsisco01's.
 - **Score at 72/72:** `CUDA_VISIBLE_DEVICES="" PYTHONPATH=$REL python $REL/analysis/score_stepens.py ~/tralo-rebuild/runs/claude-stepens`, with REL=`~/tralo-rebuild/releases/129134dd87504446a81228e777c7849229be05af`.
 - **Prereg:** `experiments/claude_stepens_prereg_20260927.md`, with fixed readings for E1 ens_tralo - ens_sham and E2 ens_tralo - ens_pto.
+
+**Queued: `claude-stepens-rgy`, the RegNetY replication** (release f2580776, seeds 4600-4671, pilot job `4400_stepens`).
+- The prereg was fixed at 19:10, before any ResNet18 study result: `experiments/claude_stepens_rgy_prereg_20260927.md`.
+- **Launcher:** PID 1247860, log `lab/stepens-rgy/launcher.log`.
+  - The pilot takes the first free slot, and its gate compares it with `runs/claude-yuval-rgy/seed4400`.
+  - The 72 study seeds start only once the ResNet18 launcher (PID 1216284) exits. That is about 3-4 h of work, ending after midnight.
+- **Score:** the same scorer on `runs/claude-stepens-rgy`, from release f2580776.
 
 **Done today, all scored.** The Yuval investigation, which the user asked for on 2026-09-27, is complete. THE COURSE above has the verdict.
 
@@ -159,9 +167,10 @@ trade as a trade, and retract in place.**
 | `claude-yuval-b5` (his EfficientNet-B5) | 0d70d993 | 4100-4123 | **DONE** 13:40. P1 +0.96 (Holm 0.37); P2 -0.50 (Holm 0.46); ensemble +4.08 confirmed | `experiments/claude_yuval_pipeline_result_20260927.md` |
 | `claude-yuval-r18` (ResNet18) | bcf5d010 | 4000-4023 | **DONE** 11:07. P1 null; P2 Holm 0.088; recipe +4.81 | same file |
 
-**Next**, at 72/72: score the step-ensemble study against its fixed readings and write it up.
-- **If E1 and E2 are both above 0:** preregister its replication on RegNetY, the other backbone whose step points up.
-- **If E1 covers 0:** the step's gain is redundant with averaging, and the thesis bar stands as the ensembled clipper.
+**Next:**
+- At 72/72, score the ResNet18 study against its fixed readings and write it up.
+- Check that the RegNetY pilot holds a CUDA context and passes its gate.
+- Score the replication at 72/72, and read the two studies together by the joint readings of its prereg.
 
 All live work is on **dsisco01**, under `~/tralo-rebuild/runs/`. Releases are immutable clones by SHA in `~/tralo-rebuild/releases/`, and the code is on branch `claude/bandcons-20260926`.
 

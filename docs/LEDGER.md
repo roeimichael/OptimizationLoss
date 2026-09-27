@@ -1486,9 +1486,17 @@ tests; they cannot establish the new campaign's success or failure.
     - E2, ens_tralo - ens_pto (the thesis bar).
   - **Seeds and power:** 4500-4571, n = 72, with about 95% power for +0.72.
   - **Pilot:** it reruns seed 4000. Its PTO must be byte-identical to the stored ResNet18-block run.
-  - **State:** release 129134dd, with 18/18 mutations caught and 27 tests passing on the server. The launcher started at 18:43 (`lab/stepens/launcher.log`).
+  - **State:** release 129134dd, with 18/18 mutations caught and 27 tests passing on the server. The launcher started at 18:43 (`lab/stepens/launcher.log`). The pilot gate passed at 18:59: PTO was byte-identical to the stored run at all 14 epochs, and all 14 epochs stepped. The 72 study seeds started at 18:59.
 
   Prereg: `experiments/claude_stepens_prereg_20260927.md`.
+- 🔁 **QUEUED 2026-09-27: the same study replicated on RegNetY** (knee, Yuval's pipeline, cap 76, seeds 4600-4671, n = 72).
+  - **Why:** the ResNet18 prereg makes a positive a thesis claim only after a preregistered replication on a second backbone. RegNetY is the other backbone whose single-model step points up (+0.55, Holm 0.073).
+  - **When it was fixed:** at 19:10, before any ResNet18 study result existed.
+  - **Joint readings:** the thesis claim needs E1 and E2 above 0 in both studies. There is no pooled primary.
+  - **Pilot:** it reruns stored seed 4400 of the small-backbone block, and must be byte-identical with the same initial weights.
+  - **State:** release f2580776, with 30/30 mutations caught and 17 tests passing on the server. The launcher started at 19:08 as PID 1247860 (`lab/stepens-rgy/launcher.log`). Its pilot takes the first free slot. Its study seeds wait until the ResNet18 launcher (PID 1216284) exits.
+
+  Prereg: `experiments/claude_stepens_rgy_prereg_20260927.md`.
 
 - ⛔ **RETRACTED AS A CANDIDATE -- OPTION C HAS NOW RUN AND IS CLOSED ON BOTH
   BACKBONES (2026-09-20).** MobileNetV3 refuted (252 runs, 12 seeds), ViTB16
