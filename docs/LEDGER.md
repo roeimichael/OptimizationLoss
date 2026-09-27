@@ -1171,7 +1171,7 @@ comparison against it is available until it is restored.
 
   capped_first grade-3 F1, Holm over three:
   - **P1 pao - pto -0.09 [-2.85, +2.66]** (Holm 0.95); accuracy -1.08 [-2.44, +0.28]. His reported gain does not reproduce; the interval excludes gains above 2.7 points.
-  - **P2 tralo_final - sham_final +0.73 [+0.08, +1.38]** (p 0.029, Holm 0.088): directional, about 0.7 of 76 slots. P3 is identical, because the sham never moves the set.
+  - **P2 tralo_final - sham_final +0.73 [+0.08, +1.38]** (p 0.029, Holm 0.088): directional, about 0.7 of 76 slots. P3 is identical, because the sham leaves cc-F1 unchanged in every seed (it swaps one slot in one seed).
   - **Recipe: his pipeline's PTO beats our v3 clipper by +4.81 cc-F1 and +3.60 accuracy** (unpaired Welch, p < 1e-4). This is a gain for every method, not evidence for a constraint loss. Which component carries it is not yet split.
 
   Also measured:
