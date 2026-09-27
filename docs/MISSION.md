@@ -122,7 +122,16 @@ trade as a trade, and retract in place.**
 
 ---
 
-## RUN STATE -- checked 2026-09-27 11:12 IDT (server clock)
+## RUN STATE -- checked 2026-09-27 13:26 IDT (server clock)
+
+**Update 13:26:**
+- `claude-yuval-b5` is at 23/24 with 0 failures; the last seed, 4122, is running on GPU1.
+- **The recipe-factorial pilot failed once and is re-running.** At 12:29 the launcher started it one second after the last B5 claim. That seed's process then took the memory, and all 8 pilot jobs hit CUDA OOM in their first minute. No score was read.
+  - The failed outputs are quarantined in `runs/claude-recipe/failed_pilot_oom_20260927_1229/`.
+  - The launcher now waits for the newest claim to age 5 min.
+  - GPU0/2/3 sat idle from 12:35 to 13:25, because a session rate limit stopped monitoring.
+  - The pilot restarted at 13:25:33 on all four GPUs; all four processes held GPU contexts at 13:26:39.
+- A code review found that the factorial scorer would have aborted: E twins coincide when the best epoch is 10. This was fixed (698e540e) before any job completed.
 
 **Update 11:12:**
 - **`claude-yuval-r18` is DONE and scored:**
@@ -146,16 +155,16 @@ Answers so far:
   - his pipeline itself is worth +4.8 cc-F1 to every method.
 - Prereg: `experiments/claude_yuval_pipeline_prereg_20260927.md`.
 
-**Live:** 8 of our processes on dsisco01, where all four GPUs are ours. dsisco02 is fully held by another user.
+**Live (13:26):** 5 of our processes on dsisco01 (4 pilot, 1 B5), where all four GPUs are ours. dsisco02 is fully held by another user.
 
 | run | release | seeds | state | scored by |
 |---|---|---|---|---|
-| `claude-yuval-b5` (Yuval's pipeline + PAO outer loop + TraLO step arms, his timm EfficientNet-B5, cap 76) | 0d70d993 | 4100-4123 | **LIVE**, 5/24 at 11:12, 8 queues on GPU0-3 | `analysis/score_yuval.py RUN_ROOT ~/tralo-rebuild/runs/claude-target-20260925` (own Holm family) |
+| `claude-yuval-b5` (Yuval's pipeline + PAO outer loop + TraLO step arms, his timm EfficientNet-B5, cap 76) | 0d70d993 | 4100-4123 | **LIVE**, 23/24 at 13:26, last seed on GPU1 | `analysis/score_yuval.py RUN_ROOT ~/tralo-rebuild/runs/claude-target-20260925` (own Holm family) |
 | `claude-yuval-r18` (the same with ResNet18) | bcf5d010 | 4000-4023 | **DONE, scored** 11:07: P1 null, P2 Holm 0.088, recipe +4.81 | `experiments/claude_yuval_pipeline_result_20260927.md` |
 | `claude-yuval-b5-pilot` | 0d70d993 | 4199 | **DONE**: gate passed; 4 PAO retrains, step 101 -> 76 | prereg, Pilots section |
 | `claude-yuval-pilot` | bcf5d010 | 4099 | **DONE**: integrity gate passed; PAO converged in 2 retrains and overshot (106 -> 57 vs cap 76) | prereg, Pilots section |
 
-**Queued: `claude-recipe`, the recipe factorial** (release 67ecde20, seeds 4200-4223 x 8 cells, pilot 4299). Its launcher is `~/tralo-rebuild/lab/recipe/claude_recipe_launcher.sh`, started 11:41 and logging to `lab/recipe/launcher.log`. It waits until all 24 B5 seeds are claimed, then:
+**Pilot running: `claude-recipe`, the recipe factorial** (release 67ecde20, seeds 4200-4223 x 8 cells, pilot 4299). Its launcher is `~/tralo-rebuild/lab/recipe/claude_recipe_launcher.sh`, restarted 13:25 and logging to `lab/recipe/launcher.log`. It waits until all 24 B5 seeds are claimed and the newest claim is 5 min old, then:
 1. runs the pilot;
 2. gates it with `analysis/score_recipe.py --gate`;
 3. fills freed GPU memory with study queues.
