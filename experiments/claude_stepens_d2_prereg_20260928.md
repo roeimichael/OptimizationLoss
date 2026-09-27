@@ -1,6 +1,6 @@
 # Preregistration: the step-ensemble study on MobileNetV3 and EfficientNet-B5 (dsisco02)
 
-Written 2026-09-28 before any run of these two blocks. The commit that adds this file is its timestamp.
+Written 2026-09-27 before any run of these two blocks, and committed at 23:52:07 IDT (6debcc88). The file name carries the next day's date by mistake. It is kept because the code and the launcher cite it.
 
 ## Why
 
