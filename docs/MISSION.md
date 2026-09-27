@@ -139,14 +139,14 @@ trade as a trade, and retract in place.**
 
 ---
 
-## RUN STATE -- checked 2026-09-27 19:10 IDT (server clock)
+## RUN STATE -- checked 2026-09-27 20:05 IDT (server clock)
 
 **Live: `claude-stepens`, the step-ensemble study** (release 129134dd, seeds 4500-4571, plus the pilot job `4000_stepens`).
 - It asks whether TraLO's step survives snapshot ensembling.
 - **Launcher:** started 18:43, PID 1216284, log `lab/stepens/launcher.log`. It runs in three stages:
   - the pilot ran 18:43-18:58 on GPU 0, alone, at about 61 s per epoch;
   - **the gate PASSED at 18:59**. PTO was byte-identical to the stored seed-4000 run at all 14 epochs and at the restored best, and all 14 epochs stepped (`runs/claude-stepens-pilot/pilot_gate.txt`);
-  - 72 one-seed queues, 3 per GPU on dsisco01. 12 were running at 19:03 (4500-4511), and the run should end around 21:30.
+  - 72 one-seed queues, 3 per GPU on dsisco01. At 20:05, 22 of 72 were done with 0 failures, and every finished seed's step records were in spec. The run should end around 21:30.
 - dsisco02 is not used. Another user holds its GPUs 0-1, and a run there could not be byte-identical to dsisco01's.
 - **Score at 72/72:** `CUDA_VISIBLE_DEVICES="" PYTHONPATH=$REL python $REL/analysis/score_stepens.py ~/tralo-rebuild/runs/claude-stepens`, with REL=`~/tralo-rebuild/releases/129134dd87504446a81228e777c7849229be05af`.
 - **Prereg:** `experiments/claude_stepens_prereg_20260927.md`, with fixed readings for E1 ens_tralo - ens_sham and E2 ens_tralo - ens_pto.
@@ -154,7 +154,7 @@ trade as a trade, and retract in place.**
 **Queued: `claude-stepens-rgy`, the RegNetY replication** (release f2580776, seeds 4600-4671, pilot job `4400_stepens`).
 - The prereg was committed at 19:06:53 (f2580776), before any ResNet18 study result: `experiments/claude_stepens_rgy_prereg_20260927.md`.
 - **Launcher:** PID 1247860, log `lab/stepens-rgy/launcher.log`.
-  - The pilot takes the first free slot, and its gate compares it with `runs/claude-yuval-rgy/seed4400`.
+  - The pilot ran 19:19-20:04. **Its gate PASSED at 20:04:** PTO was byte-identical to `runs/claude-yuval-rgy/seed4400` at all 18 epochs and at the restored best, and all 18 epochs stepped.
   - The 72 study seeds start only once the ResNet18 launcher (PID 1216284) exits. That is about 3-4 h of work, ending after midnight.
 - **Score:** the same scorer on `runs/claude-stepens-rgy`, from release f2580776.
 

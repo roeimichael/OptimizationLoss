@@ -1494,7 +1494,7 @@ tests; they cannot establish the new campaign's success or failure.
   - **When it was fixed:** committed at 19:06:53 (f2580776), before any ResNet18 study result existed.
   - **Joint readings:** the thesis claim needs E1 and E2 above 0 in both studies. There is no pooled primary.
   - **Pilot:** it reruns stored seed 4400 of the small-backbone block, and must be byte-identical with the same initial weights.
-  - **State:** release f2580776, with 30/30 mutations caught and 17 tests passing on the server. The launcher started at 19:08 as PID 1247860 (`lab/stepens-rgy/launcher.log`). Its pilot takes the first free slot. Its study seeds wait until the ResNet18 launcher (PID 1216284) exits.
+  - **State:** release f2580776, with 30/30 mutations caught and 17 tests passing on the server. The launcher started at 19:08 as PID 1247860 (`lab/stepens-rgy/launcher.log`). The pilot gate passed at 20:04: PTO was byte-identical to the stored seed-4400 run at all 18 epochs, and all 18 epochs stepped. The study seeds wait until the ResNet18 launcher (PID 1216284) exits.
 
   Prereg: `experiments/claude_stepens_rgy_prereg_20260927.md`.
 
