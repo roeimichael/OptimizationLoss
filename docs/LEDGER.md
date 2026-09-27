@@ -1216,6 +1216,24 @@ comparison against it is available until it is restored.
     - B5 alone shows neither.
 
   Record: `experiments/claude_yuval_pipeline_result_20260927.md` on `claude/bandcons-20260926`.
+- 📊 **TraLO's STEP SURVIVES SNAPSHOT ENSEMBLING, AND TraLO PLUS THE ENSEMBLE BEATS THE ENSEMBLED CLIPPER ON ResNet18 (2026-09-27, step-ensemble study, knee, Yuval's pipeline, cap 76, seeds 4500-4571, n=72, preregistered, Holm over two).**
+  All 72 seeds are complete and in spec, and no pto prediction vector repeats. The window averages 8.0 snapshots, of which 7.8 stepped. The pilot was byte-identical to the stored seed 4000.
+
+  | Primary (cc-F1 points) | Estimate | Slots of 76 | Holm |
+  |---|---|---|---|
+  | E1 ens_tralo - ens_sham | **+1.10 [+0.77, +1.43]** | +1.00 [+0.70, +1.30] | < 0.001 |
+  | E2 ens_tralo - ens_pto (the thesis bar) | **+1.11 [+0.78, +1.45]** | +1.01 [+0.71, +1.32] | < 0.001 |
+
+  - **Reading (fixed before the data):** E1 and E2 both lie above 0. This clears the thesis bar on ResNet18 in Yuval's pipeline. It becomes a thesis claim only if the preregistered RegNetY replication (seeds 4600-4671, running) also clears it.
+  - **Secondary, Yuval's metrics:** accuracy E1 +0.66 [+0.44, +0.88] and E2 +0.66 [+0.43, +0.88]; macro-F1 -0.11 and -0.12 (not significant); weighted-F1 -0.25 [-0.47, -0.03] (Holm 0.049 within the metric).
+  - **Other secondaries (no family claim):**
+    - single-model P2 tralo_final - sham_final: +1.07 [+0.64, +1.50];
+    - ensemble confirmation set 8, ens_pto - pto: +2.24 [+1.56, +2.93];
+    - a random move of the same size, ensembled (ens_sham - ens_pto): +0.02 [-0.02, +0.05];
+    - dose, E1 against the window's mean excess over the cap: Spearman -0.02 (p 0.85), so no dose relation here.
+  - **Scope:** transductive, like every TraLO result here. The step uses the development pool's images, never its labels. One backbone and one dataset cell.
+
+  Scorer output: `analysis/stepens_r18_score.txt` (release 129134dd, scorer sha256 dd6a818f). Prereg: `experiments/claude_stepens_prereg_20260927.md`.
 - 📊 **AUGMENTATION IS AS LARGE AS YUVAL'S WHOLE RECIPE GAIN, AND TraLO'S STEP IS ATTRIBUTABLE ACROSS RECIPES (2026-09-27, recipe factorial, knee ResNet18, cap 76, 2x2x2 on seeds 4200-4223, n=24 x 8 cells, preregistered, Holm over four).**
   All 192 jobs pass every integrity item, and no prediction vector repeats across seeds.
 
@@ -1478,7 +1496,7 @@ tests; they cannot establish the new campaign's success or failure.
 
 ## PART 5 -- Live candidates, not yet tested
 
-- 🔁 **LIVE 2026-09-27: DOES TraLO'S STEP SURVIVE SNAPSHOT ENSEMBLING? The step-ensemble study (knee ResNet18 in Yuval's pipeline, cap 76).**
+- ✅ **DONE 2026-09-27 23:26, scored in PART 3: E1 +1.10 and E2 +1.11, both Holm < 0.001.** The step-ensemble study (knee ResNet18 in Yuval's pipeline, cap 76). Does TraLO's step survive snapshot ensembling?
   - **Why:** the factorial's P2-pooled is +0.72, but the snapshot ensemble adds more in the same cells. A single-model gain the ensemble already captures does not clear the thesis bar.
   - **Design:** at every epoch, TraLO's targeted step and its sham act on side copies of the model. Each arm is then ensembled like the clipper.
   - **Primary, Holm over two:**

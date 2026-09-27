@@ -87,7 +87,8 @@ a real moderator; under the corrected cap it is not -- the one exception reverse
     about 0.66 of 76 slots. Its dose relation replicates prospectively.
   - **Small backbones in his pipeline:** the same contrast is +0.37 (MobileNetV3) and +0.55 (RegNetY), neither
     Holm-significant alone. The v3-recipe MobileNetV3 +1.47 does not replicate.
-  - **The bar is still not met:** on every cell's point estimate the snapshot ensemble adds more than the step (no paired test). **The live
+  - **UPDATE 2026-09-27 23:26 -- the bar IS met on ResNet18:** in the step-ensemble study (n=72, preregistered), E1 ens_tralo - ens_sham is +1.10 [+0.77, +1.43] and E2 ens_tralo - ens_pto is +1.11 [+0.78, +1.45] (both Holm < 0.001), about 1 slot of 76. It is a thesis claim only if the RegNetY replication also clears it (LEDGER PART 3).
+  - **Before that study, the bar was not met:** on every cell's point estimate the snapshot ensemble adds more than the step (no paired test). **The live
     question is whether the step survives ensembling:** the step-ensemble study, E1 ens_tralo - ens_sham and E2
     ens_tralo - ens_pto, n=72.
 
