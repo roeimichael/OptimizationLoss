@@ -1,0 +1,36 @@
+python fp_lab.py 100 12   (2026-09-27; early-stopped regime; results in fp_lab_results.json)
+cap 76; 100 seeds, early-stopped; binds 96; train FP at PTO 68.5, train predicted-k 199.4
+  tralo     demotion mass on true-k 0.402 (n 96)
+  fp        demotion mass on true-k 0.404 (n 96)
+  trainall  demotion mass on true-k 0.408 (n 96)
+  oracle_fp demotion mass on true-k 0.406 (n 96)
+  oracle_rank demotion mass on true-k 0.364 (n 96)
+cc_f1: means pto 45.43  tralo 44.30  fp 44.36  trainall 44.16  fpsham 45.39  oracle_fp 44.31  oracle_rank 45.20
+   fp-pto       -1.08 [-1.34, -0.81] p 0.0000
+   fp-fpsham    -1.03 [-1.31, -0.75] p 0.0000
+   fp-tralo     +0.06 [-0.08, +0.20] p 0.3802
+   fp-trainall  +0.19 [+0.07, +0.31] p 0.0023
+   tralo-pto       -1.14 [-1.43, -0.84] p 0.0000
+   trainall-pto       -1.27 [-1.55, -0.99] p 0.0000
+   oracle_fp-pto       -1.12 [-1.38, -0.86] p 0.0000
+   oracle_rank-pto       -0.23 [-0.60, +0.13] p 0.2062
+accuracy: means pto 64.76  tralo 64.62  fp 64.69  trainall 64.63  fpsham 64.75  oracle_fp 64.65  oracle_rank 64.79
+   fp-pto       -0.07 [-0.15, +0.02] p 0.1174
+   fp-fpsham    -0.06 [-0.14, +0.03] p 0.1885
+   fp-tralo     +0.07 [+0.03, +0.12] p 0.0023
+   fp-trainall  +0.06 [+0.03, +0.10] p 0.0004
+   tralo-pto       -0.14 [-0.23, -0.05] p 0.0028
+   trainall-pto       -0.13 [-0.21, -0.04] p 0.0036
+   oracle_fp-pto       -0.10 [-0.19, -0.02] p 0.0179
+   oracle_rank-pto       +0.04 [-0.08, +0.16] p 0.5311
+macro_f1: means pto 54.84  tralo 54.66  fp 54.71  trainall 54.64  fpsham 54.83  oracle_fp 54.70  oracle_rank 54.89
+   fp-pto       -0.13 [-0.25, -0.02] p 0.0212
+   fp-fpsham    -0.12 [-0.24, -0.00] p 0.0472
+   fp-tralo     +0.04 [-0.03, +0.12] p 0.2327
+   fp-trainall  +0.07 [+0.00, +0.13] p 0.0466
+   tralo-pto       -0.18 [-0.31, -0.05] p 0.0080
+   trainall-pto       -0.20 [-0.33, -0.07] p 0.0025
+   oracle_fp-pto       -0.14 [-0.26, -0.03] p 0.0158
+   oracle_rank-pto       +0.04 [-0.19, +0.28] p 0.7029
+oracle steps unsized (count never met): 0
+radius medians: tralo 0.0308, fp 0.0302, oracle_fp 0.0302, oracle_rank 0.0412 (n 96 each)
