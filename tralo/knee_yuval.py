@@ -199,7 +199,7 @@ def f_and_derivative(cap, count, b):
     return d * d * (th + 1), 2 * d * (th + 1) + d * d * b * (1 - th * th)
 
 
-def stop_loss(model, batches, C):
+def stop_loss(model, batches, C, capped=CAPPED):
     import torch
     was_training = model.training
     model.eval()
@@ -208,7 +208,7 @@ def stop_loss(model, batches, C):
         total = n = 0
         with torch.no_grad():
             for images, labels in batches:
-                loss, _ = custom_loss(model(images.to(device)), labels.to(device), C)
+                loss, _ = custom_loss(model(images.to(device)), labels.to(device), C, capped)
                 total += float(loss) * len(labels)
                 n += len(labels)
         return total / n
@@ -238,13 +238,14 @@ def snapshot_steps(model, pool, caps, seed, epoch, directory):
     return steps
 
 
-def train_run(model, data, stop, pool, config, C, emit, snapshot):
-    """train.train_model on one retrain, with common random numbers across retrains."""
+def train_run(model, data, stop, pool, config, C, emit, snapshot, capped=CAPPED, transforms=None):
+    """train.train_model on one retrain, with common random numbers across retrains. capped and transforms
+    default to the knee's grade 3 and Yuval's knee transforms (tralo.fmow_yuval passes its own)."""
     import torch
     seed = config['seed']
     torch.manual_seed(seed + AUGMENT_OFFSET)
     sampler = torch.Generator().manual_seed(seed + SAMPLER_OFFSET)
-    train_tf, eval_tf = transforms_for()
+    train_tf, eval_tf = transforms or transforms_for()
     if not config.get('augment', True):
         train_tf = eval_tf
     early_stop = config.get('early_stop', True)
@@ -271,7 +272,7 @@ def train_run(model, data, stop, pool, config, C, emit, snapshot):
             images, labels = images.to(device), labels.to(device)
             optimizer.zero_grad(set_to_none=True)
             logits = model(images)
-            loss, t = custom_loss(logits, labels, C)
+            loss, t = custom_loss(logits, labels, C, capped)
             if not bool(torch.isfinite(loss)):
                 raise RuntimeError('nonfinite training loss')
             lr = max((1.0 - t) * base / max(mean_c, 1e-12) + t * base, 1e-12)
@@ -282,13 +283,13 @@ def train_run(model, data, stop, pool, config, C, emit, snapshot):
             updates += 1
             total += float(loss.detach()) * len(labels)
             gates += t * len(labels)
-            live += float(((logits.detach().argmax(1) == CAPPED) & (labels != CAPPED)).sum())
+            live += float(((logits.detach().argmax(1) == capped) & (labels != capped)).sum())
         if any(not bool(torch.isfinite(p).all()) for p in model.parameters()):
             raise RuntimeError('nonfinite parameters')
-        held = stop_loss(model, stop, C)
+        held = stop_loss(model, stop, C, capped)
         probabilities = infer(model, pool)
         snapshot(epoch + 1, probabilities)
-        hard = torch.bincount(probabilities.argmax(1), minlength=5).tolist()
+        hard = torch.bincount(probabilities.argmax(1), minlength=probabilities.shape[1]).tolist()
         improved = held < best
         if improved:
             best, best_state, best_epoch, waited = held, copy.deepcopy(model.state_dict()), epoch + 1, 0
@@ -296,7 +297,7 @@ def train_run(model, data, stop, pool, config, C, emit, snapshot):
             waited += 1
         emit(dict(event='epoch', epoch=epoch + 1, training_loss=total / len(order), stop_loss=held,
                   base_lr=base, last_lr=lr, mean_gate=gates / len(order), live_false_positives=live,
-                  hard_counts=hard, soft_count_capped=float(probabilities[:, CAPPED].sum()), improved=improved))
+                  hard_counts=hard, soft_count_capped=float(probabilities[:, capped].sum()), improved=improved))
         if early_stop and waited >= config['patience']:
             break
     if early_stop:

@@ -1,0 +1,15 @@
+{
+  "seed": 5022,
+  "backbone": "mobilenet_v3_large",
+  "capped_class": 1,
+  "cap_divisor": 10,
+  "max_epochs": 75,
+  "patience": 5,
+  "batch_size": 32,
+  "lr": 0.0001,
+  "weight_decay": 0.0001,
+  "decay_epoch": 5,
+  "decay_factor": 0.8,
+  "development_batch_size": 16,
+  "snapshot_steps": true
+}

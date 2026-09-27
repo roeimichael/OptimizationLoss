@@ -196,6 +196,25 @@ def test_retrains_share_order_and_augmentation_and_restore_the_best_epoch():
     assert not torch.equal(sa[1], sb[1])          # C changes training from the first epoch
 
 
+def test_train_run_uses_the_transforms_and_the_capped_class_it_is_given():
+    from tralo.knee_yuval import transforms_for
+    _, eval_tf = transforms_for()
+    model, data, stop, pool = _setup()
+    seen = []
+
+    def train_tf(image):
+        seen.append(image.size)
+        return eval_tf(image)
+    rows, snaps = [], {}
+    config = dict(CONFIG, max_epochs=2, patience=5)
+    train_run(model, data, stop, pool, config, torch.ones(5), rows.append, lambda e, v: snaps.__setitem__(e, v),
+              capped=1, transforms=(train_tf, eval_tf))
+    assert len(seen) == 2 * 40                   # every training draw went through the transform passed in
+    for row in rows:                              # the logged soft count is the capped class's, here class 1
+        assert row['soft_count_capped'] == float(snaps[row['epoch']][:, 1].sum())
+        assert len(row['hard_counts']) == 5
+
+
 def test_balanced_weights_equalise_expected_class_mass():
     data = _Fake(200, 3)
     w = data.weights()
