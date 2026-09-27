@@ -1,0 +1,20 @@
+{
+  "seed": 4004,
+  "identical_to_study": true,
+  "best_epoch": 5,
+  "counts": {
+    "all": 826,
+    "true3": 106,
+    "not3": 720,
+    "top_tp": 61,
+    "top_fp": 15
+  },
+  "cos_true3_not3": 0.8625487705707641,
+  "cos_top_tp_top_fp": 0.8787773414582581,
+  "cos_all_true3": 0.9287237971665157,
+  "cos_all_not3": 0.9886706942584372,
+  "discriminative_share_top": 0.9100376844649698,
+  "head_share_of_count_gradient": 0.1592546179794354,
+  "cos_head_true3_not3": 0.9160988391430229,
+  "cos_backbone_true3_not3": 0.8634893092545903
+}
