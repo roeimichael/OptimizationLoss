@@ -149,6 +149,20 @@ def main(root, v3_root=None, r18_root=None):
         print(f'  cell {cell}: P2 {fmt(p2)} | ENS - best {fmt(ens)}')
     d = [s[(1, 1, 1)]['arms']['pto']['cc_f1'] - s[(0, 0, 0)]['arms']['pto']['cc_f1'] for s in seeds]
     print(f'  all on - all off, pto  {fmt(paired(d))}')
+
+    def dose(cells):   # (excess of pto's argmax count over the cap, P2) for the binding jobs
+        pts = [(c['steps']['tralo_final']['hard_before'] - CAP,
+                c['arms']['tralo_final']['cc_f1'] - c['arms']['sham_final']['cc_f1']) for c in cells]
+        return [(x, y) for x, y in pts if x > 0]
+
+    pooled = dose([c for s in seeds for c in s.values()])
+    r = stats.spearmanr(*zip(*pooled))
+    print(f'  dose (amendment 1): P2 vs excess over the cap, binding jobs (n {len(pooled)}): '
+          f'Spearman {r.statistic:+.3f} p {r.pvalue:.4f}')
+    within = [stats.spearmanr(*zip(*pts)).statistic for pts in (dose(s.values()) for s in seeds)
+              if len(pts) >= 4 and len({x for x, _ in pts}) > 1 and len({y for _, y in pts}) > 1]
+    if len(within) >= 3:
+        print(f'  dose within seed: Spearman {fmt(paired(within), 1)} over {len(within)} seeds')
     references = []
     if r18_root:
         r18 = [load_yuval(d)['arms']['pto'] for d in sorted(Path(r18_root).glob('seed*')) if (d / 'summary.json').exists()]

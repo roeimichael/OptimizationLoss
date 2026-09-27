@@ -102,3 +102,20 @@ About 5-6 min per E-on run and 4-5 min per E-off run, at three ResNet18 processe
 (the ResNet18 block's single-retrain seeds took 307-361 s). The study is 192 runs plus 8 pilot runs,
 about 90 min on 12 slots. The queues join dsisco01's GPUs as the EfficientNet-B5 block frees their
 memory. dsisco02 is fully occupied by another user and is not used.
+
+## Amendment 1 (2026-09-27, 11:50, before any job of this study has started): P2 dose-response
+
+Exploratory in the ResNet18 block of the Yuval study: per seed, TraLO's step gain rises with how far pto's argmax
+grade-3 count exceeds the cap. Over the 21 binding seeds, Spearman is 0.53 (p 0.013). The mean gain is +2.0 slots
+where the excess is 30 or more (n 7), and +0.1 where it is below 20 (n 10).
+
+- **Secondary test here**, over the binding jobs:
+  - the Spearman correlation between per-job P2 (tralo_final - sham_final, cc-F1) and the excess (pto
+    hard_before - 76), pooled over all jobs;
+  - the same per seed, with the 24 coefficients t-tested against 0.
+
+  Code: `analysis/score_recipe.py`, committed with this amendment.
+- **Reading.** A positive correlation means the step's who-signal grows with the number of items it must
+  evict. The within-seed version holds seed-level model quality fixed, though not recipe-level quality.
+  A correlation near 0 means the Yuval-block pattern was noise, or a between-seed quality confound.
+- The primaries and their readings are unchanged.
