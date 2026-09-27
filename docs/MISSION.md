@@ -73,8 +73,8 @@ a real moderator; under the corrected cap it is not -- the one exception reverse
   - TraLO's step minus its sham is +0.73 [+0.08, +1.38] (Holm 0.088) on ResNet18 and -0.50
     [-1.35, +0.34] on B5. On B5 it also costs about 2 points of macro-F1 and weighted-F1.
 
-  What his pipeline does carry is a **recipe gain for every method: about +5 cc-F1 over ours on
-  either backbone**. The best knee system measured is post hoc: B5 in his pipeline, then the
+  What his pipeline does carry is a **recipe gain: plain training plus the cut scores about +5 cc-F1
+  over our recipe's clipper on either backbone** (unpaired), and neither loss adds to it. The best knee system measured is post hoc: B5 in his pipeline, then the
   snapshot ensemble (+4.08, preregistered), then capped_first, at about 74.0 cc-F1. In a post-hoc
   comparison that ensemble beats PAO by +3.11 and TraLO's step by +4.49. The recipe factorial is
   splitting which part of the pipeline carries the gain.
@@ -147,7 +147,7 @@ trade as a trade, and retract in place.**
 - **In his pipeline, on GPU** (preregistered, n=24 per backbone):
   - his loss is null against PTO on ResNet18 (-0.09) and on his EfficientNet-B5 (+0.96 [-0.28, +2.20]);
   - TraLO's step is not attributable on either (+0.73, Holm 0.088; -0.50), and on B5 it costs about 2 points of macro-F1;
-  - his pipeline is worth about +5 cc-F1 to every method;
+  - his pipeline lifts plain training plus the cut by about +5 cc-F1 over our clipper, and neither loss adds to it;
   - the snapshot ensemble adds +2.4 and +4.1 more and beats both losses.
 - **Record:** `experiments/claude_yuval_pipeline_result_20260927.md` @ 672abbf3. The prereg is next to it.
 

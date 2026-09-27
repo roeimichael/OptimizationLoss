@@ -1193,7 +1193,7 @@ comparison against it is available until it is restored.
   - **At equal compute, plain models beat PAO** (exploratory, `analysis/yuval_deep_ensemble.py`). PAO trains 2.71 (B5) or 3.21 (ResNet18) models per seed.
     - A 3-model ensemble of plain training scores 73.35 cc-F1 on B5 against PAO's 70.92, and 72.39 on ResNet18 against 69.69.
     - One run's snapshot ensemble already matches it: 74.04 and 72.21.
-    - Ensembling all 24 B5 runs reaches 75.8 cc-F1 and 68.8 accuracy, which is about this pool's ceiling in his pipeline.
+    - Pooling the snapshot ensembles of all 24 B5 runs reaches 75.8 cc-F1 and 68.8 accuracy; a plain average of the 24 final models reaches 73.6.
 
   Also measured, on both blocks:
   - **PAO is live but steers on noise.** At ResNet18's best epoch it has a median of 162 training false positives per epoch. The pool count's within-retrain sd is 19.3 (B5 19.5) against a cap of 76, and PAO overshoots the cap (95.2 -> 65.8; B5 99.1 -> 62.4).
