@@ -1,0 +1,13 @@
+(2026-09-28 04:33, dsisco01, release 990f3fbc analysis/stepens_swaps.py sha256 4fa1d61f; root claude-stepens; POST HOC)
+resnet18: 72 seeds (post hoc, not preregistered)
+swaps per seed: 3.81 knees in, 3.81 out (the slot count is fixed at 76)
+  truly grade 3: 74.5% of those in, 47.8% of those out
+  net correct slots per seed: +1.01 [+0.71, +1.32] sd 1.29 p 0.000
+  seeds with a net gain / no change / a net loss: 46 / 19 / 7
+  true grades of the knees leaving the slots: grade 0: 3, grade 1: 33, grade 2: 103, grade 3: 131, grade 4: 4
+per-grade F1, ens_tralo - ens_pto (points; paired 95% t over seeds):
+  grade 0: +1.66 [+1.35, +1.97] sd 1.32 p 0.000
+  grade 1: -4.10 [-4.68, -3.52] sd 2.46 p 0.000
+  grade 2: -1.43 [-1.83, -1.04] sd 1.69 p 0.000
+  grade 3: +1.11 [+0.78, +1.45] sd 1.42 p 0.000
+  grade 4: +2.18 [+1.67, +2.69] sd 2.17 p 0.000

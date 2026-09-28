@@ -10,7 +10,8 @@ RAW = ROOT / 'report' / 'appendix' / 'raw'
 WIDTH = 145
 GROUPS = [
     ('Step-ensemble studies (2026-09-27/28)', ['stepens_r18_score', 'stepens_rgy_score', 'stepens_mn3_score',
-                                               'stepens_b5_score', 'fmow_stepens_score']),
+                                               'stepens_b5_score', 'fmow_stepens_score', 'stepens_r18_swaps',
+                                               'stepens_rgy_swaps', 'stepens_mn3_swaps', 'stepens_b5_swaps']),
     ("Yuval's pipeline: ResNet18 and EfficientNet-B5 blocks (2026-09-27)",
      ['yuval_r18_score', 'yuval_b5_score', 'yuval_r18_ranking', 'yuval_b5_ranking', 'yuval_r18_swaps', 'yuval_b5_swaps',
       'yuval_r18_step_collateral', 'yuval_b5_step_collateral', 'yuval_r18_count_noise', 'yuval_b5_count_noise',
