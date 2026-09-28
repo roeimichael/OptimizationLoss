@@ -102,3 +102,37 @@ def allocate(probabilities, caps, sample_ids, policy):
     if any(prediction is None for prediction in result):
         raise ValueError("allocation could not assign every item")
     return result
+
+
+def allocate_local_capped_first(probabilities, caps, sample_ids, groups, local_caps):
+    """Capped-first allocation for one class under pooled and group ceilings.
+
+    Both ceilings are supplied policy inputs. Among feasible capped-class sets,
+    select the set with largest sum of capped-class probabilities, breaking ties
+    by sample ID. Every remaining item takes its highest-scoring uncapped class.
+    No labels or inferred prevalence enter this rule.
+    """
+    n_classes = _validate(probabilities, caps, sample_ids, "capped_first")
+    capped = [c for c, cap in enumerate(caps) if cap is not None]
+    if len(capped) != 1 or n_classes < 2:
+        raise ValueError("local capped-first requires one capped and one uncapped class")
+    c = capped[0]
+    if not isinstance(groups, list) or len(groups) != len(probabilities):
+        raise ValueError("groups must contain one group per sample")
+    if any(type(group) is not str or not group for group in groups):
+        raise ValueError("groups must be nonempty strings")
+    if not isinstance(local_caps, dict) or set(local_caps) != set(groups):
+        raise ValueError("local_caps must cover exactly the supplied groups")
+    if any(type(cap) is not int or cap < 0 for cap in local_caps.values()):
+        raise ValueError("local caps must be nonnegative integers")
+
+    by_group = {group: [] for group in local_caps}
+    for i, group in enumerate(groups):
+        by_group[group].append(i)
+    order = lambda i: (-probabilities[i][c], sample_ids[i])
+    eligible = [i for group, members in by_group.items()
+                for i in sorted(members, key=order)[:local_caps[group]]]
+    selected = set(sorted(eligible, key=order)[:caps[c]])
+    uncapped = [j for j in range(n_classes) if j != c]
+    return [c if i in selected else max(uncapped, key=probabilities[i].__getitem__)
+            for i in range(len(probabilities))]

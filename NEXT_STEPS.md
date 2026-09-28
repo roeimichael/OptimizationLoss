@@ -1,5 +1,30 @@
 # Rebuild work queue
 
+## Active, 28 September: fixed fmow2 pooled-plus-country constraint study
+
+The user authorized a local-constraint TraLO extension on the previously audited
+fmow2 country-disjoint development pool, with autonomous design decisions and a
+validated GPU campaign. The isolated implementation and fixed protocol are in
+`experiments/fmow_joint_local_protocol_20260928.md`. They compare a joint
+pooled/country side-step, a radius-matched pooled-only step, a matched sham and
+the unchanged PTO snapshot ensemble at two quota levels over 48 fixed seeds.
+The five development countries have already been inspected in earlier studies;
+their scores will be exploratory. The five excluded countries are not globally
+untouched because older fmow2 work inspected the original test pool. No new
+country labels enter training, quota construction or the side step.
+
+At this checkpoint, local CPU mathematics and regression tests pass, while the
+independent scorer's end-to-end dry run and remote release checks remain to be
+completed. The DSI hosts timed out at SSH banner/connectivity on 28 September;
+GPU ownership and job state are **unknown**, so no local pilot or full run has
+been dispatched. The next steps are: finish the independent scorer fixture;
+commit and push the tested source; deploy a new immutable release when SSH
+returns; verify both hosts and their actual GPU UUID/PID/owners; run the fixed
+6099 step-on/off integrity pilot; audit source, data, saved probabilities, country quotas,
+doses, exact PTO parity and projected GPU cost; only then dispatch seeds
+6100-6147 on genuinely free cards. Preserve any pilot or seed failure, and do
+not adjust the quota or step based on development outcomes.
+
 ## Active research direction: paper-aligned single-grade knee study, 24 September
 
 The user requested sustained research and a working schedule. The two stale paused

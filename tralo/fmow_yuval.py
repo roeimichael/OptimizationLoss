@@ -123,7 +123,7 @@ def load(root):
     if [int(r['label']) for r in meta['train']] != train_labels.tolist() or set(train_labels.tolist()) != set(range(CLASSES)):
         raise RuntimeError('train labels disagree with the metadata or miss a class')
     r = roles(meta['train'], meta['test'])
-    test_labels = np.load(root / 'test_labels.npy')
+    test_labels = np.load(root / 'test_labels.npy', mmap_mode='r')
     pool_rows = [dict(split='val', sample_id=f'test{i}', location=meta['test'][i]['location'],
                       label=int(test_labels[i])) for i in r['dev']]
     del test_labels                                  # only the pool's labels are kept, for the offline scorer
