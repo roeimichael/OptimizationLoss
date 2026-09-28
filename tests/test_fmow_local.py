@@ -22,6 +22,16 @@ def test_fixed_recipe_and_unlabeled_country_budgets():
     assert quotas == budgets(list(reversed(groups)))
 
 
+def test_fixed_dose_config_is_distinct_from_failed_feasibility_study():
+    config = dict(RECIPE, seed=6199, snapshot_steps=True,
+                  study="local_fixed_dose_v1", step_radius=0.1)
+    validate(config)
+    with pytest.raises(ValueError):
+        validate(dict(config, step_radius=0.2))
+    with pytest.raises(ValueError):
+        validate(dict(config, seed=6099))
+
+
 def test_side_snapshots_leave_pto_weights_and_rng_unchanged(tmp_path):
     torch.manual_seed(11)
     model = torch.nn.Linear(4, 3)

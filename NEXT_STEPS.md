@@ -152,7 +152,26 @@ Never update old research checkouts or a release in place.
 - [ ] Only then launch a small validated research campaign; inspect early runs
   before expansion, with explicit compute/precision and evidence boundaries.
 
+## 2026-09-28: fmow2 country-local mechanism
+
+The first immutable pooled-plus-country feasibility pilot failed at its first
+snapshot, without any development score. See
+`experiments/fmow_joint_local_pilot_failure_20260928.md`. Its raw class-1 calls
+were strongly concentrated in NLD and PHL, but the final post-hoc allocator
+is independently able to enforce both country and pooled caps. A uniform
+class-1 logit shift made raw calls feasible while changing zero allocated
+slots, so the revised question is allocated identity/quality, not raw
+feasibility. The separate fixed-dose protocol is
+`experiments/fmow_local_fixed_dose_protocol_20260928.md`: pilot6199 on/off,
+then only after matched integrity, label firewall, offline metric recomputation
+and 72 GPU-hour cost gates, full seeds6200-6211. No run from the new protocol
+has yet started at the time of this edit. The old failed release and outputs
+remain untouched. ALM country-local comparison and new datasets/backbones
+require separately matched protocols; old global frozen-feature ALM scores
+are not a direct comparator here.
+
 ## What current tests establish
+
 
 Collapse debug checkpoint `3a70ba52`:54 tests passed; seed701 exactly replayed.
 With identical current parameters/gradient, clearing only Adam's first moment

@@ -24,6 +24,8 @@ from .local_targeted_step import local_targeted_step
 
 PILOT = 6099
 SEEDS = range(6100, 6148)
+FIXED_PILOT = 6199
+FIXED_SEEDS = range(6200, 6212)
 DIVISORS = (10, 20)
 RECIPE = dict(backbone="mobilenet_v3_large", capped_class=CAPPED,
               max_epochs=75, patience=5, batch_size=32, lr=1e-4,
@@ -32,11 +34,21 @@ RECIPE = dict(backbone="mobilenet_v3_large", capped_class=CAPPED,
 
 
 def validate(config):
-    if not isinstance(config, dict) or set(config) != set(RECIPE) | {"seed", "snapshot_steps"}:
-        raise ValueError("config keys differ from the fixed joint-local protocol")
-    if type(config["seed"]) is not int or config["seed"] not in SEEDS and config["seed"] != PILOT:
-        raise ValueError("seed is outside the fixed study and pilot blocks")
-    if type(config["snapshot_steps"]) is not bool or not config["snapshot_steps"] and config["seed"] != PILOT:
+    if not isinstance(config, dict):
+        raise ValueError("config must be a dictionary")
+    fixed = config.get("study") == "local_fixed_dose_v1"
+    expected = set(RECIPE) | {"seed", "snapshot_steps"}
+    if fixed:
+        expected |= {"study", "step_radius"}
+        if type(config.get("step_radius")) is not float or config["step_radius"] != 0.1:
+            raise ValueError("fixed-dose study requires radius 0.1")
+    if set(config) != expected:
+        raise ValueError("config keys differ from the named local protocol")
+    pilot = FIXED_PILOT if fixed else PILOT
+    seeds = FIXED_SEEDS if fixed else SEEDS
+    if type(config["seed"]) is not int or config["seed"] not in seeds and config["seed"] != pilot:
+        raise ValueError("seed is outside the named study and pilot blocks")
+    if type(config["snapshot_steps"]) is not bool or not config["snapshot_steps"] and config["seed"] != pilot:
         raise ValueError("only the pilot may disable side steps for trajectory parity")
     for key, value in RECIPE.items():
         if config[key] != value or type(config[key]) is not type(value):
@@ -58,7 +70,8 @@ def budgets(groups):
     return out
 
 
-def snapshot_side_steps(model, pool, groups, quota, seed, epoch, directory):
+def snapshot_side_steps(model, pool, groups, quota, seed, epoch, directory,
+                        fixed_radius=None):
     """Save joint, same-radius pooled-direction and sham snapshots for one cap."""
     import torch
     cpu = torch.get_rng_state()
@@ -70,6 +83,8 @@ def snapshot_side_steps(model, pool, groups, quota, seed, epoch, directory):
             side = copy.deepcopy(model)
             try:
                 kwargs = {}
+                if arm == "joint" and fixed_radius is not None:
+                    kwargs.update(fixed_radius=fixed_radius, require_common_descent=False)
                 if arm == "global_dose":
                     kwargs.update(fixed_radius=steps["joint"]["radius"], global_only_direction=True)
                 if arm == "sham":
@@ -114,7 +129,8 @@ def run(data_root, config_path, output):
     output.mkdir(parents=True, exist_ok=False)
     with audited_arm_log(output / "events.jsonl") as log:
         cuda_setup()
-        images, train_labels, pool_rows, roles = load(data_root)
+        images, train_labels, pool_rows, roles = load(
+            data_root, include_pool_labels=config.get("study") != "local_fixed_dose_v1")
         groups = [row["location"] for row in pool_rows]
         quota = budgets(groups)
         counts = dict(train=len(roles["train"]), stop=len(roles["stop"]), dev=len(roles["dev"]))
@@ -166,7 +182,7 @@ def run(data_root, config_path, output):
                         cap_directory.mkdir(exist_ok=True)
                         step_record = snapshot_side_steps(
                             model, pool, groups, quota[str(divisor)], config["seed"], epoch,
-                            cap_directory)
+                            cap_directory, fixed_radius=config.get("step_radius"))
                         side_steps[str(epoch)][str(divisor)] = step_record
                         rlog.emit("snapshot_cap", epoch=epoch, divisor=divisor,
                                   quota=quota[str(divisor)], steps=step_record)

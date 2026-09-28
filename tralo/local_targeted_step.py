@@ -77,7 +77,7 @@ def _random_direction(unit, generator):
 def local_targeted_step(model, chunks, groups, capped_class, global_cap, local_caps,
                         sham_generator=None, r0=1e-3, max_doublings=30,
                         scan_points=24, max_radius=0.1, fixed_radius=None,
-                        global_only_direction=False):
+                        global_only_direction=False, require_common_descent=True):
     """Try one joint direction on a side copy; restore parameters on failure.
 
     The sham uses the real direction's sampled radius and per-tensor norms. Its
@@ -97,6 +97,8 @@ def local_targeted_step(model, chunks, groups, capped_class, global_cap, local_c
         raise ValueError("fixed_radius must be positive and within max_radius")
     if global_only_direction and fixed_radius is None:
         raise ValueError("global-only comparison requires a matched fixed radius")
+    if type(require_common_descent) is not bool:
+        raise ValueError("require_common_descent must be a bool")
     probabilities = infer(model, chunks)
     _validate(groups, len(probabilities), capped_class, probabilities.shape[1],
               global_cap, local_caps)
@@ -152,13 +154,14 @@ def local_targeted_step(model, chunks, groups, capped_class, global_cap, local_c
         norm = math.sqrt(sum(float(g.double().square().sum()) for g in grads))
         if not norm > 0.0:
             raise RuntimeError("joint constraint gradient is zero")
+        out['gradient_norm'] = norm
         unit = [-g / norm for g in grads]
         derivatives = {('global' if kind == 'global' else group):
                        sum(float((g.double() * d.double()).sum())
                            for g, d in zip(scope_grads[(kind, group)], unit))
                        for kind, group, _ in scopes}
         out['scope_directional_derivatives'] = derivatives
-        if any(value >= 0 for value in derivatives.values()):
+        if require_common_descent and any(value >= 0 for value in derivatives.values()):
             raise RuntimeError('joint direction fails first-order scope descent: ' + str(derivatives))
 
         _place(params, origin, unit, r0)

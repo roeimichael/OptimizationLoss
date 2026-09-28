@@ -121,6 +121,26 @@ def test_opposing_country_gradients_are_rejected_and_weights_restored():
     assert torch.equal(model.theta, before)
 
 
+def test_fixed_dose_records_conflicting_scopes_without_abort():
+    class Conflict(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.theta = torch.nn.Parameter(torch.tensor(0.0))
+
+        def forward(self, x):
+            one = 2.0 + self.theta * x[:, 0]
+            return torch.stack([torch.zeros_like(one), one], dim=1)
+
+    model = Conflict()
+    out = local_targeted_step(model, [torch.tensor([[1.0], [1.0], [-1.0]])],
+                              ["A", "A", "B"], 1, 3, {"A": 0, "B": 0},
+                              fixed_radius=0.1, require_common_descent=False)
+    assert out["applied"]
+    assert out["gradient_norm"] > 0
+    assert abs(out["displacement"] - 0.1) < 1e-6
+    assert any(value >= 0 for value in out["scope_directional_derivatives"].values())
+
+
 def test_fixed_radius_ceiling_fails_without_changing_model():
     model, chunks, groups = fixture(bias=2.0)
     before = copy.deepcopy(model.state_dict())
@@ -128,3 +148,13 @@ def test_fixed_radius_ceiling_fails_without_changing_model():
         local_targeted_step(model, chunks, groups, 1, 4, {"A": 2, "B": 3},
                             max_radius=0.1)
     assert all(torch.equal(model.state_dict()[k], value) for k, value in before.items())
+
+
+def test_fixed_dose_reports_raw_infeasibility_without_aborting():
+    model, chunks, groups = fixture(bias=2.0)
+    out = local_targeted_step(model, chunks, groups, 1, 4, {"A": 2, "B": 3},
+                              fixed_radius=0.1, require_common_descent=False)
+    assert out["applied"]
+    assert abs(out["radius"] - 0.1) < 1e-12
+    assert abs(out["displacement"] - 0.1) < 1e-5
+    assert out["hard_after_global"] > 4

@@ -1,14 +1,45 @@
 import hashlib
+import csv
 
 import numpy as np
 import pytest
 import torch
 
 from tralo.fmow_yuval import (CLASSES, MEAN, ArrayImages, make_model, pool_chunks, roles, transforms_for, validate)
+import tralo.fmow_yuval as fmow_yuval
 
 CONFIG = dict(seed=5000, backbone='mobilenet_v3_large', capped_class=1, cap_divisor=10, max_epochs=75, patience=5,
               batch_size=32, lr=1e-4, weight_decay=1e-4, decay_epoch=5, decay_factor=0.8, development_batch_size=16,
               snapshot_steps=True)
+
+
+def test_unlabeled_load_does_not_materialize_pool_labels(tmp_path, monkeypatch):
+    for split in ('train', 'test'):
+        np.save(tmp_path / f'{split}_images.npy', np.zeros((1, 224, 224, 3), dtype=np.uint8))
+        with (tmp_path / f'{split}_meta.csv').open('w', newline='') as handle:
+            writer = csv.DictWriter(handle, fieldnames=['location', 'label'])
+            writer.writeheader()
+            writer.writerow({'location': split, 'label': 0})
+    np.save(tmp_path / 'train_labels.npy', np.array([0]))
+    np.save(tmp_path / 'test_labels.npy', np.array([7]))
+    files = {path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+             for path in tmp_path.iterdir()}
+    monkeypatch.setattr(fmow_yuval, 'FILES', files)
+    monkeypatch.setattr(fmow_yuval, 'COUNTS', {'train': 1, 'test': 1})
+    monkeypatch.setattr(fmow_yuval, 'CLASSES', 1)
+    monkeypatch.setattr(fmow_yuval, 'roles', lambda *_: dict(
+        train=[0], stop=[], dev=[0], stop_countries=[], dev_countries=['test'],
+        reserved_countries=[]))
+    real_load = np.load
+
+    def checked_load(path, *args, **kwargs):
+        if str(path).endswith('test_labels.npy'):
+            raise AssertionError('training path read development labels')
+        return real_load(path, *args, **kwargs)
+
+    monkeypatch.setattr(np, 'load', checked_load)
+    _, _, rows, _ = fmow_yuval.load(tmp_path, include_pool_labels=False)
+    assert rows == [{'split': 'val', 'sample_id': 'test0', 'location': 'test'}]
 
 
 def test_validate_admits_the_study_seeds_and_the_pilot_reference_only():

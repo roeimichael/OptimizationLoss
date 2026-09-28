@@ -107,14 +107,27 @@ def roles(train_meta, test_meta):
                 dev_countries=dev_countries, reserved_countries=reserved)
 
 
-def load(root):
-    """The hash-checked arrays (memory-mapped images), the train labels, the pool's labels and the roles."""
+def load(root, include_pool_labels=True):
+    """Hash-checked arrays and roles; optionally keep pool labels for offline scoring."""
     import numpy as np
     root = Path(root)
     for name, sha in FILES.items():
         if digest(root / name) != sha:
             raise RuntimeError(name + ' differs from the preregistered file')
-    meta = {s: list(csv.DictReader((root / f'{s}_meta.csv').open(newline=''))) for s in ('train', 'test')}
+    with (root / 'train_meta.csv').open(newline='') as handle:
+        train_meta = list(csv.DictReader(handle))
+    if include_pool_labels:
+        with (root / 'test_meta.csv').open(newline='') as handle:
+            test_meta = list(csv.DictReader(handle))
+    else:
+        # Keep only country IDs in the training runner. The label-bearing CSV
+        # is hash-checked above but no label field is retained or indexed.
+        with (root / 'test_meta.csv').open(newline='') as handle:
+            reader = csv.reader(handle)
+            header = next(reader)
+            location_col = header.index('location')
+            test_meta = [{'location': row[location_col]} for row in reader]
+    meta = {'train': train_meta, 'test': test_meta}
     images = {s: np.load(root / f'{s}_images.npy', mmap_mode='r') for s in ('train', 'test')}
     train_labels = np.load(root / 'train_labels.npy')
     for s in ('train', 'test'):
@@ -123,10 +136,13 @@ def load(root):
     if [int(r['label']) for r in meta['train']] != train_labels.tolist() or set(train_labels.tolist()) != set(range(CLASSES)):
         raise RuntimeError('train labels disagree with the metadata or miss a class')
     r = roles(meta['train'], meta['test'])
-    test_labels = np.load(root / 'test_labels.npy', mmap_mode='r')
-    pool_rows = [dict(split='val', sample_id=f'test{i}', location=meta['test'][i]['location'],
-                      label=int(test_labels[i])) for i in r['dev']]
-    del test_labels                                  # only the pool's labels are kept, for the offline scorer
+    pool_rows = [dict(split='val', sample_id=f'test{i}', location=meta['test'][i]['location'])
+                 for i in r['dev']]
+    if include_pool_labels:
+        test_labels = np.load(root / 'test_labels.npy', mmap_mode='r')
+        for row, index in zip(pool_rows, r['dev']):
+            row['label'] = int(test_labels[index])
+        del test_labels
     return images, train_labels, pool_rows, r
 
 
