@@ -1239,6 +1239,17 @@ comparison against it is available until it is restored.
     - ens_sham - ens_pto: +0.02 [-0.04, +0.07];
     - dose: Spearman -0.055 (p 0.65).
 
+  - **Post hoc (not preregistered), who the ensembled step swaps** (`analysis/stepens_swaps.py`, release 990f3fbc; `analysis/stepens_{r18,rgy}_swaps.txt`):
+    - **Swaps.** It moves about 4 knees per seed (3.81 on ResNet18, 4.56 on RegNetY) into and out of the fixed 76 slots.
+    - **Direction.** Those it brings in are truly grade 3 more often than those it pushes out: 74.5% vs 47.8% on ResNet18, and 82.9% vs 64.3% on RegNetY.
+    - **Net.** The net is +1.01 and +0.85 correct slots per seed, the same as E2. Seeds gaining / unchanged / losing: 46 / 19 / 7 and 39 / 25 / 8.
+    - **Collateral.** The step moves every class, so the other grades shift too (per-grade F1, ens_tralo - ens_pto):
+      - grade 1: -4.10 (ResNet18) and -3.83 (RegNetY);
+      - grade 2: -1.43 and -3.26;
+      - grade 0: +1.66 and +1.95;
+      - grade 4: +2.18 and +3.97.
+    - **Where the weighted-F1 cost comes from:** grades 1-2.
+
   Scorer output: `analysis/stepens_rgy_score.txt` (release f2580776, scorer sha256 d028d6d6).
 - 📊 **TraLO's STEP SURVIVES SNAPSHOT ENSEMBLING, AND TraLO PLUS THE ENSEMBLE BEATS THE ENSEMBLED CLIPPER ON ResNet18 (2026-09-27, step-ensemble study, knee, Yuval's pipeline, cap 76, seeds 4500-4571, n=72, preregistered, Holm over two).**
   All 72 seeds are complete and in spec, and no pto prediction vector repeats. The window averages 8.0 snapshots, of which 7.8 stepped. The pilot was byte-identical to the stored seed 4000.
