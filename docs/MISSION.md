@@ -87,6 +87,7 @@ a real moderator; under the corrected cap it is not -- the one exception reverse
     about 0.66 of 76 slots. Its dose relation replicates prospectively.
   - **Small backbones in his pipeline:** the same contrast is +0.37 (MobileNetV3) and +0.55 (RegNetY), neither
     Holm-significant alone. The v3-recipe MobileNetV3 +1.47 does not replicate.
+  - **UPDATE 2026-09-28 04:22 -- THE THESIS CLAIM STANDS by the preregistered joint reading.** The RegNetY replication also clears the bar: E1 +0.92 [+0.57, +1.27] and E2 +0.93 [+0.57, +1.29] (n = 72, both Holm < 0.001). TraLO plus the snapshot ensemble beats the ensembled clipper on two backbones in Yuval's pipeline, by +1.01 and +0.85 slots of 76. Scope: knee, cap 76, transductive, development pool (LEDGER PART 3).
   - **UPDATE 2026-09-27 23:26 -- the bar IS met on ResNet18:** in the step-ensemble study (n=72, preregistered), E1 ens_tralo - ens_sham is +1.10 [+0.77, +1.43] and E2 ens_tralo - ens_pto is +1.11 [+0.78, +1.45] (both Holm < 0.001), about 1 slot of 76. It is a thesis claim only if the RegNetY replication also clears it (LEDGER PART 3).
   - **Before that study, the bar was not met:** on every cell's point estimate the snapshot ensemble adds more than the step (no paired test). **The live
     question is whether the step survives ensembling:** the step-ensemble study, E1 ens_tralo - ens_sham and E2
@@ -140,28 +141,24 @@ trade as a trade, and retract in place.**
 
 ---
 
-## RUN STATE -- checked 2026-09-28 00:09 IDT (server clock)
+## RUN STATE -- checked 2026-09-28 04:25 IDT (server clock)
 
-**Scored tonight: the ResNet18 step-ensemble study** (72/72, 0 failures) clears its preregistered bar. E1 is +1.10 [+0.77, +1.43] and E2 is +1.11 [+0.78, +1.45], both Holm < 0.001 (LEDGER PART 3; `analysis/stepens_r18_score.txt`).
+**THE THESIS CLAIM (preregistered joint reading):** TraLO plus the snapshot ensemble beats the ensembled clipper on two backbones in Yuval's pipeline (knee, cap 76, n = 72 each, Holm < 0.001 each).
+- ResNet18: E2 is +1.11 [+0.78, +1.45], which is +1.01 slots of 76.
+- RegNetY: E2 is +0.93 [+0.57, +1.29], which is +0.85 slots.
+- The RegNetY replication finished 72/72 with 0 failures; its last seeds started at 01:11. It was scored at 04:22 (`analysis/stepens_rgy_score.txt`).
+- Its secondary cost: weighted-F1 -0.52 [-0.84, -0.20] on RegNetY and -0.25 on ResNet18 (LEDGER PART 3).
 
-**Live on dsisco01: `claude-stepens-rgy`, the RegNetY replication** (release f2580776, seeds 4600-4671).
-- The pilot gate passed at 20:04: byte-identical at all 18 epochs, and all 18 stepped.
-- The study started at 21:33, after the ResNet18 launcher exited. At 00:08, 40 of 72 were done with 0 failures. It should end around 02:30.
-- Launcher PID 1247860, log `lab/stepens-rgy/launcher.log`. Score it with `analysis/score_stepens.py` from release f2580776.
+**Live on dsisco02: the step-ensemble study on MobileNetV3 and EfficientNet-B5** (release 72201e78). GPUs 2-3 only, because another user holds GPUs 0-1.
+- **`mn3` (seeds 4700-4771):** the gate passed at about 00:07. At 04:22, 62 of 72 were done with 0 failures.
+- **`b5` (seeds 4800-4847):** the gate PASSED. PTO was byte-identical to its same-host reference at all 11 epochs and at the restored best, and 10 of 11 epochs stepped. At 04:22, 20 of 48 were done with 0 failures and 30 had started.
+- Score both with `analysis/score_stepens.py` from release 72201e78.
 
-**Live on dsisco02: the step-ensemble study on MobileNetV3 and EfficientNet-B5** (release 72201e78).
-- The prereg `experiments/claude_stepens_d2_prereg_20260928.md` was committed at 23:52:07 on 09-27, before any run.
-- It uses GPUs 2-3 only, because another user holds GPUs 0-1. At most 6 of our processes run per GPU, and a failed job stops its launcher.
-- **`mn3`, seeds 4700-4771 (n = 72):** the pilot 4300 is gated against a same-host reference run with the steps off. **The gate PASSED at about 00:07**: PTO was byte-identical at all 10 epochs and at the restored best, and 10 of 10 epochs stepped. The study started at 00:07. Log: `lab/stepens-mn3/launcher.log`.
-- **`b5`, seeds 4800-4847 (n = 48):** the pilot is 4100.
-  - The reference finished its 11 epochs by about 00:06.
-  - The pilot takes about 4.5 min per epoch, because B5's steps are costly, and its gate follows.
-  - Log: `lab/stepens-b5/launcher.log`.
-- Score: `analysis/score_stepens.py runs/claude-stepens-mn3` (and `-b5`), from release 72201e78.
-
-**Being prepared: fmow2 satellite images, a second dataset and a second modality**, for dsisco01 after RegNetY.
-- The code is committed at 0399d9e4 (`tralo/fmow_yuval.py`, `analysis/score_fmow_stepens.py`), and 18 of 18 mutations are caught.
-- A 4-epoch smoke run on dsisco02 GPU 3 checks the code path and PTO's predicted class-1 count before a prereg fixes the cap. It is not a study run, and its labels are not read.
+**Live on dsisco01: fmow2 satellite images** (release 7c2c8569; prereg `experiments/claude_fmow_stepens_prereg_20260928.md`), started 04:25.
+- MobileNetV3, class 1 (crop_field) capped at 167 = pool // 10, seeds 5000-5047 (n = 48), at most 4 per GPU.
+- The pilot 5099 and its steps-off reference started first, and the study seeds followed at once. The gate runs when both have ended, and a failed gate voids the study.
+- dsisco01 was idle from about 02:30 to 04:25. The session was paused by a usage limit.
+- Log: `lab/fmow/launcher.log`. Score with `analysis/score_fmow_stepens.py`.
 
 **Done today, all scored.** The Yuval investigation, which the user asked for on 2026-09-27, is complete. THE COURSE above has the verdict.
 
@@ -173,9 +170,7 @@ trade as a trade, and retract in place.**
 | `claude-yuval-r18` (ResNet18) | bcf5d010 | 4000-4023 | **DONE** 11:07. P1 null; P2 Holm 0.088; recipe +4.81 | same file |
 
 **Next:**
-- Score RegNetY at 72/72, and read it with ResNet18 by the joint readings of its prereg.
-- Watch the B5 gate. Score both dsisco02 blocks when complete.
-- fmow2: prereg, then the launch on dsisco01 after RegNetY.
+- Score both dsisco02 blocks and fmow2 when complete, against their fixed readings.
 - Morning PDF report: sections are being drafted and fact-checked in `report/` on `claude/bandcons-20260926`.
 
 Live work is on **dsisco01** and **dsisco02**, under `~/tralo-rebuild/runs/` on the shared NFS home. Releases are immutable clones by SHA in `~/tralo-rebuild/releases/`, and the code is on branch `claude/bandcons-20260926`.

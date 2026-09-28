@@ -1216,6 +1216,30 @@ comparison against it is available until it is restored.
     - B5 alone shows neither.
 
   Record: `experiments/claude_yuval_pipeline_result_20260927.md` on `claude/bandcons-20260926`.
+- 📊 **THE THESIS CLAIM, BY THE PREREGISTERED JOINT READING: TraLO PLUS THE SNAPSHOT ENSEMBLE BEATS THE ENSEMBLED CLIPPER ON TWO BACKBONES IN YUVAL'S PIPELINE (2026-09-28, the RegNetY replication, knee, cap 76, seeds 4600-4671, n = 72, preregistered at 19:06:53 on 09-27 before any ResNet18 result, Holm over two).**
+  All 72 seeds are complete and in spec, and no pto prediction vector repeats. The window averages 8.0 snapshots, of which 7.9 stepped. The pilot was byte-identical to the stored seed 4400.
+
+  | Primary (cc-F1 points) | RegNetY, n = 72 | Slots of 76 | Holm | ResNet18, n = 72 (above) |
+  |---|---|---|---|---|
+  | E1 ens_tralo - ens_sham | **+0.92 [+0.57, +1.27]** | +0.83 [+0.52, +1.15] | < 0.001 | +1.10 [+0.77, +1.43] |
+  | E2 ens_tralo - ens_pto | **+0.93 [+0.57, +1.29]** | +0.85 [+0.52, +1.17] | < 0.001 | +1.11 [+0.78, +1.45] |
+
+  - **Reading (fixed before the data):** E1 and E2 are above 0 in both studies. TraLO plus the snapshot ensemble beats the ensembled clipper on two backbones in Yuval's pipeline, by +1.01 slots of 76 on ResNet18 and +0.85 on RegNetY. That is the thesis claim, as the joint reading of `experiments/claude_stepens_rgy_prereg_20260927.md` defines it.
+  - **Its scope:**
+    - knee, grade 3 capped at 76, and Yuval's pipeline;
+    - transductive: the step reads the development images, never their labels;
+    - development pool, not the test split.
+  - **Secondary, Yuval's metrics (RegNetY):**
+    - accuracy E1 +0.65 [+0.36, +0.93] and E2 +0.64 [+0.35, +0.92];
+    - macro-F1 -0.05 in both, not significant;
+    - **weighted-F1 -0.51 [-0.83, -0.20] and -0.52 [-0.84, -0.20] (Holm 0.003 within the metric).** This cost on the other grades is about twice ResNet18's -0.25.
+  - **Other secondaries (no family claim):**
+    - single-model P2 tralo_final - sham_final: +0.73 [+0.39, +1.07];
+    - ensemble confirmation ens_pto - pto: +1.48 [+0.90, +2.06]. The prereg numbers this set 9; the scorer's label says set 8, as for ResNet18;
+    - ens_sham - ens_pto: +0.02 [-0.04, +0.07];
+    - dose: Spearman -0.055 (p 0.65).
+
+  Scorer output: `analysis/stepens_rgy_score.txt` (release f2580776, scorer sha256 d028d6d6).
 - 📊 **TraLO's STEP SURVIVES SNAPSHOT ENSEMBLING, AND TraLO PLUS THE ENSEMBLE BEATS THE ENSEMBLED CLIPPER ON ResNet18 (2026-09-27, step-ensemble study, knee, Yuval's pipeline, cap 76, seeds 4500-4571, n=72, preregistered, Holm over two).**
   All 72 seeds are complete and in spec, and no pto prediction vector repeats. The window averages 8.0 snapshots, of which 7.8 stepped. The pilot was byte-identical to the stored seed 4000.
 
@@ -1224,7 +1248,7 @@ comparison against it is available until it is restored.
   | E1 ens_tralo - ens_sham | **+1.10 [+0.77, +1.43]** | +1.00 [+0.70, +1.30] | < 0.001 |
   | E2 ens_tralo - ens_pto (the thesis bar) | **+1.11 [+0.78, +1.45]** | +1.01 [+0.71, +1.32] | < 0.001 |
 
-  - **Reading (fixed before the data):** E1 and E2 both lie above 0. This clears the thesis bar on ResNet18 in Yuval's pipeline. It becomes a thesis claim only if the preregistered RegNetY replication (seeds 4600-4671, running) also clears it.
+  - **Reading (fixed before the data):** E1 and E2 both lie above 0. This clears the thesis bar on ResNet18 in Yuval's pipeline. With the RegNetY replication (above, 2026-09-28), which also clears it, it is the thesis claim by the preregistered joint reading.
   - **Secondary, Yuval's metrics:** accuracy E1 +0.66 [+0.44, +0.88] and E2 +0.66 [+0.43, +0.88]; macro-F1 -0.11 and -0.12 (not significant); weighted-F1 -0.25 [-0.47, -0.03] (Holm 0.049 within the metric).
   - **Other secondaries (no family claim):**
     - single-model P2 tralo_final - sham_final: +1.07 [+0.64, +1.50];
@@ -1507,7 +1531,7 @@ tests; they cannot establish the new campaign's success or failure.
   - **State:** release 129134dd, with 18/18 mutations caught and 27 tests passing on the server. The launcher started at 18:43 (`lab/stepens/launcher.log`). The pilot gate passed at 18:59: PTO was byte-identical to the stored run at all 14 epochs, and all 14 epochs stepped. The 72 study seeds started at 18:59.
 
   Prereg: `experiments/claude_stepens_prereg_20260927.md`.
-- 🔁 **LIVE since 2026-09-27 21:33: the same study replicated on RegNetY** (knee, Yuval's pipeline, cap 76, seeds 4600-4671, n = 72). At 00:08 on 09-28, 40 of 72 were done with 0 failures.
+- ✅ **DONE 2026-09-28 (72/72, 0 failures), scored 04:22 in PART 3: E1 +0.92 and E2 +0.93, both Holm < 0.001. With ResNet18 this is the thesis claim.** The same study replicated on RegNetY (knee, Yuval's pipeline, cap 76, seeds 4600-4671, n = 72).
   - **Why:** the ResNet18 prereg makes a positive a thesis claim only after a preregistered replication on a second backbone. RegNetY is the other backbone whose single-model step points up (+0.55, Holm 0.073).
   - **When it was fixed:** committed at 19:06:53 (f2580776), before any ResNet18 study result existed.
   - **Joint readings:** the thesis claim needs E1 and E2 above 0 in both studies. There is no pooled primary.
