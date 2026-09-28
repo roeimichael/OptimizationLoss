@@ -1,19 +1,19 @@
 #!/bin/bash
-# claude_fmow_launcher.sh <release-sha> <gpu,gpu,...> [<pid>] -- the fmow2 step-ensemble study in Yuval's pipeline
+# claude_fmow_launcher.sh <release-sha> <gpu,gpu,...> -- the fmow2 step-ensemble study in Yuval's pipeline
 # (experiments/claude_fmow_stepens_prereg_20260928.md): mobilenet_v3_large, class 1 capped, seeds 5000-5047, pilot 5099.
-# Run it ON the host whose gpus are listed. If <pid> is given, nothing starts until that process (the RegNetY launcher on
-# dsisco01) has exited. It first runs the pilot job (5099_stepens) and its reference (5099_ref: the same config with the
-# steps off) on ONE gpu, then the release's analysis/score_fmow_stepens.py --gate (integrity only, no score): the pilot's
-# PTO must be byte-identical to the reference at every epoch. Then the study seeds, each a one-seed queue
-# (tools/claude_fmow_queue.sh), start on a listed gpu with no other user's process, fewer than MAXPER compute processes
-# of ours in total, and NEED MiB free. A failed job, or one whose queue dies without an END line, stops the launcher
-# (jobs already running continue).
+# Run it ON the host whose gpus are listed. The pilot job (5099_stepens) and its reference (5099_ref: the same config with
+# the steps off) start first and the study seeds follow at once, each a one-seed queue (tools/claude_fmow_queue.sh) on a
+# listed gpu with no other user's process, fewer than MAXPER compute processes of ours and NEED MiB free. When the pilot
+# and the reference have both ended, the release's analysis/score_fmow_stepens.py --gate runs (integrity only, no
+# score): the pilot's PTO must be byte-identical to the reference at every epoch. A failed gate stops the launcher and
+# voids the study. A failed job, or one whose queue dies without an END line, stops the launcher (jobs already running
+# continue).
 set -u
-SHA="$1"; GPUS="${2//,/ }"; AFTER="${3:-}"
+SHA="$1"; GPUS="${2//,/ }"
 REL=/home/dsi/michaer8/tralo-rebuild/releases/$SHA
 PY=/home/dsi/michaer8/anaconda3/envs/optloss/bin/python
 RUNS=/home/dsi/michaer8/tralo-rebuild/runs
-MAXPER=3
+MAXPER=4
 PID0=5099; FIRST=5000; LAST=5047; NEED=6000; OWN="claude_fmow_50[0-9][0-9]"
 PILOT=$RUNS/claude-fmow-pilot; REFD=$RUNS/claude-fmow-ref; STUDY=$RUNS/claude-fmow
 Q=$REL/tools/claude_fmow_queue.sh
@@ -75,25 +75,31 @@ stop_if_broken() {
   local l; l=$(lost)
   if [ -n "$l" ]; then say "JOB $l ENDED WITHOUT AN END LINE: launcher stopped"; exit 1; fi
 }
-if [ -n "$AFTER" ]; then
-  say "waiting for process $AFTER to exit"
-  while kill -0 "$AFTER" 2>/dev/null; do sleep 60; done
-fi
-say "fmow2 on gpus $GPUS: pilot ${PID0}_stepens and reference ${PID0}_ref first, on one gpu"
-g=$(slot)
-until [ -n "$g" ] && [ "$(busy "$g")" -le $((MAXPER - 2)) ]; do sleep 60; g=$(slot); done
-launch "$PILOT" "${PID0}_stepens" "$g"
-launch "$REFD" "${PID0}_ref" "$g"
-until [ "$(ended "${PID0}_stepens")" -ge 1 ] && [ "$(ended "${PID0}_ref")" -ge 1 ]; do
-  stop_if_broken
-  sleep 60
+GATED=""
+check_gate() {   # once the pilot and its reference have both ended: the gate; a failure stops everything not yet started
+  [ -n "$GATED" ] && return 0
+  [ "$(ended "${PID0}_stepens")" -ge 1 ] && [ "$(ended "${PID0}_ref")" -ge 1 ] || return 0
+  if CUDA_VISIBLE_DEVICES="" OMP_NUM_THREADS=8 PYTHONPATH="$REL" "$PY" "$GATE" --gate "$PILOT" "$REFD" > "$PILOT/pilot_gate.txt" 2>&1; then
+    GATED=1; say "pilot gate passed: $(tail -1 "$PILOT/pilot_gate.txt")"
+  else
+    say "PILOT GATE FAILED (see $PILOT/pilot_gate.txt): launcher stopped, and the study is void"; exit 1
+  fi
+}
+wait_slot() {   # sets G to the first usable gpu, running the gate and the failure checks (in this shell) while waiting
+  G=$(slot)
+  until [ -n "$G" ]; do stop_if_broken; check_gate; sleep 60; G=$(slot); done
+}
+say "fmow2 on gpus $GPUS: the pilot ${PID0}_stepens and its reference ${PID0}_ref start first and the study seeds follow at once; the gate runs when both have ended, and the study is scored only if it passes"
+for job in "${PID0}_stepens" "${PID0}_ref"; do
+  wait_slot
+  case "$job" in *_stepens) launch "$PILOT" "$job" "$G" ;; *) launch "$REFD" "$job" "$G" ;; esac
 done
-if ! CUDA_VISIBLE_DEVICES="" OMP_NUM_THREADS=8 PYTHONPATH="$REL" "$PY" "$GATE" --gate "$PILOT" "$REFD" > "$PILOT/pilot_gate.txt" 2>&1; then
-  say "PILOT GATE FAILED (see $PILOT/pilot_gate.txt)"; exit 1
-fi
-say "pilot gate passed; study next"
 for seed in $(seq "$FIRST" "$LAST"); do
   stop_if_broken
-  start_job "$STUDY" "$seed"
+  check_gate
+  wait_slot
+  launch "$STUDY" "$seed" "$G"
 done
-say "LAUNCHER DONE: all $((LAST - FIRST + 1)) study seeds started"
+say "all $((LAST - FIRST + 1)) study seeds started"
+until [ -n "$GATED" ]; do stop_if_broken; check_gate; sleep 60; done
+say "LAUNCHER DONE"
