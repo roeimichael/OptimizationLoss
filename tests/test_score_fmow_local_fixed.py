@@ -138,18 +138,24 @@ def test_runner_shaped_pilot_gate_is_label_blind(tmp_path, monkeypatch):
     spec.loader.exec_module(module)
     pilot_root, reference_root, pilot, reference, identities, quotas = module.make_runner_shaped_pilot(
         tmp_path, monkeypatch)
+    configs = tmp_path / "input_configs"
+    configs.mkdir()
+    monkeypatch.setattr(fixed, "CONFIGS", configs)
     for directory in (pilot, reference):
         config_path = directory / "config.json"
         config = json.loads(config_path.read_text())
         config.update(seed=6199, study=fixed.STUDY, step_radius=fixed.RADIUS)
         config_path.write_text(json.dumps(config))
+        job = "6199_step" if config["snapshot_steps"] else "6199_ref"
+        input_config = configs / f"fmow_local_{job}.json"
+        input_config.write_text(json.dumps(config, indent=2) + "\n")
         summary_path = directory / "summary.json"
         summary = json.loads(summary_path.read_text())
         summary["seed"] = 6199
         summary_path.write_text(json.dumps(summary))
         events_path = directory / "events.jsonl"
         events = [json.loads(line) for line in events_path.read_text().splitlines()]
-        events[0]["config_sha256"] = fixed.prior.sha256(config_path)
+        events[0]["config_sha256"] = fixed.prior.sha256(input_config)
         next(row for row in events if row["event"] == "completed")["seconds"] = 3600.0
         events_path.write_text("\n".join(json.dumps(row) for row in events) + "\n")
     pilot.rename(pilot_root / "seed6199")
@@ -158,6 +164,12 @@ def test_runner_shaped_pilot_gate_is_label_blind(tmp_path, monkeypatch):
     assert result["development_labels_accessed"] is False
     assert result["pto_equal"] is True
     assert result["projected_total_gpu_hours"] == 14.0
+    step_input = configs / "fmow_local_6199_step.json"
+    original = step_input.read_bytes()
+    step_input.write_bytes(original.rstrip(b"\n"))
+    with pytest.raises(RuntimeError, match="input/run config provenance"):
+        fixed.gate(pilot_root, reference_root)
+    step_input.write_bytes(original)
 
     # A separate command may open only the verified development label indices.
     data = tmp_path / "data"

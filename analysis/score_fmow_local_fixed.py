@@ -23,6 +23,7 @@ PILOT = 6199
 SEEDS = tuple(range(6200, 6212))
 STUDY = "local_fixed_dose_v1"
 RADIUS = 0.1
+CONFIGS = Path(__file__).resolve().parents[1] / "experiments/configs/fmow_local_fixed_20260928"
 ARMS = ("ens_pto", "ens_joint_fixed", "ens_global_dose", "ens_sham")
 PRIMARY = tuple((d, control) for d in prior.DIVISORS
                 for control in ("ens_global_dose", "ens_pto"))
@@ -46,8 +47,12 @@ def _receipt(directory):
             or type(config.get("step_radius")) not in (int, float)
             or config["step_radius"] != RADIUS):
         raise RuntimeError(f"{d.name}: config differs from fixed-dose protocol")
+    job = f"{config['seed']}_{'step' if config['snapshot_steps'] else 'ref'}"
+    input_config = CONFIGS / f"fmow_local_{job}.json"
+    if (prior._json(input_config) != config or
+            started["config_sha256"] != prior.sha256(input_config)):
+        raise RuntimeError(f"{d.name}: input/run config provenance mismatch")
     if (started["source_sha256"] != prior.source() or started["data_files"] != prior.FILES
-            or started["config_sha256"] != prior.sha256(d / "config.json")
             or started["counts"] != {"train": 15841, "stop": 1829, "dev": 1673}
             or started["manifest_sha256"] != prior.sha256(d / "manifest.json")):
         raise RuntimeError(f"{d.name}: source/data/config/manifest provenance mismatch")
