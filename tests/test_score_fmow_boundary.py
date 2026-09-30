@@ -36,6 +36,23 @@ def test_gate_reconstructs_accepted_probe_and_selected_radius():
     score._policy(record, before, after, quota, require_local_hard=True)
 
 
+def test_radius_recount_allows_float32_soft_count_roundoff():
+    record, _before, _after, quota = _accepted()
+    before = (2, {"A": 1, "B": 1}, 1.040000003,
+              {"A": .5200000015, "B": .5200000015})
+    after = (1, {"A": 1, "B": 0}, 1.0, {"A": .5, "B": .5})
+    policy = record["boundary_policy"]
+    record["radius"] = policy["radius"] = policy["initial_radius"] = .04
+    record["displacement"] = .04
+    policy["initial_positive_violations"]["pooled"] = .04
+    policy["initial_total_positive_violation"] = .04
+    probe = policy["probes"][0]
+    probe.update(radius=.04, pooled_soft=1.0, local_soft={"A": .5, "B": .5},
+                 positive_violations={"pooled": 0., "local:A": 0., "local:B": 0.},
+                 total_positive_violation=0.)
+    score._policy(record, before, after, quota, require_local_hard=True)
+
+
 @pytest.mark.parametrize("mutation,match", [
     (lambda r: r["boundary_policy"]["probes"][0].update(radius=.05), "probe radius"),
     (lambda r: r["boundary_policy"]["probes"][0]["local_soft"].update(A=.9),

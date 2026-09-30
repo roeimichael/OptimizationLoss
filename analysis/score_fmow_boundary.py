@@ -187,8 +187,12 @@ def _policy(record, before, after, quota, *, require_local_hard):
         initial = min(RADIUS, *(violation0[name] / -derivatives[name]
                                 for name in violation0 if violation0[name] > 0))
         expected_reason = "search" if initial > 0 and math.isfinite(initial) else "unrepresentable_initial_radius"
+    # The runner accumulated FP32 soft counts on GPU. Recounting saved
+    # probabilities can move the derived radius by a few nanounits.
+    radius_tolerance = max(1e-7, 1e-5 * abs(initial))
     _near(policy["initial_radius"], initial if expected_reason == "search" else 0.0,
-          "boundary initial radius", 1e-12)
+          "boundary initial radius",
+          radius_tolerance if expected_reason == "search" else 1e-12)
     if expected_reason != "search":
         if policy["reason"] != expected_reason or policy["probes"]:
             raise RuntimeError("boundary skip reason/probe mismatch")
@@ -200,7 +204,8 @@ def _policy(record, before, after, quota, *, require_local_hard):
         expected_radius = initial / (2 ** i)
         if probe.get("halving") != i:
             raise RuntimeError("boundary halving index mismatch")
-        _near(probe.get("radius"), expected_radius, "boundary probe radius", 1e-12)
+        _near(probe.get("radius"), expected_radius, "boundary probe radius",
+              max(1e-12, radius_tolerance / (2 ** i)))
         if type(probe.get("pooled_hard")) is not int or probe["pooled_hard"] < 0:
             raise RuntimeError("invalid boundary probe hard count")
         if set(probe.get("local_soft", {})) != set(quota["local_caps"]):
