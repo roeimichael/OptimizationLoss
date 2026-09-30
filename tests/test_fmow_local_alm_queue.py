@@ -15,6 +15,8 @@ SCRIPT = Path(__file__).resolve().parents[1] / "tools" / "fmow_local_alm_queue.s
 
 def linux(path):
     path = Path(path).resolve()
+    if not path.drive:
+        return path.as_posix()
     return f"/mnt/{path.drive[0].lower()}/{path.as_posix()[3:]}"
 
 
