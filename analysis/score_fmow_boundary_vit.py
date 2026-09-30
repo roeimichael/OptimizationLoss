@@ -30,6 +30,7 @@ CONFIGS = Path(__file__).resolve().parents[1] / "experiments/configs/fmow_local_
 SMOKE_GENERATOR = Path(__file__).resolve().parents[1] / "tools/fmow_local_boundary_vit_smoke.py"
 REAL_PREFLIGHT_GENERATOR = (Path(__file__).resolve().parents[1] /
                             "tools/fmow_local_boundary_vit_real_preflight.py")
+SMOKE_FIXTURE = "fixed_sine_head_class1_bias1_v1"
 RECIPE = {**base.RECIPE, "backbone": "vit_b_16", "batch_size": 16,
           "development_batch_size": 8}
 EXPECTED_KEYS = set(RECIPE) | {"seed", "snapshot_steps", "study", "step_radius", "alm_rho"}
@@ -60,6 +61,37 @@ def _config_and_provenance(directory, config, started):
 
 def _positive_finite(value):
     return type(value) in (int, float) and math.isfinite(value) and value > 0
+
+
+def _active_smoke_scopes(scopes, quota):
+    """Independently recount diagnostic activity against the run's fixed quotas."""
+    if (not isinstance(scopes, dict) or set(scopes) != {"pooled", "countries"} or
+            not isinstance(quota, dict) or
+            set(quota) != {"global_cap", "local_total", "local_caps"} or
+            type(quota["local_total"]) is not int or
+            not isinstance(quota["local_caps"], dict) or
+            set(quota["local_caps"]) != set(base.COUNTRIES) or
+            any(type(value) is not int for value in quota["local_caps"].values()) or
+            sum(quota["local_caps"].values()) != quota["local_total"] or
+            not isinstance(scopes["countries"], dict) or
+            set(scopes["countries"]) != set(base.COUNTRIES)):
+        return False
+    records = [(scopes["pooled"], quota["global_cap"])] + [
+        (scopes["countries"][country], quota["local_caps"][country])
+        for country in base.COUNTRIES]
+    for record, expected_cap in records:
+        if (not isinstance(record, dict) or set(record) != {"hard", "soft", "cap"} or
+                type(expected_cap) is not int or type(record["cap"]) is not int or
+                record["cap"] != expected_cap or type(record["hard"]) is not int or
+                type(record["soft"]) not in (int, float) or
+                not math.isfinite(record["soft"]) or
+                record["hard"] <= expected_cap or record["soft"] <= expected_cap):
+            return False
+    countries = scopes["countries"].values()
+    return (scopes["pooled"]["hard"] == sum(row["hard"] for row in countries) and
+            math.isclose(scopes["pooled"]["soft"],
+                         math.fsum(row["soft"] for row in countries),
+                         rel_tol=1e-5, abs_tol=1e-5))
 
 
 def _iso_timestamp(value):
@@ -161,18 +193,28 @@ def _memory_smoke(directory, config, launch, started):
             not 0 <= development["row_sum_max_error"] < 1e-4):
         raise RuntimeError(f"{d.name}: ViT development-inference smoke evidence invalid")
     side = phases["side_copy_constraint_gradient"]
-    if (side.get("pto_unchanged") is not True or not isinstance(side.get("caps"), dict) or
+    precheck = side.get("pooled_gradient_precheck")
+    if (side.get("pto_unchanged") is not True or
+            side.get("fixture") != SMOKE_FIXTURE or
+            not isinstance(precheck, dict) or
+            not _positive_finite(precheck.get("total_norm")) or
+            not _positive_finite(precheck.get("backbone_norm")) or
+            precheck.get("pto_unchanged") is not True or
+            not isinstance(side.get("caps"), dict) or
             set(side["caps"]) != {str(d) for d in base.DIVISORS}):
         raise RuntimeError(f"{d.name}: ViT side-copy smoke evidence invalid")
     for divisor in base.DIVISORS:
         cap = side["caps"][str(divisor)]
         if (not isinstance(cap, dict) or not _positive_finite(cap.get("joint_gradient_norm")) or
                 not _positive_finite(cap.get("phr_gradient_norm")) or
-                type(cap.get("joint_applied")) is not bool or
-                type(cap.get("phr_applied")) is not bool or
+                cap.get("joint_applied") is not True or
+                cap.get("phr_applied") is not True or
                 cap.get("all_four_arms") is not True or
                 cap.get("scope_derivatives_finite") is not True or
-                cap.get("pto_unchanged") is not True):
+                cap.get("pto_unchanged") is not True or
+                not isinstance(started.get("quotas"), dict) or
+                not _active_smoke_scopes(cap.get("scopes"),
+                                         started["quotas"].get(str(divisor)))):
             raise RuntimeError(f"{d.name}: ViT side-copy cap{divisor} smoke evidence invalid")
     return completed_at - smoke_launched_at
 

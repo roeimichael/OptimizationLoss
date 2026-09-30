@@ -1,0 +1,17 @@
+# ViT-B/16 smoke fixture amendment, 2026-09-30
+
+The immutable `67141697e03b95faea5669c9d146a822b8888784` pilot queue stopped **before claiming seed 6500**. Its preserved negative smoke receipt is `vit_memory_smoke_pilot6500_step_67141697.json` in the local rebuild audit. The batch-16 FP32 synthetic backward/Adam phase and full 1,673-image, label-free development inference completed on dsisco01 GPU1. The post-Adam model predicted class 1 for only 10 images and had pooled class-1 soft count 134.5556, below the cap-167 threshold. Its cap-10 side copies therefore lacked an active constraint gradient and the smoke failed. This is a diagnostic-fixture failure, not a ViT efficacy result or evidence that the configured training batch is too large. The old release, queue root, receipt and partial artifacts remain unchanged.
+
+The new smoke keeps the fixed training batch 16, inference chunk 8, pretrained checkpoint, optimizer, data boundary, side-step algorithm and study configs unchanged. **Only after** the ordinary synthetic training and full-development inference memory phases, it installs a deterministic diagnostic eight-class head on the smoke process's disposable model: small nonzero sine-pattern weights, zero biases except class-1 bias +1. The weights keep gradients flowing into the backbone. No development labels are loaded. This head is not saved to a study checkpoint, passed to a seed, used for model selection or scored as an outcome.
+
+Before each of the two cap side-copy memory phases, the smoke recounts class-1 hard and soft calls in the pooled set and all five countries. It refuses to proceed unless every hard and soft count exceeds its fixed cap. A separate pooled backward pass checks that both the whole model and its non-head backbone have nonzero finite gradients and that the diagnostic PTO weights remain unchanged; it clears those gradients before side copies. The receipt records these checks, counts and caps, fixture identity, joint/PHR gradient norms and application, scope-derivative finiteness and PTO neutrality for each attempted cap. It writes partial diagnostics and a negative receipt on failure. A positive receipt must independently satisfy numeric activation and nonzero backbone, joint and PHR gradients at both caps; a declarative pass flag alone is insufficient. CPU mutation tests reject an inactive head, inactive-count receipts and zero backbone gradients.
+
+This requires a **new committed immutable release and a new exclusive run root**. The prior `67141697` smoke and seed-6500 pilot attempt must never be overwritten or resumed. Repeat both label-free preflights under the new release on an actually free, exclusively locked GPU; only after their integrity and memory gates pass may the fixed seed-6500 pilot be claimed. If the corrected smoke still fails, preserve that evidence and diagnose it before any settings change. No scored development metric informed this amendment.
+
+The independent offline pilot/full scorer now also requires this fixture identity,
+positive backbone and side-gradient evidence, and active pooled/five-country hard
+and soft counts **against the run's recorded production quotas**. It rejects a
+pre-amendment receipt or one that merely declares smaller caps, even if the
+queue's own validator were bypassed. Its receipt mutation tests and the queue
+mock receipts were updated together; the immutable failed receipt remains a
+negative preflight record, not a valid pilot artifact.

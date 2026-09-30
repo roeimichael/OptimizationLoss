@@ -18,6 +18,90 @@ import time
 RUNS = Path("/home/dsi/michaer8/tralo-rebuild/runs")
 WEIGHT_SHA = "c867db91d3e12c6cbadabb610d73c24a546bf82d8c03a9fea34f43a712ddb0e9"
 PHASES = ("train_backward", "development_inference", "side_copy_constraint_gradient")
+COUNTRIES = ("DZA", "IRQ", "NLD", "PHL", "TUR")
+FIXTURE_NAME = "fixed_sine_head_class1_bias1_v1"
+
+
+def _install_diagnostic_head(head):
+    """Make only this smoke model's head exercise active, differentiable scopes."""
+    import torch
+    with torch.no_grad():
+        rows = torch.arange(1, head.out_features + 1, device=head.weight.device)
+        columns = torch.arange(1, head.in_features + 1, device=head.weight.device)
+        values = 1e-4 * torch.sin(0.017 * rows[:, None] * columns[None, :])
+        head.weight.copy_(values.to(head.weight.dtype))
+        head.bias.zero_()
+        head.bias[1] = 1.0
+
+
+def _scope_diagnostics(probabilities, groups, quota):
+    """Record class-1 counts without development labels or model selection."""
+    if len(probabilities) != len(groups) or set(groups) != set(quota["local_caps"]):
+        raise ValueError("smoke scope cohort and quota differ")
+    selected = probabilities.argmax(1) == 1
+    class_one = probabilities[:, 1]
+    result = {"pooled": dict(hard=int(selected.sum()), soft=float(class_one.sum()),
+                             cap=quota["global_cap"]), "countries": {}}
+    for name in sorted(quota["local_caps"]):
+        indices = [i for i, group in enumerate(groups) if group == name]
+        result["countries"][name] = dict(
+            hard=int(selected[indices].sum()), soft=float(class_one[indices].sum()),
+            cap=quota["local_caps"][name])
+    return result
+
+
+def _assert_active_scopes(scopes):
+    entries = {"pooled": scopes["pooled"]}
+    entries.update({f"country:{name}": value
+                    for name, value in scopes["countries"].items()})
+    inactive = [name for name, value in entries.items()
+                if value["hard"] <= value["cap"] or value["soft"] <= value["cap"]]
+    if inactive:
+        raise RuntimeError("inactive diagnostic scope: " + ", ".join(inactive))
+    return True
+
+
+def _valid_active_scopes(scopes):
+    if not isinstance(scopes, dict) or set(scopes) != {"pooled", "countries"}:
+        return False
+    if not isinstance(scopes["countries"], dict) or set(scopes["countries"]) != set(COUNTRIES):
+        return False
+    records = [scopes["pooled"], *scopes["countries"].values()]
+    if any(not isinstance(record, dict) or set(record) != {"hard", "soft", "cap"} or
+           type(record["hard"]) is not int or type(record["cap"]) is not int or
+           not isinstance(record["soft"], (int, float)) or
+           not math.isfinite(record["soft"]) or record["hard"] <= record["cap"] or
+           record["soft"] <= record["cap"] for record in records):
+        return False
+    pooled = scopes["pooled"]
+    return (pooled["hard"] == sum(record["hard"] for record in scopes["countries"].values())
+            and math.isclose(pooled["soft"],
+                             math.fsum(record["soft"] for record in scopes["countries"].values()),
+                             rel_tol=1e-5, abs_tol=1e-5))
+
+
+def _pooled_gradient_diagnostic(model, head, pool):
+    """Measure pooled class-1 gradient, including non-head parameters."""
+    model.zero_grad(set_to_none=True)
+    head_ids = {id(parameter) for parameter in head.parameters()}
+    device = next(model.parameters()).device
+    try:
+        for images in pool:
+            model(images.to(device)).softmax(1)[:, 1].sum().backward()
+        total = 0.0
+        backbone = 0.0
+        for parameter in model.parameters():
+            if parameter.grad is not None:
+                squared = float(parameter.grad.double().square().sum())
+                total += squared
+                if id(parameter) not in head_ids:
+                    backbone += squared
+        result = dict(total_norm=math.sqrt(total), backbone_norm=math.sqrt(backbone))
+        if not all(_positive_finite(value) for value in result.values()):
+            raise RuntimeError("diagnostic pooled or backbone gradient is zero or nonfinite")
+        return result
+    finally:
+        model.zero_grad(set_to_none=True)
 
 
 def _command(*args):
@@ -93,17 +177,25 @@ def validate_success_receipt(receipt):
             not 0 <= dev["row_sum_max_error"] < 1e-4):
         raise ValueError("development inference smoke failed")
     side = phases["side_copy_constraint_gradient"]
-    if side.get("pto_unchanged") is not True or set(side.get("caps", {})) != {"10", "20"}:
+    if (side.get("pto_unchanged") is not True or side.get("fixture") != FIXTURE_NAME or
+            set(side.get("caps", {})) != {"10", "20"}):
         raise ValueError("side-copy smoke missed PTO neutrality or a cap")
     for cap in side["caps"].values():
         if (not _positive_finite(cap.get("joint_gradient_norm")) or
                 not _positive_finite(cap.get("phr_gradient_norm")) or
-                type(cap.get("joint_applied")) is not bool or
-                type(cap.get("phr_applied")) is not bool or
+                cap.get("joint_applied") is not True or
+                cap.get("phr_applied") is not True or
                 cap.get("all_four_arms") is not True or
                 cap.get("scope_derivatives_finite") is not True or
-                cap.get("pto_unchanged") is not True):
+                cap.get("pto_unchanged") is not True or
+                not _valid_active_scopes(cap.get("scopes"))):
             raise ValueError("side-copy gradient smoke failed")
+    precheck = side.get("pooled_gradient_precheck")
+    if (not isinstance(precheck, dict) or
+            not _positive_finite(precheck.get("total_norm")) or
+            not _positive_finite(precheck.get("backbone_norm")) or
+            precheck.get("pto_unchanged") is not True):
+        raise ValueError("diagnostic backbone gradient smoke failed")
     return True
 
 
@@ -117,8 +209,10 @@ def _measure(torch, func):
     started = time.monotonic()
     detail = func()
     torch.cuda.synchronize()
-    return dict(completed=True, seconds=time.monotonic() - started,
-                peak_allocated_bytes=int(torch.cuda.max_memory_allocated()), **detail)
+    result = dict(detail)
+    result.update(completed=True, seconds=time.monotonic() - started,
+                  peak_allocated_bytes=int(torch.cuda.max_memory_allocated()))
+    return result
 
 
 def _workload(receipt, data_root, artifact_root):
@@ -195,39 +289,73 @@ def _workload(receipt, data_root, artifact_root):
                     row_sum_max_error=row_error, probabilities=probabilities)
 
     dev_phase = _measure(torch, dev_inference)
-    probabilities = dev_phase.pop("probabilities")
+    dev_phase.pop("probabilities")
     phases["development_inference"] = dev_phase
+    # Diagnostic fixture is applied only after the real 1,673-image inference
+    # memory phase. It is never a study seed's training head or scored model.
+    _install_diagnostic_head(model.heads.head)
     model_sha = _state_hash(model)
     artifact_root.mkdir(exist_ok=False)
+    side_evidence = dict(completed=False, fixture=FIXTURE_NAME, pto_unchanged=True,
+                         diagnostic_model_sha256=model_sha, caps={})
+    phases["side_copy_constraint_gradient"] = side_evidence
 
     def side_copy():
-        cap_records = {}
+        diagnostic_probabilities = infer(model, pool)
+        if not bool(torch.isfinite(diagnostic_probabilities).all()):
+            raise RuntimeError("nonfinite diagnostic ViT probabilities")
+        side_evidence["pooled_gradient_precheck"] = dict(stage="started")
+        try:
+            precheck = _pooled_gradient_diagnostic(model, model.heads.head, pool)
+            precheck["pto_unchanged"] = _state_hash(model) == model_sha
+            side_evidence["pooled_gradient_precheck"] = precheck
+            if not precheck["pto_unchanged"]:
+                raise RuntimeError("pooled gradient precheck changed PTO weights")
+        except Exception as exc:
+            side_evidence["pooled_gradient_precheck"]["error"] = str(exc)
+            raise
         for divisor in (10, 20):
             folder = artifact_root / f"cap{divisor}"
             folder.mkdir()
-            records = snapshot_side_steps(
-                model, pool, groups, quotas[str(divisor)], 6500, 1, folder,
-                fixed_radius=0.1, phr_state={"dual": torch.zeros(6)},
-                phr_rho=0.5, boundary_calibrated=True,
-                pto_probabilities=probabilities)
+            record = {"scopes": _scope_diagnostics(
+                diagnostic_probabilities, groups, quotas[str(divisor)]),
+                "pto_unchanged": _state_hash(model) == model_sha}
+            side_evidence["caps"][str(divisor)] = record
+            _assert_active_scopes(record["scopes"])
+            try:
+                records = snapshot_side_steps(
+                    model, pool, groups, quotas[str(divisor)], 6500, 1, folder,
+                    fixed_radius=0.1, phr_state={"dual": torch.zeros(6)},
+                    phr_rho=0.5, boundary_calibrated=True,
+                    pto_probabilities=diagnostic_probabilities)
+            except Exception as exc:
+                record["pto_unchanged"] = _state_hash(model) == model_sha
+                record["side_copy_error"] = str(exc)
+                side_evidence["pto_unchanged"] = record["pto_unchanged"]
+                raise
             joint, phr = records["joint"], records["phr_local"]
             derivatives = (joint.get("scope_directional_derivatives", {}),
                            phr.get("scope_directional_derivatives", {}))
             all_finite = all(math.isfinite(float(value)) for scope in derivatives
                              for value in scope.values())
             unchanged = _state_hash(model) == model_sha
-            cap_records[str(divisor)] = dict(
+            record.update(
                 joint_gradient_norm=joint.get("gradient_norm"),
                 phr_gradient_norm=phr.get("gradient_norm"),
                 joint_applied=joint["applied"], phr_applied=phr["applied"],
                 all_four_arms=set(records) == {"joint", "global_dose", "sham", "phr_local"},
                 scope_derivatives_finite=all_finite,
                 pto_unchanged=unchanged)
+            side_evidence["pto_unchanged"] = unchanged
             if not (unchanged and all_finite and
                     _positive_finite(joint.get("gradient_norm")) and
-                    _positive_finite(phr.get("gradient_norm"))):
+                    _positive_finite(phr.get("gradient_norm")) and
+                    joint["applied"] and phr["applied"]):
                 raise RuntimeError(f"ViT side-copy gradient/neutrality failed at cap{divisor}")
-        return dict(pto_unchanged=_state_hash(model) == model_sha, caps=cap_records)
+        side_evidence["pto_unchanged"] = _state_hash(model) == model_sha
+        if not side_evidence["pto_unchanged"]:
+            raise RuntimeError("ViT smoke changed PTO diagnostic weights")
+        return side_evidence
 
     phases["side_copy_constraint_gradient"] = _measure(torch, side_copy)
     receipt["peak_allocated_bytes"] = max(

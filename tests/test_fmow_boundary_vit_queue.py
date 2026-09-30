@@ -76,9 +76,21 @@ def main(argv=None):
     started = time.time()
     time.sleep(0.02)
     phase = dict(completed=True, seconds=0.01, peak_allocated_bytes=100)
-    cap = dict(joint_gradient_norm=1.0, phr_gradient_norm=1.0,
-               joint_applied=True, phr_applied=True, all_four_arms=True,
-               scope_derivatives_finite=True, pto_unchanged=True)
+    country_hard = dict(zip(COUNTRIES, (337, 334, 334, 334, 334)))
+    quotas = json.loads(os.environ["MOCK_SMOKE_QUOTAS"])
+    caps = {}
+    for divisor in (10, 20):
+        quota = quotas[str(divisor)]
+        country_scopes = {name: dict(hard=count, soft=count * 0.28,
+                                     cap=quota['local_caps'][name])
+                          for name, count in country_hard.items()}
+        scopes = dict(pooled=dict(hard=1673,
+                                  soft=sum(item['soft'] for item in country_scopes.values()),
+                                  cap=quota['global_cap']), countries=country_scopes)
+        caps[str(divisor)] = dict(
+            joint_gradient_norm=1.0, phr_gradient_norm=1.0,
+            joint_applied=True, phr_applied=True, all_four_arms=True,
+            scope_derivatives_finite=True, pto_unchanged=True, scopes=scopes)
     receipt = dict(
         release_commit=commit, host=subprocess.run(["hostname", "-f"],
             check=True, capture_output=True, text=True).stdout.strip(),
@@ -96,8 +108,12 @@ def main(argv=None):
                                 loss=1.0, gradient_norm=1.0, optimizer_step=True),
             development_inference=dict(phase, probabilities_shape=[1673, 8],
                                        finite_rows=1673, row_sum_max_error=0.0),
-            side_copy_constraint_gradient=dict(phase, pto_unchanged=True,
-                                               caps={"10": cap, "20": cap})))
+            side_copy_constraint_gradient=dict(
+                phase, pto_unchanged=True, fixture=FIXTURE_NAME,
+                pooled_gradient_precheck=dict(total_norm=1.0,
+                                              backbone_norm=0.1,
+                                              pto_unchanged=True),
+                caps=caps)))
     field = os.environ.get("MOCK_SMOKE_MUTATE_FIELD")
     if field:
         receipt[field] = json.loads(os.environ["MOCK_SMOKE_MUTATE_JSON"])
@@ -221,7 +237,13 @@ if __name__ == "__main__":
         "nvidia-smi", linux(smi)
     )
     script.write_bytes(text.encode())
-    env = {"MOCK_COUNT_FILE": linux(tmp_path / "compute_queries")}
+    from tralo.fmow_local import budgets
+
+    groups = [name for name, count in zip(
+        ("DZA", "IRQ", "NLD", "PHL", "TUR"), (337, 334, 334, 334, 334))
+        for _ in range(count)]
+    env = {"MOCK_COUNT_FILE": linux(tmp_path / "compute_queries"),
+           "MOCK_SMOKE_QUOTAS": json.dumps(budgets(groups))}
     return script, sha, tmp_path, env
 
 
@@ -290,6 +312,14 @@ def test_separate_pilot_receipts_and_new_root_refusal(queue):
         assert launch["real_preflight_execution"] == "queue_executed"
         assert json.loads(real_complete.read_text())["exit_code"] == 0
         assert json.loads(smoke_complete.read_text())["exit_code"] == 0
+        from analysis.score_fmow_boundary_vit import _active_smoke_scopes
+
+        quotas = json.loads(queue[3]["MOCK_SMOKE_QUOTAS"])
+        measured = json.loads(smoke.read_text())["phases"]["side_copy_constraint_gradient"]["caps"]
+        for divisor in (10, 20):
+            quota = quotas[str(divisor)]
+            assert sum(quota["local_caps"].values()) == quota["local_total"]
+            assert _active_smoke_scopes(measured[str(divisor)]["scopes"], quota)
         assert complete["exit_code"] == 0
         assert observed["cuda_visible_devices"] == "GPU-TEST-UUID"
         assert len(list(root.glob("seed*.launch.json"))) == 1

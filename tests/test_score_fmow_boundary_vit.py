@@ -14,6 +14,20 @@ def _config(seed=6500, steps=True):
             "study": score.STUDY, "step_radius": .1, "alm_rho": .5}
 
 
+def _smoke_quotas():
+    return {str(divisor): {"global_cap": 3,
+                           "local_total": 5,
+                           "local_caps": {name: 1 for name in score.base.COUNTRIES}}
+            for divisor in score.base.DIVISORS}
+
+
+def _smoke_scopes(quota):
+    countries = {name: {"hard": 3, "soft": 2.5, "cap": quota["local_caps"][name]}
+                 for name in score.base.COUNTRIES}
+    return {"pooled": {"hard": 15, "soft": 12.5, "cap": quota["global_cap"]},
+            "countries": countries}
+
+
 def test_input_config_bytes_bound_to_vit_protocol(tmp_path, monkeypatch):
     configs = tmp_path / "configs"
     configs.mkdir()
@@ -93,36 +107,43 @@ def test_memory_smoke_bound_to_release_host_gpu_and_bytes(tmp_path, monkeypatch)
                                            "peak_allocated_bytes": 90,
                                            "probabilities_shape": [1673, 8],
                                            "finite_rows": 1673, "row_sum_max_error": 0.},
-                 "side_copy_constraint_gradient": {"completed": True, "seconds": .3,
-                                                   "peak_allocated_bytes": 95,
-                                                   "pto_unchanged": True,
-                                                   "caps": {str(d): {
-                                                       "joint_gradient_norm": 1.,
-                                                       "phr_gradient_norm": 1.,
-                                                       "joint_applied": False,
-                                                       "phr_applied": False,
-                                                       "all_four_arms": True,
-                                                       "scope_derivatives_finite": True,
-                                                       "pto_unchanged": True}
-                                                            for d in score.base.DIVISORS}}}}
+                  "side_copy_constraint_gradient": {"completed": True, "seconds": .3,
+                                                    "peak_allocated_bytes": 95,
+                                                    "pto_unchanged": True,
+                                                    "fixture": score.SMOKE_FIXTURE,
+                                                    "pooled_gradient_precheck": {
+                                                        "total_norm": 2.,
+                                                        "backbone_norm": 1.,
+                                                        "pto_unchanged": True},
+                                                    "caps": {str(d): {
+                                                        "joint_gradient_norm": 1.,
+                                                        "phr_gradient_norm": 1.,
+                                                        "joint_applied": True,
+                                                        "phr_applied": True,
+                                                        "all_four_arms": True,
+                                                        "scope_derivatives_finite": True,
+                                                        "pto_unchanged": True,
+                                                        "scopes": _smoke_scopes(_smoke_quotas()[str(d)])}
+                                                             for d in score.base.DIVISORS}}}}
     receipt.write_text(json.dumps(smoke) + "\n", encoding="utf-8")
     launch["memory_smoke_receipt_sha256"] = score.base.sha256(receipt)
-    score._memory_smoke(d, config, launch, {"device": "GPU"})
+    started = {"device": "GPU", "quotas": _smoke_quotas()}
+    score._memory_smoke(d, config, launch, started)
     launch["started_utc"] = "1970-01-01T00:00:01+00:00"
     with pytest.raises(RuntimeError, match="did not complete before queue launch"):
-        score._memory_smoke(d, config, launch, {"device": "GPU"})
+        score._memory_smoke(d, config, launch, started)
     launch["started_utc"] = "1970-01-01T00:00:04+00:00"
     changed = copy.deepcopy(smoke)
     changed["gpu_uuid"] = "GPU-foreign"
     receipt.write_text(json.dumps(changed) + "\n", encoding="utf-8")
     with pytest.raises(RuntimeError, match="hash/path"):
-        score._memory_smoke(d, config, launch, {"device": "GPU"})
+        score._memory_smoke(d, config, launch, started)
     launch["memory_smoke_receipt_sha256"] = score.base.sha256(receipt)
     with pytest.raises(RuntimeError, match="identity mismatch"):
-        score._memory_smoke(d, config, launch, {"device": "GPU"})
+        score._memory_smoke(d, config, launch, started)
     launch["memory_smoke_execution"] = "supplied_external_receipt"
     with pytest.raises(RuntimeError, match="queue-owned"):
-        score._memory_smoke(d, config, launch, {"device": "GPU"})
+        score._memory_smoke(d, config, launch, started)
 
 
 def test_queue_smoke_completion_must_be_successful_and_precede_job(tmp_path, monkeypatch):
@@ -264,6 +285,20 @@ def test_real_preflight_mutations_rejected_before_labels(
         joint_gradient_norm=0), "cap10"),
     (lambda s: s["phases"]["side_copy_constraint_gradient"]["caps"]["20"].update(
         all_four_arms=False), "cap20"),
+    (lambda s: s["phases"]["side_copy_constraint_gradient"].update(fixture="old_fixture"),
+     "side-copy"),
+    (lambda s: s["phases"]["side_copy_constraint_gradient"]["pooled_gradient_precheck"].update(
+        backbone_norm=0), "side-copy"),
+    (lambda s: s["phases"]["side_copy_constraint_gradient"]["caps"]["10"].update(
+        joint_applied=False), "cap10"),
+    (lambda s: s["phases"]["side_copy_constraint_gradient"]["caps"]["10"].update(
+        phr_applied=False), "cap10"),
+    (lambda s: s["phases"]["side_copy_constraint_gradient"]["caps"]["10"]["scopes"]
+     ["countries"]["DZA"].update(cap=0), "cap10"),
+    (lambda s: s["phases"]["side_copy_constraint_gradient"]["caps"]["10"]["scopes"]
+     ["countries"]["DZA"].update(soft=0.5), "cap10"),
+    (lambda s: s["phases"]["side_copy_constraint_gradient"]["caps"]["20"]["scopes"]
+     ["pooled"].update(hard=14), "cap20"),
     (lambda s: s.update(smoke_generator_sha256="0" * 64), "identity mismatch"),
     (lambda s: s.update(source_sha256={}), "identity mismatch"),
     (lambda s: s.update(device_name="other GPU"), "identity mismatch"),
@@ -309,17 +344,23 @@ def test_memory_smoke_rejects_missing_or_fabricated_phase_evidence(
                                   "probabilities_shape": [1673, 8],
                                   "finite_rows": 1673, "row_sum_max_error": 0.},
         "side_copy_constraint_gradient": {"completed": True, "seconds": .3,
-                                          "peak_allocated_bytes": 95,
-                                          "pto_unchanged": True,
-                                          "caps": {str(d): {
-                                              "joint_gradient_norm": 1.,
-                                              "phr_gradient_norm": 1.,
-                                              "joint_applied": False,
-                                              "phr_applied": False,
-                                              "all_four_arms": True,
-                                              "scope_derivatives_finite": True,
-                                              "pto_unchanged": True}
-                                                   for d in score.base.DIVISORS}}}
+                                           "peak_allocated_bytes": 95,
+                                           "pto_unchanged": True,
+                                           "fixture": score.SMOKE_FIXTURE,
+                                           "pooled_gradient_precheck": {
+                                               "total_norm": 2.,
+                                               "backbone_norm": 1.,
+                                               "pto_unchanged": True},
+                                           "caps": {str(d): {
+                                               "joint_gradient_norm": 1.,
+                                               "phr_gradient_norm": 1.,
+                                               "joint_applied": True,
+                                               "phr_applied": True,
+                                               "all_four_arms": True,
+                                               "scope_derivatives_finite": True,
+                                               "pto_unchanged": True,
+                                               "scopes": _smoke_scopes(_smoke_quotas()[str(d)])}
+                                                    for d in score.base.DIVISORS}}}
     smoke = {"release_commit": launch["release_commit"], "host": launch["host"],
              "gpu_uuid": launch["gpu_uuid"], "backbone": "vit_b_16",
              "batch_size": 16, "development_batch_size": 8,
@@ -336,7 +377,8 @@ def test_memory_smoke_rejects_missing_or_fabricated_phase_evidence(
     receipt.write_text(json.dumps(smoke) + "\n", encoding="utf-8")
     launch["memory_smoke_receipt_sha256"] = score.base.sha256(receipt)
     with pytest.raises(RuntimeError, match=match):
-        score._memory_smoke(tmp_path / "seed6500", _config(), launch, {"device": "GPU"})
+        score._memory_smoke(tmp_path / "seed6500", _config(), launch,
+                            {"device": "GPU", "quotas": _smoke_quotas()})
 
 
 def test_pretrained_checkpoint_and_transform_provenance(tmp_path):
