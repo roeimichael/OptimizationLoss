@@ -36,3 +36,28 @@ all immutable runner artifacts remain preserved. The amended scorer will
 write new output filenames and must pass the entire label-blind gate before
 either study's development metrics are accepted. No seeds, model weights,
 configuration, caps, cohorts or primary contrasts change.
+
+## Cross-release provenance correction
+
+The first scorer-only release with FP32 replay,
+`0ec08b0eaa9e9820b92aad8d95b3b5978f279a4f`, passed local tests and
+both-host tracked-byte/native/CLI checks, but its first complete-block scoring
+attempt stopped at the source-provenance gate before labels. Receipt:
+`C:/Users/roeym/.codex/rebuild-audit-20260922/fmow_boundary_full_score_attempt_0ec08b0e_20261001.json`.
+That scorer compared the older Mobile runner's `tralo/*.py` source map to the
+new scorer checkout. A read-only comparison of the logged source map against
+the immutable Mobile runner `4334855f...` found exact agreement; comparison
+against the new scorer release differed only in `tralo/fmow_local.py`, which
+had changed for the separate ViT replay protocol. The old Mobile file's
+committed SHA-256 is
+`653e4dda1d207ae6dc6261369a77b9ce44daee67d97910fd2e14c3645e560ad2`.
+
+The second scorer-only amendment requires the launch/completion receipts to
+name the fixed Mobile runner commit, substitutes that one pinned historical
+file hash when comparing the full logged source map, and continues to require
+all other current source hashes, config/data/manifest identities, exact FP32
+dual replay and label-blind gates. The result JSON will distinguish runner
+source identity from the scorer file hash. Neither failed scorer attempt
+produced accepted development metrics. The ViT scorer's current runner and
+scorer `tralo/*.py` maps match, so this Mobile-specific substitution does not
+alter its experiment.

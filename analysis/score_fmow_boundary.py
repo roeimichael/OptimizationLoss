@@ -25,6 +25,8 @@ STUDY = "local_boundary_v1"
 CONFIGS = Path(__file__).resolve().parents[1] / "experiments/configs/fmow_local_boundary_20260930"
 RADIUS = 0.1
 RHO = 0.5
+RUNNER_RELEASE = "4334855f81c70596ff64c08bfa6c884c67e08e8a"
+RUNNER_FMOW_LOCAL_SHA256 = "653e4dda1d207ae6dc6261369a77b9ce44daee67d97910fd2e14c3645e560ad2"
 ARMS = ("joint", "global_dose", "sham", "phr_local")
 SCORED_ARMS = {"pto": "ens_pto", "joint": "ens_joint", "global_dose": "ens_global_dose",
                "sham": "ens_sham", "phr_local": "ens_phr_local"}
@@ -36,6 +38,18 @@ def _near(actual, expected, what, tol=1e-5):
     if (type(actual) not in (float, int) or not math.isfinite(actual) or
             abs(actual - expected) > tol):
         raise RuntimeError(f"{what}: expected {expected}, found {actual}")
+
+
+def _mobile_runner_source():
+    """Bind older Mobile training bytes while allowing a newer scorer release.
+
+    Only fmow_local.py changed among tralo/*.py between the fixed runner and
+    this scorer release. All other source files are still checked bytewise.
+    """
+    hashes = base.source()
+    if "fmow_local.py" not in hashes:
+        raise RuntimeError("Mobile runner source file missing from scorer release")
+    return {**hashes, "fmow_local.py": RUNNER_FMOW_LOCAL_SHA256}
 
 
 def _receipt(directory):
@@ -62,7 +76,9 @@ def _receipt(directory):
     if base._json(input_config) != config or started["config_sha256"] != base.sha256(input_config):
         raise RuntimeError(f"{d.name}: input/run config provenance mismatch")
     launch = alm._launch_receipt(d, config, started)
-    if (started["source_sha256"] != base.source() or started["data_files"] != base.FILES or
+    if (launch["release_commit"] != RUNNER_RELEASE or
+            started["source_sha256"] != _mobile_runner_source() or
+            started["data_files"] != base.FILES or
             started["counts"] != {"train": 15841, "stop": 1829, "dev": 1673} or
             started["manifest_sha256"] != base.sha256(d / "manifest.json")):
         raise RuntimeError(f"{d.name}: source/data/manifest provenance mismatch")
@@ -673,8 +689,11 @@ def main(run_root, data_root, output=None):
                                  "secondary_dominated": harmed,
                                  "registered_exploratory_lead": positive and not harmed}
     report = {"status": "complete_12_seed_exploratory_development",
-              "provenance": {"source_sha256": base.source(), "data_file_sha256": base.FILES,
-                             "development_manifest_sha256": rows[0]["manifest_sha256"]},
+               "provenance": {"runner_release_commit": RUNNER_RELEASE,
+                              "source_sha256": _mobile_runner_source(),
+                              "scorer_sha256": base.sha256(Path(__file__)),
+                              "data_file_sha256": base.FILES,
+                              "development_manifest_sha256": rows[0]["manifest_sha256"]},
               "seeds": rows, "contrasts": contrasts,
               "primary_family": [f"cap_divisor_{d}_joint_minus_{control}"
                                  for d, control in PRIMARY],
