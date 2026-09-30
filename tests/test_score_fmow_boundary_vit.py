@@ -461,10 +461,15 @@ def test_pilot_gate_does_not_open_labels(tmp_path, monkeypatch):
         cfg = reference if is_ref else config
         summary = {"retrain": result, "initial_sha256": "same",
                    "pto_sha256": "same", "steps": {} if is_ref else steps}
-        events = [epoch, {"event": "completed", "seconds": 90. if is_ref else 100.}]
+        events = [epoch]
         return (cfg, summary, started, events, ["test0"], ["A"], launch)
 
     monkeypatch.setattr(score, "_receipt", receipt)
+    for root, seed_dir, seconds in ((pilot, "seed6600", 100.),
+                                    (ref, "seed6600_ref", 90.)):
+        (root / seed_dir / "events.jsonl").write_text(
+            json.dumps({"sequence": 0, "event": "started"}) + "\n" +
+            json.dumps({"sequence": 1, "event": "completed", "seconds": seconds}) + "\n")
     monkeypatch.setattr(score.base, "sha256", lambda *_args: "same")
     monkeypatch.setattr(score.boundary, "_data_bytes", lambda *_args: None)
     monkeypatch.setattr(score.base, "_probabilities", lambda *_args: torch.ones(1, 1))
@@ -477,6 +482,11 @@ def test_pilot_gate_does_not_open_labels(tmp_path, monkeypatch):
         score.gate(pilot, ref, receipt)
     assert gate["projected_total_gpu_hours"] == pytest.approx(
         (1.25 * (13 * 100 + 90) + 3 + 3 + 3 + 4 + 4 + 4) / 3600)
+    (pilot / "seed6600/events.jsonl").write_text(
+        json.dumps({"sequence": 0, "event": "started"}) + "\n" +
+        json.dumps({"sequence": 1, "event": "training_completed", "seconds": 100.}) + "\n")
+    with pytest.raises(RuntimeError, match="no successful terminal event"):
+        score.gate(pilot, ref, tmp_path / "new_gate.json")
 
 
 def test_full_contrasts_keep_viT_seeds_and_six_test_family(tmp_path, monkeypatch):

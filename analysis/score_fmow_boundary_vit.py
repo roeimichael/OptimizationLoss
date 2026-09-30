@@ -477,8 +477,9 @@ def gate(pilot_root, reference_root, output=None):
         if not torch.equal(left, right):
             raise RuntimeError(f"ViT PTO trajectory differs: {name}")
     _, _, step_artifacts = boundary._steps(pilot_root / "seed6600", a)
-    seconds = (base._one(events, "completed").get("seconds"),
-               base._one(ref_events, "completed").get("seconds"))
+    step_done = base._one(base._events(pilot_root / "seed6600/events.jsonl"), "completed")
+    ref_done = base._one(base._events(reference_root / "seed6600_ref/events.jsonl"), "completed")
+    seconds = (step_done.get("seconds"), ref_done.get("seconds"))
     if any(type(x) not in (int, float) or not math.isfinite(x) or x <= 0 for x in seconds):
         raise RuntimeError("ViT pilot durations missing or nonfinite")
     smoke_seconds = (launch["_smoke_seconds"], ref_launch["_smoke_seconds"])
