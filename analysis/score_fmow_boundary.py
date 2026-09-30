@@ -256,9 +256,32 @@ def _policy(record, before, after, quota, *, require_local_hard):
             raise RuntimeError("accepted probe hard count differs from side output")
         if require_local_hard and after[1] != last["local_hard"]:
             raise RuntimeError("accepted probe local hard differs from side output")
-        _near(after[2], last["pooled_soft"], "accepted probe pooled soft", 1e-5)
+        # The accepted probe and saved side output are separate FP32 replay
+        # reductions of 1,673 probabilities. A one-ULP pooled reduction at
+        # this scale is already about 1.5e-5; the observed pilot maximum was
+        # 1.58e-5. Keep this much tighter than the 1e-3 artifact recount.
+        replay_count_tolerance = 1e-4
+        _near(after[2], last["pooled_soft"], "accepted probe pooled soft",
+              replay_count_tolerance)
         for group, value in after[3].items():
-            _near(value, last["local_soft"][group], "accepted probe local soft", 1e-5)
+            _near(value, last["local_soft"][group], "accepted probe local soft",
+                  replay_count_tolerance)
+        # Replay agreement alone is not enough near the acceptance boundary:
+        # adjudicate the final saved probabilities independently. Otherwise
+        # FP32 replay drift could reverse a narrow logged improvement.
+        if after[0] < max(0, min(before[0], quota["global_cap"]) - 1):
+            raise RuntimeError("saved boundary side crossed pooled hard floor")
+        if after[2] < max(0.0, min(before[2], quota["global_cap"]) - 1.0):
+            raise RuntimeError("saved boundary side crossed pooled soft floor")
+        final_soft = {"pooled": after[2], **{
+            f"local:{group}": value for group, value in after[3].items()}}
+        final_violations = {name: max(0.0, (value - caps[name]) / max(caps[name], 1))
+                            for name, value in final_soft.items()}
+        if any(final_violations[name] > violation0[name] + 1e-6
+               for name in caps):
+            raise RuntimeError("saved boundary side worsened soft violation")
+        if not math.fsum(final_violations.values()) <= total0 - 1e-6:
+            raise RuntimeError("saved boundary side lacked violation reduction")
 
 
 def _audit_side(record, pto, side, groups, quota, arm, dual=None):

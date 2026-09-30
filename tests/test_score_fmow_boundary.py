@@ -53,6 +53,32 @@ def test_radius_recount_allows_float32_soft_count_roundoff():
     score._policy(record, before, after, quota, require_local_hard=True)
 
 
+def test_accepted_probe_replay_allows_one_ulp_count_roundoff_but_not_real_drift():
+    record, before, after, quota = _accepted()
+    rounded = (after[0], after[1], after[2] + 2e-5,
+               {"A": after[3]["A"] + 2e-5, "B": after[3]["B"]})
+    score._policy(record, before, rounded, quota, require_local_hard=True)
+    drifted = (after[0], after[1], after[2] + 1e-3,
+               {"A": after[3]["A"] + 1e-3, "B": after[3]["B"]})
+    with pytest.raises(RuntimeError, match="accepted probe pooled soft"):
+        score._policy(record, before, drifted, quota, require_local_hard=True)
+
+
+def test_saved_side_must_preserve_logged_boundary_improvement():
+    record, _before, _after, quota = _accepted()
+    before = (2, {"A": 1, "B": 1}, 1.5, {"A": .75, "B": .75})
+    probe = record["boundary_policy"]["probes"][0]
+    probe.update(pooled_soft=1.499998, local_soft={"A": .749999, "B": .749999},
+                 positive_violations={"pooled": .499998, "local:A": 0.,
+                                      "local:B": 0.},
+                 total_positive_violation=.499998)
+    record["boundary_policy"]["initial_positive_violations"]["pooled"] = .5
+    record["boundary_policy"]["initial_total_positive_violation"] = .5
+    final = (1, {"A": 1, "B": 0}, 1.50005, {"A": .750025, "B": .750025})
+    with pytest.raises(RuntimeError, match="saved boundary side worsened"):
+        score._policy(record, before, final, quota, require_local_hard=True)
+
+
 @pytest.mark.parametrize("mutation,match", [
     (lambda r: r["boundary_policy"]["probes"][0].update(radius=.05), "probe radius"),
     (lambda r: r["boundary_policy"]["probes"][0]["local_soft"].update(A=.9),
