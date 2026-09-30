@@ -25,6 +25,7 @@ def validate_success_receipt(receipt):
     """Reject missing or nonfinite measured numerical checks."""
     if (receipt.get("preflight_passed") is not True or
             receipt.get("development_labels_accessed") is not False or
+            receipt.get("mha_fastpath_enabled") is not False or
             receipt.get("precision") != "fp32" or
             receipt.get("backbone") != "vit_b_16" or
             receipt.get("weight_sha256") != WEIGHT_SHA or
@@ -35,6 +36,8 @@ def validate_success_receipt(receipt):
             receipt.get("pto_unchanged") is not True or
             receipt.get("arms_audited") != list(ARMS)):
         raise ValueError("real-image preflight identity, cohort or audit differs")
+    if not guard._valid_attention_replay(receipt.get("ordinary_head_replay")):
+        raise ValueError("ordinary ViT attention replay failed")
     if not _finite_below(receipt.get("max_probability_difference"), 1e-6):
         raise ValueError("full/chunk probability parity failed")
     errors = receipt.get("gradient_relative_errors")
@@ -109,7 +112,9 @@ def _scalar(torch, probabilities, groups, name):
 def _workload(receipt, data_root, artifact_root):
     import torch
     from analysis.score_fmow_boundary import _audit_side
-    from tralo.fmow_local import VIT_RECIPE, snapshot_side_steps, vit_weight_provenance
+    from tralo.fmow_local import (VIT_RECIPE, disable_vit_mha_fastpath,
+                                  snapshot_side_steps, vit_attention_replay,
+                                  vit_weight_provenance)
     from tralo.fmow_yuval import FILES, load, make_model, pool_chunks, transforms_for
     from tralo.global_comparison import _state_hash
     from tralo.knee_end_to_end import infer
@@ -117,8 +122,9 @@ def _workload(receipt, data_root, artifact_root):
     from tralo.targeted_step import _place
 
     torch.set_num_threads(8)
-    torch.manual_seed(6500)
+    torch.manual_seed(6600)
     cuda_setup()
+    receipt["mha_fastpath_enabled"] = disable_vit_mha_fastpath()
     if not torch.cuda.is_available() or torch.cuda.device_count() != 1:
         raise RuntimeError("exclusive CUDA device unavailable")
     receipt["device_name"] = torch.cuda.get_device_name(0)
@@ -146,6 +152,9 @@ def _workload(receipt, data_root, artifact_root):
             tuple(chunk.shape[1:]) != (3, 224, 224) for chunk in pool):
         raise RuntimeError("real-image chunk transform changed")
     model = make_model(backbone="vit_b_16").cuda().eval()
+    receipt["ordinary_head_replay"] = vit_attention_replay(model, pool[0])
+    if not receipt["ordinary_head_replay"]["passed"]:
+        raise RuntimeError("ordinary ViT head no-grad/grad attention replay differs")
     # A fixed diagnostic head activates all six constraints. It is never saved
     # or used in training, model selection, or development-label evaluation.
     with torch.no_grad():
@@ -208,7 +217,7 @@ def _workload(receipt, data_root, artifact_root):
     if not torch.equal(infer(model, pool), chunked):
         raise RuntimeError("finite-difference restore changed PTO predictions")
     artifact_root.mkdir(exist_ok=False)
-    records = snapshot_side_steps(model, pool, groups, quota, 6500, 1, artifact_root,
+    records = snapshot_side_steps(model, pool, groups, quota, 6600, 1, artifact_root,
                                   fixed_radius=0.1, phr_state={"dual": torch.zeros(6)},
                                   phr_rho=0.5, boundary_calibrated=True,
                                   pto_probabilities=chunked)

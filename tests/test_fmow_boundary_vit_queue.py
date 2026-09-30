@@ -31,7 +31,7 @@ def wsl(*args):
 @pytest.fixture
 def queue(tmp_path):
     release = tmp_path / "release"
-    configs = release / "experiments" / "configs" / "fmow_local_boundary_vit_20260930"
+    configs = release / "experiments" / "configs" / "fmow_local_boundary_vit_v2_20261001"
     configs.mkdir(parents=True)
     package = release / "tralo"
     package.mkdir()
@@ -47,7 +47,7 @@ def queue(tmp_path):
         "VIT_WEIGHT_SHA256 = 'c867db91d3e12c6cbadabb610d73c24a546bf82d8c03a9fea34f43a712ddb0e9'\n"
         "def vit_weight_provenance():\n    return {'sha256': VIT_WEIGHT_SHA256}\n"
         "def validate(c):\n"
-        "    if c.get('study') != 'local_boundary_vit_v1':\n"
+        "    if c.get('study') != 'local_boundary_vit_v2':\n"
         "        raise ValueError('wrong study')\n"
         "if __name__ == '__main__':\n"
         "    output = Path(sys.argv[-1])\n"
@@ -98,6 +98,9 @@ def main(argv=None):
         backbone="vit_b_16", batch_size=16, development_batch_size=8,
         weight_sha256=WEIGHT_SHA, precision="fp32", label_free=True,
         memory_smoke_passed=os.environ.get("MOCK_SMOKE_FAIL") != "1",
+        mha_fastpath_enabled=False,
+        ordinary_head_replay=dict(passed=True, images_count=8,
+                                  max_absolute_difference=0., max_tolerance_ratio=0.),
         peak_allocated_bytes=100, total_memory_bytes=1000,
         source_sha256=source(),
         smoke_generator_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
@@ -159,6 +162,9 @@ def main(argv=None):
         pretrained_weight={'sha256': WEIGHT_SHA},
         development_labels_accessed=False,
         preflight_passed=os.environ.get("MOCK_REAL_FAIL") != "1",
+        mha_fastpath_enabled=False,
+        ordinary_head_replay=dict(passed=True, images_count=8,
+                                  max_absolute_difference=0., max_tolerance_ratio=0.),
         images_count=15, country_counts=dict.fromkeys(COUNTRIES, 3),
         pto_unchanged=True, arms_audited=list(ARMS), artifact_sha256=artifact_sha,
         max_probability_difference=1e-7,
@@ -193,10 +199,10 @@ if __name__ == "__main__":
         "with open(output, 'x', encoding='utf-8') as stream:\n"
         "    json.dump({'status': 'vit_pilot_integrity_pass',\n"
         "               'pilot_step_root': step, 'pilot_ref_root': ref}, stream)\n")
-    for job in ("6500_step", "6500_ref", *(f"{seed}_step" for seed in range(6501, 6513))):
+    for job in ("6600_step", "6600_ref", *(f"{seed}_step" for seed in range(6601, 6613))):
         seed, arm = job.split("_")
         (configs / f"fmow_local_{job}.json").write_text(json.dumps({
-            "study": "local_boundary_vit_v1", "seed": int(seed),
+            "study": "local_boundary_vit_v2", "seed": int(seed),
             "snapshot_steps": arm == "step"}))
     wsl("git", "-C", linux(release), "init", "-q")
     wsl("git", "-C", linux(release), "add", ".")
@@ -278,8 +284,8 @@ def test_shell_syntax():
 
 
 def test_separate_pilot_receipts_and_new_root_refusal(queue):
-    for mode, job, output in (("pilot-step", "6500_step", "seed6500"),
-                              ("pilot-ref", "6500_ref", "seed6500_ref")):
+    for mode, job, output in (("pilot-step", "6600_step", "seed6600"),
+                              ("pilot-ref", "6600_ref", "seed6600_ref")):
         result, root = run_queue(queue, mode=mode)
         assert result.returncode == 0, result.stderr
         launch = json.loads((root / f"seed{job}.launch.json").read_text())
@@ -331,19 +337,19 @@ def test_foreign_compute_pid_stops_before_next_seed(queue):
     env, *_ = prepare_pilots(queue)
     result, root = run_queue(queue, mode="full", extra_env=dict(env, MOCK_BUSY_CALL="6"))
     assert result.returncode == 2
-    assert "compute PIDs before 6502_step: 4321" in result.stderr
-    assert (root / "seed6501_step.complete.json").is_file()
-    assert not (root / "seed6502_step.launch.json").exists()
-    assert not (root / "seed6502").exists()
+    assert "compute PIDs before 6602_step: 4321" in result.stderr
+    assert (root / "seed6601_step.complete.json").is_file()
+    assert not (root / "seed6602_step.launch.json").exists()
+    assert not (root / "seed6602").exists()
 
 
 def test_foreign_compute_pid_after_receipt_refuses_cuda_launch(queue):
     result, root = run_queue(queue, extra_env={"MOCK_BUSY_CALL": "5"})
     assert result.returncode == 2
-    assert "compute PIDs before 6500_step: 4321" in result.stderr
-    assert (root / "seed6500_step.launch.json").is_file()
-    assert not (root / "seed6500").exists()
-    assert not (root / "seed6500_step.complete.json").exists()
+    assert "compute PIDs before 6600_step: 4321" in result.stderr
+    assert (root / "seed6600_step.launch.json").is_file()
+    assert not (root / "seed6600").exists()
+    assert not (root / "seed6600_step.complete.json").exists()
 
 
 def test_second_new_root_cannot_rerun_claimed_pilot_seed(queue):
@@ -351,9 +357,9 @@ def test_second_new_root_cannot_rerun_claimed_pilot_seed(queue):
     assert first.returncode == 0, first.stderr
     second_root = queue[2] / "runs" / "another-pilot-step"
     second, _ = run_queue(queue, mode="pilot-step", root=second_root)
-    assert second.returncode == 2 and "already claimed: 6500_step" in second.stderr
+    assert second.returncode == 2 and "already claimed: 6600_step" in second.stderr
     assert not second_root.exists()
-    claim = queue[2] / "runs" / ".fmow-local-boundary-vit-claims" / "6500_step" / "owner.json"
+    claim = queue[2] / "runs" / ".fmow-local-boundary-vit-claims" / "6600_step" / "owner.json"
     assert json.loads(claim.read_text())["run_root"] == linux(first_root)
 
 
@@ -364,7 +370,7 @@ def test_concurrent_claim_allows_only_one_clean_root(queue):
                                    {"MOCK_RUNNER_SLEEP": "1"}) for root in roots]
         results = [future.result()[0] for future in futures]
     assert sorted(result.returncode for result in results) == [0, 2]
-    assert sum((root / "seed6500_step.launch.json").is_file() for root in roots) == 1
+    assert sum((root / "seed6600_step.launch.json").is_file() for root in roots) == 1
     assert sum(root.exists() for root in roots) == 1
 
 
@@ -373,12 +379,13 @@ def test_full_mode_uses_only_the_registered_twelve_seeds(queue):
     result, root = run_queue(queue, mode="full", extra_env=env)
     assert result.returncode == 0, result.stderr
     assert {path.name for path in root.glob("seed*.launch.json")} == {
-        f"seed{seed}_step.launch.json" for seed in range(6501, 6513)}
+        f"seed{seed}_step.launch.json" for seed in range(6601, 6613)}
     assert len(list(root.glob("seed*.complete.json"))) == 12
     cost = json.loads((root / "vit_cost_gate.json").read_text())
-    assert cost["gate_passed"] and cost["projected_gpu_hours"] < 24
+    assert cost["gate_passed"] and cost["projected_gpu_hours"] + .5 < 24
+    assert cost["prior_failed_reserve_gpu_hours"] == .5
     assert set(cost["preflight_seconds"]) == {"pilot_step", "pilot_ref", "full"}
-    launch = json.loads((root / "seed6501_step.launch.json").read_text())
+    launch = json.loads((root / "seed6601_step.launch.json").read_text())
     assert launch["cost_gate_receipt_path"] == linux(root / "vit_cost_gate.json")
     assert launch["pilot_gate_receipt_path"] == linux(root / "vit_pilot_gate_recheck.json")
 
@@ -386,9 +393,9 @@ def test_full_mode_uses_only_the_registered_twelve_seeds(queue):
 def test_failed_fit_preserves_receipt_and_does_not_run_reference(queue):
     result, root = run_queue(queue, mode="pilot-step", extra_env={"MOCK_RUNNER_FAIL": "1"})
     assert result.returncode == 7
-    assert json.loads((root / "seed6500_step.complete.json").read_text())["exit_code"] == 7
-    assert (root / "seed6500_step.launch.json").is_file()
-    assert not (root / "seed6500_ref.launch.json").exists()
+    assert json.loads((root / "seed6600_step.complete.json").read_text())["exit_code"] == 7
+    assert (root / "seed6600_step.launch.json").is_file()
+    assert not (root / "seed6600_ref.launch.json").exists()
 
 
 def test_run_root_outside_owned_runs_directory_is_refused(queue):
@@ -406,6 +413,10 @@ def test_run_root_outside_owned_runs_directory_is_refused(queue):
     ("development_batch_size", 16),
     ("weight_sha256", "0" * 64),
     ("label_free", False),
+    ("mha_fastpath_enabled", True),
+    ("ordinary_head_replay", {"passed": False, "images_count": 8,
+                               "max_absolute_difference": 0.,
+                               "max_tolerance_ratio": 0.}),
     ("memory_smoke_passed", False),
     ("peak_allocated_bytes", 1000),
 ])
@@ -417,8 +428,8 @@ def test_mismatched_memory_smoke_refuses_before_claim(queue, field, bad_value):
     assert "memory smoke failed" in result.stderr or "memory-smoke provenance failed" in result.stderr
     assert root.exists()
     assert (root / "vit_memory_smoke.json").is_file()
-    assert not (root / "seed6500_step.launch.json").exists()
-    assert not (queue[2] / "runs" / ".fmow-local-boundary-vit-claims" / "6500_step").exists()
+    assert not (root / "seed6600_step.launch.json").exists()
+    assert not (queue[2] / "runs" / ".fmow-local-boundary-vit-claims" / "6600_step").exists()
 
 
 def test_smoke_failure_preserves_negative_receipt_and_never_claims_seed(queue):
@@ -427,7 +438,7 @@ def test_smoke_failure_preserves_negative_receipt_and_never_claims_seed(queue):
     assert json.loads((root / "vit_memory_smoke.json").read_text())["memory_smoke_passed"] is False
     assert json.loads((root / "vit_memory_smoke.complete.json").read_text())["exit_code"] == 7
     assert (root / "vit_memory_smoke.log").is_file()
-    assert not (root / "seed6500_step.launch.json").exists()
+    assert not (root / "seed6600_step.launch.json").exists()
 
 
 def test_smoke_early_exit_still_preserves_negative_receipt(queue):
@@ -436,7 +447,7 @@ def test_smoke_early_exit_still_preserves_negative_receipt(queue):
     receipt = json.loads((root / "vit_memory_smoke.json").read_text())
     assert receipt["memory_smoke_passed"] is False
     assert receipt["exit_code"] == 7
-    assert not (root / "seed6500_step.launch.json").exists()
+    assert not (root / "seed6600_step.launch.json").exists()
 
 
 @pytest.mark.parametrize("field,bad_value", [
@@ -447,6 +458,10 @@ def test_smoke_early_exit_still_preserves_negative_receipt(queue):
     ("development_batch_size", 3),
     ("chunk_sizes", [3, 3, 3, 3, 3]),
     ("development_labels_accessed", True),
+    ("mha_fastpath_enabled", True),
+    ("ordinary_head_replay", {"passed": False, "images_count": 8,
+                               "max_absolute_difference": 0.,
+                               "max_tolerance_ratio": 0.}),
     ("preflight_passed", False),
     ("max_probability_difference", 0.1),
     ("gradient_relative_errors", {"pooled": 0.0}),
@@ -458,8 +473,8 @@ def test_mismatched_real_preflight_refuses_before_claim(queue, field, bad_value)
     assert result.returncode == 2
     assert "real-image preflight" in result.stderr
     assert (root / "vit_real_preflight.json").is_file()
-    assert not (root / "seed6500_step.launch.json").exists()
-    assert not (queue[2] / "runs" / ".fmow-local-boundary-vit-claims" / "6500_step").exists()
+    assert not (root / "seed6600_step.launch.json").exists()
+    assert not (queue[2] / "runs" / ".fmow-local-boundary-vit-claims" / "6600_step").exists()
 
 
 def test_real_preflight_failure_preserves_negative_receipt(queue):
@@ -468,7 +483,7 @@ def test_real_preflight_failure_preserves_negative_receipt(queue):
     assert json.loads((root / "vit_real_preflight.json").read_text())["preflight_passed"] is False
     assert json.loads((root / "vit_real_preflight.complete.json").read_text())["exit_code"] == 7
     assert (root / "vit_real_preflight.log").is_file()
-    assert not (root / "seed6500_step.launch.json").exists()
+    assert not (root / "seed6600_step.launch.json").exists()
 
 
 def test_real_preflight_early_exit_still_preserves_negative_receipt(queue):
@@ -476,7 +491,7 @@ def test_real_preflight_early_exit_still_preserves_negative_receipt(queue):
     assert result.returncode == 2
     receipt = json.loads((root / "vit_real_preflight.json").read_text())
     assert receipt["preflight_passed"] is False and receipt["exit_code"] == 7
-    assert not (root / "seed6500_step.launch.json").exists()
+    assert not (root / "seed6600_step.launch.json").exists()
 
 
 def test_full_queue_refuses_without_independent_pilot_gate(queue):
@@ -485,7 +500,7 @@ def test_full_queue_refuses_without_independent_pilot_gate(queue):
     assert "requires both pilot roots" in result.stderr
     assert root.exists()
     assert not (root / "vit_memory_smoke.json").exists()
-    assert not (root / "seed6501_step.launch.json").exists()
+    assert not (root / "seed6601_step.launch.json").exists()
 
 
 def test_full_queue_refuses_forged_pilot_gate_before_smoke(queue):
@@ -496,12 +511,12 @@ def test_full_queue_refuses_forged_pilot_gate_before_smoke(queue):
     assert "differs from independent recomputation" in result.stderr
     assert (root / "vit_pilot_gate_recheck.json").is_file()
     assert not (root / "vit_memory_smoke.json").exists()
-    assert not (root / "seed6501_step.launch.json").exists()
+    assert not (root / "seed6601_step.launch.json").exists()
 
 
 def test_full_queue_stops_before_seed_when_projected_cost_exceeds_ceiling(queue):
     env, step_root, _ref, _gate = prepare_pilots(queue)
-    launch_path = step_root / "seed6500_step.launch.json"
+    launch_path = step_root / "seed6600_step.launch.json"
     launch = json.loads(launch_path.read_text())
     launch["started_utc"] = "2020-01-01T00:00:00+00:00"
     launch_path.write_text(json.dumps(launch))
@@ -511,4 +526,4 @@ def test_full_queue_stops_before_seed_when_projected_cost_exceeds_ceiling(queue)
     assert gate["gate_passed"] is False
     assert gate["projected_gpu_hours"] > 24
     assert (root / "vit_memory_smoke.json").is_file()
-    assert not (root / "seed6501_step.launch.json").exists()
+    assert not (root / "seed6601_step.launch.json").exists()

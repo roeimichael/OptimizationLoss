@@ -1,0 +1,17 @@
+{
+  "alm_rho": 0.5,
+  "backbone": "vit_b_16",
+  "batch_size": 16,
+  "capped_class": 1,
+  "decay_epoch": 5,
+  "decay_factor": 0.8,
+  "development_batch_size": 8,
+  "lr": 0.0001,
+  "max_epochs": 75,
+  "patience": 5,
+  "seed": 6604,
+  "snapshot_steps": true,
+  "step_radius": 0.1,
+  "study": "local_boundary_vit_v2",
+  "weight_decay": 0.0001
+}

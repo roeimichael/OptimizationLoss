@@ -31,6 +31,10 @@ def valid_receipt():
                pto_unchanged=True, scopes=scopes)
     return dict(memory_smoke_passed=True, label_free=True, precision="fp32",
                 backbone="vit_b_16", batch_size=16, development_batch_size=8,
+                mha_fastpath_enabled=False,
+                ordinary_head_replay=dict(passed=True, images_count=8,
+                                          max_absolute_difference=0.0,
+                                          max_tolerance_ratio=0.0),
                 weight_sha256=smoke.WEIGHT_SHA, development_pool_count=1673,
                 total_memory_bytes=1000, peak_allocated_bytes=250,
                 phases=dict(
@@ -56,6 +60,10 @@ def test_measured_receipt_accepts_all_three_phases_and_both_caps():
 
 @pytest.mark.parametrize("path,value", [
     (("memory_smoke_passed",), False),
+    (("mha_fastpath_enabled",), True),
+    (("ordinary_head_replay", "passed"), False),
+    (("ordinary_head_replay", "max_tolerance_ratio"), 2.0),
+    (("ordinary_head_replay", "max_absolute_difference"), 0.5),
     (("label_free",), False),
     (("batch_size",), 32),
     (("development_batch_size",), 16),
@@ -193,7 +201,7 @@ def test_diagnostic_fixture_exercises_real_side_copy_gradients_on_cpu(tmp_path):
     pto = infer(model, pool)
     assert smoke._assert_active_scopes(smoke._scope_diagnostics(pto, groups, quota))
     before = [p.detach().clone() for p in model.parameters()]
-    records = snapshot_side_steps(model, pool, groups, quota, 6500, 1, tmp_path,
+    records = snapshot_side_steps(model, pool, groups, quota, 6600, 1, tmp_path,
                                   fixed_radius=0.1,
                                   phr_state={"dual": torch.zeros(6)},
                                   phr_rho=0.5, boundary_calibrated=True,

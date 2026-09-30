@@ -14,6 +14,10 @@ def valid_receipt():
     return dict(
         preflight_passed=True, development_labels_accessed=False,
         precision="fp32", backbone="vit_b_16", weight_sha256=preflight.WEIGHT_SHA,
+        mha_fastpath_enabled=False,
+        ordinary_head_replay=dict(passed=True, images_count=8,
+                                  max_absolute_difference=0.0,
+                                  max_tolerance_ratio=0.0),
         development_batch_size=8, chunk_sizes=[8, 7],
         images_count=15, country_counts=dict.fromkeys(preflight.COUNTRIES, 3),
         pto_unchanged=True, arms_audited=list(preflight.ARMS),
@@ -41,6 +45,10 @@ def test_valid_complete_numerical_receipt():
 
 @pytest.mark.parametrize("path,value", [
     (("preflight_passed",), False),
+    (("mha_fastpath_enabled",), True),
+    (("ordinary_head_replay", "passed"), False),
+    (("ordinary_head_replay", "max_tolerance_ratio"), 2.0),
+    (("ordinary_head_replay", "max_absolute_difference"), 0.5),
     (("development_labels_accessed",), True),
     (("weight_sha256",), "0" * 64),
     (("images_count",), 12),

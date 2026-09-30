@@ -142,6 +142,7 @@ def validate_success_receipt(receipt):
     """Check that the measured workload, not merely a declarative flag, passed."""
     if (receipt.get("memory_smoke_passed") is not True or
             receipt.get("label_free") is not True or
+            receipt.get("mha_fastpath_enabled") is not False or
             receipt.get("precision") != "fp32" or
             receipt.get("backbone") != "vit_b_16" or
             receipt.get("batch_size") != 16 or
@@ -149,6 +150,8 @@ def validate_success_receipt(receipt):
             receipt.get("weight_sha256") != WEIGHT_SHA or
             receipt.get("development_pool_count") != 1673):
         raise ValueError("smoke identity or status differs from the fixed ViT study")
+    if not _valid_attention_replay(receipt.get("ordinary_head_replay")):
+        raise ValueError("ordinary ViT attention replay failed")
     total = receipt.get("total_memory_bytes")
     peak = receipt.get("peak_allocated_bytes")
     if type(total) is not int or type(peak) is not int or not 0 < peak < total:
@@ -203,6 +206,19 @@ def _positive_finite(value):
     return isinstance(value, (int, float)) and math.isfinite(value) and value > 0
 
 
+def _valid_attention_replay(value):
+    return (isinstance(value, dict) and
+            set(value) == {"passed", "images_count", "max_absolute_difference",
+                           "max_tolerance_ratio"} and
+            value["passed"] is True and value["images_count"] == 8 and
+            type(value["max_absolute_difference"]) in (int, float) and
+            type(value["max_tolerance_ratio"]) in (int, float) and
+            math.isfinite(value["max_absolute_difference"]) and
+            math.isfinite(value["max_tolerance_ratio"]) and
+            0 <= value["max_absolute_difference"] <= 1.1e-6 and
+            0 <= value["max_tolerance_ratio"] <= 1)
+
+
 def _measure(torch, func):
     torch.cuda.synchronize()
     torch.cuda.reset_peak_memory_stats()
@@ -218,7 +234,8 @@ def _measure(torch, func):
 def _workload(receipt, data_root, artifact_root):
     # CUDA_VISIBLE_DEVICES is set in main before importing these modules.
     import torch
-    from tralo.fmow_local import (VIT_RECIPE, budgets, snapshot_side_steps,
+    from tralo.fmow_local import (VIT_RECIPE, budgets, disable_vit_mha_fastpath,
+                                  snapshot_side_steps, vit_attention_replay,
                                   vit_weight_provenance)
     from tralo.fmow_yuval import CLASSES, FILES, load, make_model, pool_chunks, transforms_for
     from tralo.knee_end_to_end import infer
@@ -226,8 +243,9 @@ def _workload(receipt, data_root, artifact_root):
     from tralo.global_comparison import _state_hash
 
     torch.set_num_threads(8)
-    torch.manual_seed(6500)
+    torch.manual_seed(6600)
     cuda_setup()
+    receipt["mha_fastpath_enabled"] = disable_vit_mha_fastpath()
     if not torch.cuda.is_available() or torch.cuda.device_count() != 1:
         raise RuntimeError("exclusive CUDA device unavailable")
     receipt["device_name"] = torch.cuda.get_device_name(0)
@@ -291,6 +309,9 @@ def _workload(receipt, data_root, artifact_root):
     dev_phase = _measure(torch, dev_inference)
     dev_phase.pop("probabilities")
     phases["development_inference"] = dev_phase
+    receipt["ordinary_head_replay"] = vit_attention_replay(model, pool[0])
+    if not receipt["ordinary_head_replay"]["passed"]:
+        raise RuntimeError("ordinary ViT head no-grad/grad attention replay differs")
     # Diagnostic fixture is applied only after the real 1,673-image inference
     # memory phase. It is never a study seed's training head or scored model.
     _install_diagnostic_head(model.heads.head)
@@ -324,7 +345,7 @@ def _workload(receipt, data_root, artifact_root):
             _assert_active_scopes(record["scopes"])
             try:
                 records = snapshot_side_steps(
-                    model, pool, groups, quotas[str(divisor)], 6500, 1, folder,
+                    model, pool, groups, quotas[str(divisor)], 6600, 1, folder,
                     fixed_radius=0.1, phr_state={"dual": torch.zeros(6)},
                     phr_rho=0.5, boundary_calibrated=True,
                     pto_probabilities=diagnostic_probabilities)

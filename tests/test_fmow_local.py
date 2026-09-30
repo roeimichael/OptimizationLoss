@@ -5,7 +5,8 @@ import pytest
 import torch
 
 from tralo.fmow_local import (RECIPE, VIT_RECIPE, VIT_WEIGHT_SHA256,
-                              budgets, run, snapshot_side_steps, validate,
+                              budgets, disable_vit_mha_fastpath, run,
+                              snapshot_side_steps, validate, vit_attention_replay,
                               vit_weight_provenance)
 from tralo.knee_end_to_end import infer
 
@@ -93,12 +94,18 @@ def test_boundary_run_requests_no_development_labels(tmp_path, monkeypatch):
 
     def preflight_loader(_root, *, include_pool_labels):
         seen.append(include_pool_labels)
+        assert torch.backends.mha.get_fastpath_enabled() is True
         raise ReachedLoader
 
     monkeypatch.setattr("tralo.fmow_local.cuda_setup", lambda: None)
     monkeypatch.setattr("tralo.fmow_local.load", preflight_loader)
-    with pytest.raises(ReachedLoader):
-        run(tmp_path, path, tmp_path / "output")
+    previous = torch.backends.mha.get_fastpath_enabled()
+    try:
+        torch.backends.mha.set_fastpath_enabled(True)
+        with pytest.raises(ReachedLoader):
+            run(tmp_path, path, tmp_path / "output")
+    finally:
+        torch.backends.mha.set_fastpath_enabled(previous)
     assert seen == [False]
 
 
@@ -123,6 +130,87 @@ def test_vit_boundary_study_has_a_separate_fixed_recipe_and_seed_block():
                   study="local_boundary_v1", step_radius=0.1, alm_rho=0.5))
 
 
+def test_vit_v2_uses_new_fixed_seed_block_without_changing_recipe():
+    config = dict(VIT_RECIPE, seed=6600, snapshot_steps=True,
+                  study="local_boundary_vit_v2", step_radius=0.1, alm_rho=0.5)
+    validate(config)
+    validate(dict(config, snapshot_steps=False))
+    for seed in range(6601, 6613):
+        validate(dict(config, seed=seed))
+    for seed in (6500, 6501, 6512, 6613):
+        with pytest.raises(ValueError, match="seed"):
+            validate(dict(config, seed=seed))
+    with pytest.raises(ValueError, match="pilot"):
+        validate(dict(config, seed=6601, snapshot_steps=False))
+
+
+def test_vit_mha_switch_avoids_native_no_grad_only_path(monkeypatch):
+    if not hasattr(torch, "_native_multi_head_attention"):
+        pytest.skip("this PyTorch build lacks native MHA")
+    previous = torch.backends.mha.get_fastpath_enabled()
+    attention = torch.nn.MultiheadAttention(8, 2, batch_first=True).eval()
+    images = torch.randn(2, 4, 8)
+    calls = []
+    original = torch._native_multi_head_attention
+
+    def counted(*args, **kwargs):
+        calls.append("native")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(torch, "_native_multi_head_attention", counted)
+    try:
+        torch.backends.mha.set_fastpath_enabled(True)
+        with torch.no_grad():
+            attention(images, images, images, need_weights=False)
+        assert calls == ["native"]
+        calls.clear()
+        assert disable_vit_mha_fastpath() is False
+        with torch.no_grad():
+            predicted = attention(images, images, images, need_weights=False)[0]
+        differentiated = attention(images, images, images, need_weights=False)[0]
+        assert calls == []
+        assert torch.allclose(predicted, differentiated, atol=1e-7, rtol=1e-7)
+
+        class TinyAttention(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.attention = attention
+                self.head = torch.nn.Linear(8, 8)
+
+            def forward(self, values):
+                encoded = self.attention(values, values, values,
+                                         need_weights=False)[0]
+                return self.head(encoded[:, 0])
+
+        replay = vit_attention_replay(TinyAttention().eval(), images)
+        assert replay["passed"] and replay["max_tolerance_ratio"] <= 1
+        assert calls == []
+    finally:
+        torch.backends.mha.set_fastpath_enabled(previous)
+
+
+def test_vit_attention_replay_rejects_grad_only_prediction_shift():
+    class Shift(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.weight = torch.nn.Parameter(torch.ones(4, 8) * 0.01)
+
+        def forward(self, images):
+            logits = images @ self.weight
+            if torch.is_grad_enabled():
+                logits = logits + torch.tensor(
+                    [0.0, 0.001, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+            return logits
+
+    previous = torch.backends.mha.get_fastpath_enabled()
+    try:
+        torch.backends.mha.set_fastpath_enabled(False)
+        result = vit_attention_replay(Shift().eval(), torch.ones(3, 4))
+        assert not result["passed"] and result["max_tolerance_ratio"] > 1
+    finally:
+        torch.backends.mha.set_fastpath_enabled(previous)
+
+
 def test_vit_boundary_run_requests_no_development_labels(tmp_path, monkeypatch):
     config = dict(VIT_RECIPE, seed=6500, snapshot_steps=False,
                   study="local_boundary_vit_v1", step_radius=0.1, alm_rho=0.5)
@@ -135,13 +223,46 @@ def test_vit_boundary_run_requests_no_development_labels(tmp_path, monkeypatch):
 
     def preflight_loader(_root, *, include_pool_labels):
         seen.append(include_pool_labels)
+        assert torch.backends.mha.get_fastpath_enabled() is False
         raise ReachedLoader
 
     monkeypatch.setattr("tralo.fmow_local.cuda_setup", lambda: None)
     monkeypatch.setattr("tralo.fmow_local.load", preflight_loader)
-    with pytest.raises(ReachedLoader):
-        run(tmp_path, path, tmp_path / "output")
+    previous = torch.backends.mha.get_fastpath_enabled()
+    try:
+        torch.backends.mha.set_fastpath_enabled(True)
+        with pytest.raises(ReachedLoader):
+            run(tmp_path, path, tmp_path / "output")
+    finally:
+        torch.backends.mha.set_fastpath_enabled(previous)
     assert seen == [False]
+
+
+def test_vit_v2_run_requests_no_development_labels_and_disables_fastpath(
+        tmp_path, monkeypatch):
+    config = dict(VIT_RECIPE, seed=6600, snapshot_steps=False,
+                  study="local_boundary_vit_v2", step_radius=0.1, alm_rho=0.5)
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps(config))
+    seen = []
+
+    class ReachedLoader(Exception):
+        pass
+
+    def loader(_root, *, include_pool_labels):
+        seen.append((include_pool_labels, torch.backends.mha.get_fastpath_enabled()))
+        raise ReachedLoader
+
+    monkeypatch.setattr("tralo.fmow_local.cuda_setup", lambda: None)
+    monkeypatch.setattr("tralo.fmow_local.load", loader)
+    previous = torch.backends.mha.get_fastpath_enabled()
+    try:
+        torch.backends.mha.set_fastpath_enabled(True)
+        with pytest.raises(ReachedLoader):
+            run(tmp_path, path, tmp_path / "output")
+    finally:
+        torch.backends.mha.set_fastpath_enabled(previous)
+    assert seen == [(False, False)]
 
 
 def test_vit_checkpoint_requires_present_exact_cached_bytes(tmp_path, monkeypatch):

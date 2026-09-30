@@ -12,9 +12,9 @@ SHA=$1; ROOT=$2; GPU=$3; MODE=$4
 [[ $SHA =~ ^[0-9a-f]{40}$ ]] || fail "invalid release SHA"
 [[ $ROOT = /* && $ROOT != / && $GPU =~ ^[0-9]+$ ]] || fail "invalid run root or GPU index"
 case $MODE in
-  pilot-step) JOBS=(6500_step) ;;
-  pilot-ref) JOBS=(6500_ref) ;;
-  full) JOBS=(); for SEED in {6501..6512}; do JOBS+=("${SEED}_step"); done ;;
+  pilot-step) JOBS=(6600_step) ;;
+  pilot-ref) JOBS=(6600_ref) ;;
+  full) JOBS=(); for SEED in {6601..6612}; do JOBS+=("${SEED}_step"); done ;;
   *) usage ;;
 esac
 
@@ -22,7 +22,7 @@ REL=/home/dsi/michaer8/tralo-rebuild/releases/$SHA
 RUNS=/home/dsi/michaer8/tralo-rebuild/runs
 DATA=/home/dsi/michaer8/optloss-audit/data/fmow2/oodslice
 PY=/home/dsi/michaer8/anaconda3/envs/optloss/bin/python
-CONFIGS=$REL/experiments/configs/fmow_local_boundary_vit_20260930
+CONFIGS=$REL/experiments/configs/fmow_local_boundary_vit_v2_20261001
 [[ -d $REL && -d $DATA && -d $CONFIGS && -x $PY ]] || fail "missing release, data, configs or interpreter"
 RUNS_CANON=$(realpath -e -- "$RUNS") || fail "runs directory unavailable"
 ROOT_CANON=$(realpath -m -- "$ROOT") || fail "cannot resolve run root"
@@ -48,7 +48,7 @@ CONFIG_ARGS=()
 for JOB in "${JOBS[@]}"; do
   CONFIG=$CONFIGS/fmow_local_${JOB}.json
   [[ -f $CONFIG && ! -L $CONFIG ]] || fail "missing or linked config: $CONFIG"
-  git -c gc.auto=0 -C "$REL" ls-files --error-unmatch "experiments/configs/fmow_local_boundary_vit_20260930/fmow_local_${JOB}.json" >/dev/null 2>&1 ||
+  git -c gc.auto=0 -C "$REL" ls-files --error-unmatch "experiments/configs/fmow_local_boundary_vit_v2_20261001/fmow_local_${JOB}.json" >/dev/null 2>&1 ||
     fail "config is not tracked: $CONFIG"
   CONFIG_ARGS+=("$CONFIG")
 done
@@ -63,7 +63,7 @@ for path in sys.argv[1:]:
     seed, arm = job.split("_")
     config = json.loads(Path(path).read_text())
     validate(config)
-    if (config["study"] != "local_boundary_vit_v1"
+    if (config["study"] != "local_boundary_vit_v2"
             or config["seed"] != int(seed)
             or config["snapshot_steps"] is not (arm == "step")):
         raise ValueError(f"config does not match job {job}")
@@ -311,6 +311,7 @@ from pathlib import Path
 
 output, step_root, ref_root, full_root, commit, host, runs_root, pilot_gate = sys.argv[1:]
 result = dict(release_commit=commit, host=host, ceiling_gpu_hours=24.0,
+              prior_failed_reserve_gpu_hours=0.5,
               gate_passed=False, pilot_step_root=step_root,
               pilot_ref_root=ref_root, full_root=full_root,
               pilot_gate_receipt_path=pilot_gate,
@@ -372,8 +373,8 @@ try:
     if (not step.is_relative_to(runs) or not ref.is_relative_to(runs) or
             not full.is_relative_to(runs) or len({step, ref, full}) != 3):
         raise ValueError("pilot and full roots must be distinct under owned runs")
-    step_seconds = duration(step, "6500_step")
-    ref_seconds = duration(ref, "6500_ref")
+    step_seconds = duration(step, "6600_step")
+    ref_seconds = duration(ref, "6600_ref")
     smoke_seconds = {"pilot_step": smoke_duration(step),
                      "pilot_ref": smoke_duration(ref),
                      "full": smoke_duration(full)}
@@ -388,7 +389,7 @@ try:
                   smoke_seconds=smoke_seconds,
                   preflight_seconds=preflight_seconds,
                   projected_gpu_hours=projected_hours,
-                  gate_passed=projected_hours <= 24.0)
+                  gate_passed=projected_hours + 0.5 <= 24.0)
 except Exception as exc:
     result.update(failure_type=type(exc).__name__, failure_message=str(exc))
 
@@ -406,7 +407,7 @@ for JOB in "${JOBS[@]}"; do
 
   SEED=${JOB%%_*}
   OUT=$ROOT/seed$SEED
-  [[ $JOB = 6500_ref ]] && OUT=$ROOT/seed6500_ref
+  [[ $JOB = 6600_ref ]] && OUT=$ROOT/seed6600_ref
   CONFIG=$CONFIGS/fmow_local_${JOB}.json
   LOG=$ROOT/seed${JOB}.log
   LAUNCH=$ROOT/seed${JOB}.launch.json

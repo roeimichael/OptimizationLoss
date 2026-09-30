@@ -33,6 +33,9 @@ BOUNDARY_PILOT = 6400
 BOUNDARY_SEEDS = range(6401, 6413)
 VIT_BOUNDARY_PILOT = 6500
 VIT_BOUNDARY_SEEDS = range(6501, 6513)
+VIT_BOUNDARY_V2_PILOT = 6600
+VIT_BOUNDARY_V2_SEEDS = range(6601, 6613)
+VIT_BOUNDARY_STUDIES = ("local_boundary_vit_v1", "local_boundary_vit_v2")
 DIVISORS = (10, 20)
 RECIPE = dict(backbone="mobilenet_v3_large", capped_class=CAPPED,
               max_epochs=75, patience=5, batch_size=32, lr=1e-4,
@@ -53,11 +56,47 @@ def vit_weight_provenance():
     return dict(file=str(path), sha256=VIT_WEIGHT_SHA256)
 
 
+def disable_vit_mha_fastpath():
+    """Use one MHA implementation for ViT no-grad inference and grad replay."""
+    import torch
+
+    torch.backends.mha.set_fastpath_enabled(False)
+    if torch.backends.mha.get_fastpath_enabled():
+        raise RuntimeError("ViT MHA fastpath remained enabled")
+    return False
+
+
+def vit_attention_replay(model, images):
+    """Compare fixed-weight ViT probabilities with and without autograd."""
+    import torch
+
+    if torch.backends.mha.get_fastpath_enabled():
+        raise RuntimeError("ViT MHA fastpath enabled during attention replay")
+    no_grad = infer(model, [images])
+    was_training = model.training
+    model.eval()
+    try:
+        with torch.enable_grad():
+            grad = model(images.to(next(model.parameters()).device)).softmax(1).detach().cpu()
+    finally:
+        model.train(was_training)
+    if grad.shape != no_grad.shape or not bool(torch.isfinite(grad).all()):
+        return dict(passed=False, images_count=len(images),
+                    max_absolute_difference=None, max_tolerance_ratio=None)
+    difference = (grad - no_grad).abs()
+    tolerance = 1e-7 + 1e-6 * no_grad.abs()
+    return dict(passed=bool(torch.all(difference <= tolerance)),
+                images_count=len(images),
+                max_absolute_difference=float(difference.max()),
+                max_tolerance_ratio=float((difference / tolerance).max()))
+
+
 def validate(config):
     if not isinstance(config, dict):
         raise ValueError("config must be a dictionary")
     alm = config.get("study") == "local_alm_direction_v1"
-    vit_boundary = config.get("study") == "local_boundary_vit_v1"
+    vit_boundary = config.get("study") in VIT_BOUNDARY_STUDIES
+    vit_boundary_v2 = config.get("study") == "local_boundary_vit_v2"
     boundary = config.get("study") == "local_boundary_v1" or vit_boundary
     fixed = config.get("study") == "local_fixed_dose_v1" or alm or boundary
     recipe = VIT_RECIPE if vit_boundary else RECIPE
@@ -73,9 +112,11 @@ def validate(config):
                               "local ALM direction study") + " requires rho 0.5")
     if set(config) != expected:
         raise ValueError("config keys differ from the named local protocol")
-    pilot = (VIT_BOUNDARY_PILOT if vit_boundary else BOUNDARY_PILOT if boundary
+    pilot = (VIT_BOUNDARY_V2_PILOT if vit_boundary_v2 else
+             VIT_BOUNDARY_PILOT if vit_boundary else BOUNDARY_PILOT if boundary
              else ALM_PILOT if alm else FIXED_PILOT if fixed else PILOT)
-    seeds = (VIT_BOUNDARY_SEEDS if vit_boundary else BOUNDARY_SEEDS if boundary
+    seeds = (VIT_BOUNDARY_V2_SEEDS if vit_boundary_v2 else
+             VIT_BOUNDARY_SEEDS if vit_boundary else BOUNDARY_SEEDS if boundary
              else ALM_SEEDS if alm else FIXED_SEEDS if fixed else SEEDS)
     if type(config["seed"]) is not int or config["seed"] not in seeds and config["seed"] != pilot:
         raise ValueError("seed is outside the named study and pilot blocks")
@@ -205,14 +246,17 @@ def run(data_root, config_path, output):
     import torch
     config = json.loads(Path(config_path).read_text())
     validate(config)
+    vit_study = config.get("study") in VIT_BOUNDARY_STUDIES
     output = Path(output)
     output.mkdir(parents=True, exist_ok=False)
     with audited_arm_log(output / "events.jsonl") as log:
         cuda_setup()
+        mha_fields = ({"mha_fastpath_enabled": disable_vit_mha_fastpath()}
+                      if vit_study else {})
         images, train_labels, pool_rows, roles = load(
             data_root, include_pool_labels=config.get("study") not in
             ("local_fixed_dose_v1", "local_alm_direction_v1", "local_boundary_v1",
-             "local_boundary_vit_v1"))
+             *VIT_BOUNDARY_STUDIES))
         groups = [row["location"] for row in pool_rows]
         quota = budgets(groups)
         counts = dict(train=len(roles["train"]), stop=len(roles["stop"]), dev=len(roles["dev"]))
@@ -229,7 +273,8 @@ def run(data_root, config_path, output):
                  data_files=FILES, counts=counts, quotas=quota,
                  manifest_sha256=digest(output / "manifest.json"),
                  pool_identity_sha256=digest(output / "pool_identity.json"),
-                 device=str(torch.cuda.get_device_name()), precision="fp32")
+                 device=str(torch.cuda.get_device_name()), precision="fp32",
+                 **mha_fields)
         train_tf, eval_tf = transforms_for()
         data = ArrayImages(images["train"], roles["train"], train_labels)
         held = ArrayImages(images["train"], roles["stop"], train_labels)
@@ -238,8 +283,7 @@ def run(data_root, config_path, output):
                 for i in range(0, len(held.labels), bs)]
         pool = pool_chunks(images["test"], roles["dev"], eval_tf, config["development_batch_size"])
         torch.manual_seed(config["seed"])
-        vit_provenance = (vit_weight_provenance()
-                          if config.get("study") == "local_boundary_vit_v1" else None)
+        vit_provenance = vit_weight_provenance() if vit_study else None
         base = make_model(backbone=config["backbone"])
         initial_sha = _state_hash(base)
         identity_fields = (dict(pretrained_weight=vit_provenance,
@@ -261,9 +305,11 @@ def run(data_root, config_path, output):
                           for divisor in DIVISORS}
                           if config.get("study") in ("local_alm_direction_v1",
                                                       "local_boundary_v1",
-                                                      "local_boundary_vit_v1") else None)
+                                                      *VIT_BOUNDARY_STUDIES) else None)
 
             def snapshot(epoch, probabilities):
+                if vit_study and torch.backends.mha.get_fastpath_enabled():
+                    raise RuntimeError("ViT MHA fastpath reenabled before side replay")
                 artifact = directory / f"epoch{epoch:02d}.pt"
                 torch.save(probabilities.cpu(), artifact)
                 snapshot_hashes[str(epoch)] = digest(artifact)
@@ -279,7 +325,7 @@ def run(data_root, config_path, output):
                             phr_state=phr_states[str(divisor)] if phr_states is not None else None,
                             phr_rho=config.get("alm_rho"),
                             boundary_calibrated=config.get("study") in
-                            ("local_boundary_v1", "local_boundary_vit_v1"),
+                            ("local_boundary_v1", *VIT_BOUNDARY_STUDIES),
                             pto_probabilities=probabilities)
                         side_steps[str(epoch)][str(divisor)] = step_record
                         rlog.emit("snapshot_cap", epoch=epoch, divisor=divisor,

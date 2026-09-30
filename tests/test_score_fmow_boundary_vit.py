@@ -9,7 +9,7 @@ import torch
 from analysis import score_fmow_boundary_vit as score
 
 
-def _config(seed=6500, steps=True):
+def _config(seed=6600, steps=True):
     return {**score.RECIPE, "seed": seed, "snapshot_steps": steps,
             "study": score.STUDY, "step_radius": .1, "alm_rho": .5}
 
@@ -28,18 +28,38 @@ def _smoke_scopes(quota):
             "countries": countries}
 
 
+def _ordinary_replay():
+    return {"passed": True, "images_count": 8,
+            "max_absolute_difference": 0., "max_tolerance_ratio": 0.}
+
+
+@pytest.mark.parametrize("mutation", [
+    lambda value: value.update(passed=False),
+    lambda value: value.update(images_count=7),
+    lambda value: value.update(max_absolute_difference=float("nan")),
+    lambda value: value.update(max_absolute_difference=.5),
+    lambda value: value.update(max_tolerance_ratio=1.01),
+    lambda value: value.pop("max_tolerance_ratio"),
+])
+def test_independent_attention_replay_rejects_invalid_evidence(mutation):
+    value = _ordinary_replay()
+    assert score._attention_replay(value)
+    mutation(value)
+    assert not score._attention_replay(value)
+
+
 def test_input_config_bytes_bound_to_vit_protocol(tmp_path, monkeypatch):
     configs = tmp_path / "configs"
     configs.mkdir()
     monkeypatch.setattr(score, "CONFIGS", configs)
     config = _config()
-    path = configs / "fmow_local_6500_step.json"
+    path = configs / "fmow_local_6600_step.json"
     path.write_text(json.dumps(config, sort_keys=True) + "\n", encoding="utf-8")
     started = {"config_sha256": score.base.sha256(path)}
-    score._config_and_provenance(tmp_path / "seed6500", config, started)
+    score._config_and_provenance(tmp_path / "seed6600", config, started)
     path.write_text(json.dumps(config, sort_keys=True) + "\n\n", encoding="utf-8")
     with pytest.raises(RuntimeError, match="input/run config provenance"):
-        score._config_and_provenance(tmp_path / "seed6500", config, started)
+        score._config_and_provenance(tmp_path / "seed6600", config, started)
 
 
 @pytest.mark.parametrize("field,value", [
@@ -51,18 +71,18 @@ def test_mismatched_mobile_or_violation_of_fixed_vit_recipe_rejected(tmp_path, f
     config = _config()
     config[field] = value
     with pytest.raises(RuntimeError, match="fixed ViT boundary protocol"):
-        score._config_and_provenance(tmp_path / "seed6500", config, {})
+        score._config_and_provenance(tmp_path / "seed6600", config, {})
 
 
 def test_step_off_only_allowed_for_pilot(tmp_path):
-    config = _config(seed=6501, steps=False)
+    config = _config(seed=6601, steps=False)
     with pytest.raises(RuntimeError, match="fixed ViT boundary protocol"):
-        score._config_and_provenance(tmp_path / "seed6501_ref", config, {})
+        score._config_and_provenance(tmp_path / "seed6601_ref", config, {})
 
 
 def test_memory_smoke_bound_to_release_host_gpu_and_bytes(tmp_path, monkeypatch):
     config = _config()
-    d = tmp_path / "seed6500"
+    d = tmp_path / "seed6600"
     receipt = tmp_path / "vit_memory_smoke.json"
     smoke_launch_path = tmp_path / "vit_memory_smoke.launch.json"
     complete_path = tmp_path / "vit_memory_smoke.complete.json"
@@ -92,6 +112,8 @@ def test_memory_smoke_bound_to_release_host_gpu_and_bytes(tmp_path, monkeypatch)
              "batch_size": 16, "development_batch_size": 8,
              "weight_sha256": score.WEIGHT_SHA256, "precision": "fp32",
              "label_free": True, "memory_smoke_passed": True,
+             "mha_fastpath_enabled": False,
+             "ordinary_head_replay": _ordinary_replay(),
              "peak_allocated_bytes": 100, "total_memory_bytes": 1000,
              "source_sha256": score.base.source(), "device_name": "GPU",
              "data_files": score.base.FILES, "gpu_index": 3,
@@ -174,7 +196,7 @@ def test_queue_smoke_completion_must_be_successful_and_precede_job(tmp_path, mon
     receipt.write_text("{}\n", encoding="utf-8")
     launch["memory_smoke_receipt_sha256"] = score.base.sha256(receipt)
     with pytest.raises(RuntimeError, match="queue completion identity"):
-        score._memory_smoke(tmp_path / "seed6500", _config(), launch, {"device": "GPU"})
+        score._memory_smoke(tmp_path / "seed6600", _config(), launch, {"device": "GPU"})
 
 
 def _real_fixture(root, monkeypatch):
@@ -208,6 +230,8 @@ def _real_fixture(root, monkeypatch):
                "data_file_sha256": score.base.FILES, "precision": "fp32",
                "backbone": "vit_b_16", "development_labels_accessed": False,
                "preflight_passed": True, "images_count": 15,
+               "mha_fastpath_enabled": False,
+               "ordinary_head_replay": _ordinary_replay(),
                "weight_sha256": score.WEIGHT_SHA256, "device_name": "GPU",
                "development_batch_size": 8, "chunk_sizes": [8, 7],
                "preflight_generator_sha256": score.base.sha256(generator),
@@ -235,16 +259,16 @@ def _real_fixture(root, monkeypatch):
 
 def test_real_image_preflight_bound_and_measured(tmp_path, monkeypatch):
     launch, receipt, names, _ = _real_fixture(tmp_path, monkeypatch)
-    assert score._real_preflight(tmp_path / "seed6500", launch) == 3.
+    assert score._real_preflight(tmp_path / "seed6600", launch) == 3.
     launch["real_preflight_execution"] = "supplied_external_receipt"
     with pytest.raises(RuntimeError, match="not queue executed"):
-        score._real_preflight(tmp_path / "seed6500", launch)
+        score._real_preflight(tmp_path / "seed6600", launch)
     launch["real_preflight_execution"] = "queue_executed"
     names["complete"].write_text(json.dumps({**json.loads(names["complete"].read_text()),
                                                "exit_code": 1}))
     launch["real_preflight_complete_sha256"] = score.base.sha256(names["complete"])
     with pytest.raises(RuntimeError, match="queue completion"):
-        score._real_preflight(tmp_path / "seed6500", launch)
+        score._real_preflight(tmp_path / "seed6600", launch)
 
 
 @pytest.mark.parametrize("mutation,match", [
@@ -253,6 +277,8 @@ def test_real_image_preflight_bound_and_measured(tmp_path, monkeypatch):
     (lambda r: r.update(development_batch_size=3), "identity/label"),
     (lambda r: r.update(chunk_sizes=[3, 3, 3, 3, 3]), "identity/label"),
     (lambda r: r.update(development_labels_accessed=True), "identity/label"),
+    (lambda r: r.update(mha_fastpath_enabled=True), "identity/label"),
+    (lambda r: r["ordinary_head_replay"].update(max_tolerance_ratio=1.01), "ordinary-head replay"),
     (lambda r: r.update(max_probability_difference=1e-4), "probability parity"),
     (lambda r: r["gradient_relative_errors"].update(DZA=.1), "gradient parity"),
     (lambda r: r["finite_differences"].pop("DZA@0.01"), "scopes incomplete"),
@@ -270,7 +296,7 @@ def test_real_preflight_mutations_rejected_before_labels(
     monkeypatch.setattr(score.alm, "_manifest_and_labels",
                         lambda *_args: pytest.fail("labels opened before preflight"))
     with pytest.raises(RuntimeError, match=match):
-        score._real_preflight(tmp_path / "seed6500", launch)
+        score._real_preflight(tmp_path / "seed6600", launch)
 
 
 @pytest.mark.parametrize("mutation,match", [
@@ -304,6 +330,8 @@ def test_real_preflight_mutations_rejected_before_labels(
     (lambda s: s.update(device_name="other GPU"), "identity mismatch"),
     (lambda s: s.update(label_free=False), "identity mismatch"),
     (lambda s: s.update(data_files={}), "identity mismatch"),
+    (lambda s: s.update(mha_fastpath_enabled=True), "identity mismatch"),
+    (lambda s: s["ordinary_head_replay"].update(passed=False), "ordinary-head memory-smoke replay"),
     (lambda s: s.update(peak_allocated_bytes=101), "peak recount"),
 ])
 def test_memory_smoke_rejects_missing_or_fabricated_phase_evidence(
@@ -366,6 +394,8 @@ def test_memory_smoke_rejects_missing_or_fabricated_phase_evidence(
              "batch_size": 16, "development_batch_size": 8,
              "weight_sha256": score.WEIGHT_SHA256, "precision": "fp32",
              "label_free": True, "memory_smoke_passed": True,
+             "mha_fastpath_enabled": False,
+             "ordinary_head_replay": _ordinary_replay(),
              "peak_allocated_bytes": 100, "total_memory_bytes": 1000,
              "source_sha256": score.base.source(), "device_name": "GPU",
              "data_files": score.base.FILES, "gpu_index": 3,
@@ -377,13 +407,13 @@ def test_memory_smoke_rejects_missing_or_fabricated_phase_evidence(
     receipt.write_text(json.dumps(smoke) + "\n", encoding="utf-8")
     launch["memory_smoke_receipt_sha256"] = score.base.sha256(receipt)
     with pytest.raises(RuntimeError, match=match):
-        score._memory_smoke(tmp_path / "seed6500", _config(), launch,
+        score._memory_smoke(tmp_path / "seed6600", _config(), launch,
                             {"device": "GPU", "quotas": _smoke_quotas()})
 
 
 def test_pretrained_checkpoint_and_transform_provenance(tmp_path):
     config = _config()
-    summary = {"seed": 6500, "quotas": "fixed", "initial_sha256": "init"}
+    summary = {"seed": 6600, "quotas": "fixed", "initial_sha256": "init"}
     started = {"quotas": "fixed"}
     init = {"initial_sha256": "init", "architecture": "vit_b_16",
             "classes": score.base.CLASSES, "transform": score.TRANSFORM,
@@ -409,8 +439,8 @@ def test_fixed_twelve_seed_denominator_checked_before_labels(tmp_path, monkeypat
 
 def test_pilot_gate_does_not_open_labels(tmp_path, monkeypatch):
     pilot, ref = tmp_path / "pilot", tmp_path / "ref"
-    (pilot / "seed6500").mkdir(parents=True)
-    (ref / "seed6500_ref").mkdir(parents=True)
+    (pilot / "seed6600").mkdir(parents=True)
+    (ref / "seed6600_ref").mkdir(parents=True)
     monkeypatch.setattr(score.alm, "_manifest_and_labels",
                         lambda *_args: pytest.fail("pilot gate opened labels"))
     config = _config()
@@ -506,7 +536,7 @@ def test_full_cost_gate_recounts_jobs_and_smoke_before_labels(tmp_path):
     step, ref = tmp_path / "pilot_step", tmp_path / "pilot_ref"
     step.mkdir()
     ref.mkdir()
-    for root, job, seconds in ((step, "6500_step", 100), (ref, "6500_ref", 90)):
+    for root, job, seconds in ((step, "6600_step", 100), (ref, "6600_ref", 90)):
         (root / f"seed{job}.launch.json").write_text(json.dumps({
             "release_commit": "a" * 40, "host": "dsisco02",
             "started_utc": "1970-01-01T00:00:00+00:00"}))
@@ -521,7 +551,9 @@ def test_full_cost_gate_recounts_jobs_and_smoke_before_labels(tmp_path):
                   "pilot_preflight_seconds": [2., 3.]}
     projected = (1.25 * (13 * 100 + 90) + 3 + 4 + 5 + 2 + 3 + 4) / 3600
     cost = {"release_commit": "a" * 40, "host": "dsisco02",
-            "ceiling_gpu_hours": 24.0, "gate_passed": True,
+            "ceiling_gpu_hours": 24.0,
+            "prior_failed_reserve_gpu_hours": score.PRIOR_FAILED_RESERVE_HOURS,
+            "gate_passed": True,
             "pilot_step_root": str(step), "pilot_ref_root": str(ref),
             "full_root": str(tmp_path.resolve()),
             "pilot_gate_receipt_path": str(gate_path),

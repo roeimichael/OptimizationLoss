@@ -21,12 +21,12 @@ from analysis import score_fmow_boundary as boundary
 from analysis import score_fmow_local as base
 from analysis import score_fmow_local_alm as alm
 
-PILOT = 6500
-SEEDS = tuple(range(6501, 6513))
-STUDY = "local_boundary_vit_v1"
+PILOT = 6600
+SEEDS = tuple(range(6601, 6613))
+STUDY = "local_boundary_vit_v2"
 WEIGHT_SHA256 = "c867db91d3e12c6cbadabb610d73c24a546bf82d8c03a9fea34f43a712ddb0e9"
 TRANSFORM = "full-frame RGB 224x224 ImageNet mean/std"
-CONFIGS = Path(__file__).resolve().parents[1] / "experiments/configs/fmow_local_boundary_vit_20260930"
+CONFIGS = Path(__file__).resolve().parents[1] / "experiments/configs/fmow_local_boundary_vit_v2_20261001"
 SMOKE_GENERATOR = Path(__file__).resolve().parents[1] / "tools/fmow_local_boundary_vit_smoke.py"
 REAL_PREFLIGHT_GENERATOR = (Path(__file__).resolve().parents[1] /
                             "tools/fmow_local_boundary_vit_real_preflight.py")
@@ -35,6 +35,7 @@ RECIPE = {**base.RECIPE, "backbone": "vit_b_16", "batch_size": 16,
           "development_batch_size": 8}
 EXPECTED_KEYS = set(RECIPE) | {"seed", "snapshot_steps", "study", "step_radius", "alm_rho"}
 PRIMARY = boundary.PRIMARY
+PRIOR_FAILED_RESERVE_HOURS = .5
 
 
 def _config_and_provenance(directory, config, started):
@@ -61,6 +62,21 @@ def _config_and_provenance(directory, config, started):
 
 def _positive_finite(value):
     return type(value) in (int, float) and math.isfinite(value) and value > 0
+
+
+def _attention_replay(value):
+    """Independently reject missing or invalid ordinary-head parity evidence."""
+    return (isinstance(value, dict) and
+            set(value) == {"passed", "images_count", "max_absolute_difference",
+                           "max_tolerance_ratio"} and
+            value["passed"] is True and type(value["images_count"]) is int and
+            value["images_count"] == 8 and
+            type(value["max_absolute_difference"]) in (int, float) and
+            type(value["max_tolerance_ratio"]) in (int, float) and
+            math.isfinite(value["max_absolute_difference"]) and
+            math.isfinite(value["max_tolerance_ratio"]) and
+            0 <= value["max_absolute_difference"] <= 1.1e-6 and
+            0 <= value["max_tolerance_ratio"] <= 1)
 
 
 def _active_smoke_scopes(scopes, quota):
@@ -142,6 +158,7 @@ def _memory_smoke(directory, config, launch, started):
                 "development_batch_size": RECIPE["development_batch_size"],
                 "weight_sha256": WEIGHT_SHA256, "precision": "fp32",
                 "label_free": True, "memory_smoke_passed": True,
+                "mha_fastpath_enabled": False,
                 "source_sha256": base.source(),
                 "data_files": base.FILES,
                 "device_name": started["device"], "development_pool_count": 1673,
@@ -150,6 +167,8 @@ def _memory_smoke(directory, config, launch, started):
     if any(smoke.get(key) != value or type(smoke[key]) is not type(value)
            for key, value in expected.items()):
         raise RuntimeError(f"{d.name}: ViT memory-smoke identity mismatch")
+    if not _attention_replay(smoke.get("ordinary_head_replay")):
+        raise RuntimeError(f"{d.name}: ViT ordinary-head memory-smoke replay failed")
     peak, total = smoke.get("peak_allocated_bytes"), smoke.get("total_memory_bytes")
     if (type(peak) is not int or type(total) is not int or not 0 < peak < .9 * total):
         raise RuntimeError(f"{d.name}: ViT memory-smoke capacity invalid")
@@ -252,6 +271,7 @@ def _real_preflight(directory, launch):
                 "data_file_sha256": base.FILES, "precision": "fp32",
                 "backbone": "vit_b_16", "development_labels_accessed": False,
                 "preflight_passed": True, "images_count": 15,
+                "mha_fastpath_enabled": False,
                 "weight_sha256": WEIGHT_SHA256,
                 "development_batch_size": RECIPE["development_batch_size"],
                 "chunk_sizes": [8, 7],
@@ -261,6 +281,8 @@ def _real_preflight(directory, launch):
     if any(receipt.get(key) != value or type(receipt[key]) is not type(value)
            for key, value in expected.items()):
         raise RuntimeError(f"{d.name}: real-image preflight identity/label boundary mismatch")
+    if not _attention_replay(receipt.get("ordinary_head_replay")):
+        raise RuntimeError(f"{d.name}: real-image ordinary-head replay failed")
     weight = receipt.get("pretrained_weight")
     if (not isinstance(weight, dict) or weight.get("sha256") != WEIGHT_SHA256 or
             Path(weight.get("file", "")).name != "vit_b_16-c867db91.pth"):
@@ -340,6 +362,8 @@ def _receipt(directory):
                            ("started", "model_initialized", "completed"))
     config, summary = base._json(d / "config.json"), base._json(d / "summary.json")
     _config_and_provenance(d, config, started)
+    if started.get("mha_fastpath_enabled") is not False:
+        raise RuntimeError(f"{d.name}: ViT MHA fastpath was not disabled before PTO")
     launch = alm._launch_receipt(d, config, started)
     launch = {**launch, "_smoke_seconds": _memory_smoke(d, config, launch, started),
               "_preflight_seconds": _real_preflight(d, launch)}
@@ -416,18 +440,18 @@ def _queue_hashes(directory, job):
 def gate(pilot_root, reference_root, output=None):
     """Validate the matched pilot with labels still sealed."""
     pilot_root, reference_root = Path(pilot_root).resolve(), Path(reference_root).resolve()
-    if sorted(p.name for p in pilot_root.glob("seed*") if p.is_dir()) != ["seed6500"]:
-        raise RuntimeError("ViT pilot root must contain exactly seed6500")
-    if sorted(p.name for p in reference_root.glob("seed*") if p.is_dir()) != ["seed6500_ref"]:
-        raise RuntimeError("ViT reference root must contain exactly seed6500_ref")
-    a, b = _receipt(pilot_root / "seed6500"), _receipt(reference_root / "seed6500_ref")
+    if sorted(p.name for p in pilot_root.glob("seed*") if p.is_dir()) != ["seed6600"]:
+        raise RuntimeError("ViT pilot root must contain exactly seed6600")
+    if sorted(p.name for p in reference_root.glob("seed*") if p.is_dir()) != ["seed6600_ref"]:
+        raise RuntimeError("ViT reference root must contain exactly seed6600_ref")
+    a, b = _receipt(pilot_root / "seed6600"), _receipt(reference_root / "seed6600_ref")
     ac, summary, started, events, ids, groups, launch = a
     bc, ref, ref_started, ref_events, ref_ids, ref_groups, ref_launch = b
     if (ac["seed"] != PILOT or bc["seed"] != PILOT or
             ac["snapshot_steps"] is not True or bc["snapshot_steps"] is not False or
             (ids, groups) != (ref_ids, ref_groups) or
-            base.sha256(pilot_root / "seed6500/manifest.json") !=
-            base.sha256(reference_root / "seed6500_ref/manifest.json") or
+            base.sha256(pilot_root / "seed6600/manifest.json") !=
+            base.sha256(reference_root / "seed6600_ref/manifest.json") or
             started["quotas"] != ref_started["quotas"] or
             summary["retrain"] != ref["retrain"] or
             summary["initial_sha256"] != ref["initial_sha256"] or
@@ -448,11 +472,11 @@ def gate(pilot_root, reference_root, output=None):
         raise RuntimeError("ViT pilot/reference epoch trajectory differs")
     epochs = summary["retrain"]["epochs_run"]
     for name in [f"epoch{e:02d}.pt" for e in range(1, epochs + 1)] + ["final_probabilities.pt"]:
-        left = base._probabilities(pilot_root / "seed6500/retrain1" / name, len(ids))
-        right = base._probabilities(reference_root / "seed6500_ref/retrain1" / name, len(ids))
+        left = base._probabilities(pilot_root / "seed6600/retrain1" / name, len(ids))
+        right = base._probabilities(reference_root / "seed6600_ref/retrain1" / name, len(ids))
         if not torch.equal(left, right):
             raise RuntimeError(f"ViT PTO trajectory differs: {name}")
-    _, _, step_artifacts = boundary._steps(pilot_root / "seed6500", a)
+    _, _, step_artifacts = boundary._steps(pilot_root / "seed6600", a)
     seconds = (base._one(events, "completed").get("seconds"),
                base._one(ref_events, "completed").get("seconds"))
     if any(type(x) not in (int, float) or not math.isfinite(x) or x <= 0 for x in seconds):
@@ -468,8 +492,9 @@ def gate(pilot_root, reference_root, output=None):
     projected = (1.25 * (13 * seconds[0] + seconds[1]) + sum(smoke_seconds) +
                  full_smoke_projection + sum(preflight_seconds) +
                  full_preflight_projection) / 3600
-    if projected > 24:
-        raise RuntimeError(f"projected ViT study cost {projected:.3f} exceeds 24 GPU-hours")
+    if projected + PRIOR_FAILED_RESERVE_HOURS > 24:
+        raise RuntimeError(f"projected ViT study plus failed-attempt reserve "
+                           f"{projected + PRIOR_FAILED_RESERVE_HOURS:.3f} exceeds 24 GPU-hours")
     result = {"status": "vit_pilot_integrity_pass", "epochs": epochs, "pto_equal": True,
             "development_labels_accessed": False, "step_seconds": seconds[0],
             "reference_seconds": seconds[1],
@@ -484,14 +509,14 @@ def gate(pilot_root, reference_root, output=None):
             "gpu_uuids": {"step": launch["gpu_uuid"], "ref": ref_launch["gpu_uuid"]},
             "source_sha256": base.source(), "data_file_sha256": base.FILES,
             "input_config_sha256": {
-                "step": base.sha256(CONFIGS / "fmow_local_6500_step.json"),
-                "ref": base.sha256(CONFIGS / "fmow_local_6500_ref.json")},
+                "step": base.sha256(CONFIGS / "fmow_local_6600_step.json"),
+                "ref": base.sha256(CONFIGS / "fmow_local_6600_ref.json")},
             "pilot_artifact_sha256": {
-                "step": _pilot_hashes(pilot_root / "seed6500", summary, step_artifacts),
-                "ref": _pilot_hashes(reference_root / "seed6500_ref", ref, ())},
+                "step": _pilot_hashes(pilot_root / "seed6600", summary, step_artifacts),
+                "ref": _pilot_hashes(reference_root / "seed6600_ref", ref, ())},
             "pilot_queue_sha256": {
-                "step": _queue_hashes(pilot_root, "6500_step"),
-                "ref": _queue_hashes(reference_root, "6500_ref")},
+                "step": _queue_hashes(pilot_root, "6600_step"),
+                "ref": _queue_hashes(reference_root, "6600_ref")},
             "joint_applied_by_cap": {str(divisor): sum(
                 bool(summary["steps"][str(epoch)][str(divisor)]["joint"]["applied"])
                 for epoch in range(1, epochs + 1)) for divisor in base.DIVISORS}}
@@ -567,11 +592,11 @@ def load_seed(directory, data_root, *, allow_pilot=False, _audited=None):
 def pilot_score(pilot_root, data_root):
     """Exploratory pilot metrics; they cannot select ViT settings."""
     root = Path(pilot_root).resolve()
-    if sorted(p.name for p in root.glob("seed*") if p.is_dir()) != ["seed6500"]:
-        raise RuntimeError("ViT pilot scoring root must contain exactly seed6500")
+    if sorted(p.name for p in root.glob("seed*") if p.is_dir()) != ["seed6600"]:
+        raise RuntimeError("ViT pilot scoring root must contain exactly seed6600")
     boundary._data_bytes(data_root)
     return {"status": "vit_pilot_metrics_exploratory_not_for_setting_selection",
-            "seed": load_seed(root / "seed6500", data_root, allow_pilot=True),
+            "seed": load_seed(root / "seed6600", data_root, allow_pilot=True),
             "development_labels_accessed_offline": True}
 
 
@@ -627,6 +652,7 @@ def _full_cost_gate(root, audited, pilot_gate):
     pilot_gate_path = d / "vit_pilot_gate_recheck.json"
     expected = {"release_commit": launches[0]["release_commit"],
                 "host": launches[0]["host"], "ceiling_gpu_hours": 24.0,
+                "prior_failed_reserve_gpu_hours": PRIOR_FAILED_RESERVE_HOURS,
                 "gate_passed": True,
                 "pilot_step_root": pilot_gate["pilot_step_root"],
                 "pilot_ref_root": pilot_gate["pilot_ref_root"],
@@ -636,9 +662,9 @@ def _full_cost_gate(root, audited, pilot_gate):
     if any(saved.get(key) != value or type(saved[key]) is not type(value)
            for key, value in expected.items()):
         raise RuntimeError("ViT full cost gate identity/status mismatch")
-    step_seconds = _job_queue_seconds(pilot_gate["pilot_step_root"], "6500_step",
+    step_seconds = _job_queue_seconds(pilot_gate["pilot_step_root"], "6600_step",
                                       expected["release_commit"], expected["host"])
-    ref_seconds = _job_queue_seconds(pilot_gate["pilot_ref_root"], "6500_ref",
+    ref_seconds = _job_queue_seconds(pilot_gate["pilot_ref_root"], "6600_ref",
                                      expected["release_commit"], expected["host"])
     smoke_seconds = {"pilot_step": pilot_gate["pilot_smoke_seconds"][0],
                      "pilot_ref": pilot_gate["pilot_smoke_seconds"][1],
@@ -665,7 +691,8 @@ def _full_cost_gate(root, audited, pilot_gate):
             raise RuntimeError("ViT full cost gate real-image preflight runtime recount mismatch")
     projected = (1.25 * (13 * step_seconds + ref_seconds) +
                  sum(smoke_seconds.values()) + sum(preflight_seconds.values())) / 3600
-    if (projected > 24 or not _positive_finite(saved.get("projected_gpu_hours")) or
+    if (projected + PRIOR_FAILED_RESERVE_HOURS > 24 or
+            not _positive_finite(saved.get("projected_gpu_hours")) or
             not math.isclose(saved["projected_gpu_hours"], projected,
                              rel_tol=1e-6, abs_tol=1e-4)):
         raise RuntimeError("ViT full cost gate projection exceeds or differs")
