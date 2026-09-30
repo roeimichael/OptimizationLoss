@@ -284,6 +284,18 @@ def _policy(record, before, after, quota, *, require_local_hard):
             raise RuntimeError("saved boundary side lacked violation reduction")
 
 
+def _project_phr_dual(residual_fp32, dual):
+    """Replay the runner's FP32 multiplier update from audited residuals."""
+    return (residual_fp32.new_tensor(dual) + RHO * residual_fp32).clamp_min(0).tolist()
+
+
+def _exact_float_vector(observed, expected):
+    """Compare JSON float states without treating booleans as zero or one."""
+    return (type(observed) is list and len(observed) == len(expected) and
+            all(type(value) is float and math.isfinite(value) and value == target
+                for value, target in zip(observed, expected)))
+
+
 def _audit_side(record, pto, side, groups, quota, arm, dual=None):
     base._audit_displacement(record)
     before, after = _counts(pto, groups, quota), _counts(side, groups, quota)
@@ -316,10 +328,10 @@ def _audit_side(record, pto, side, groups, quota, arm, dual=None):
             _policy(record, before, after, quota, require_local_hard=True)
         else:
             if (record["rho"] != RHO or dual is None or
-                    len(record["dual_before"]) != len(dual)):
+                     len(record["dual_before"]) != len(dual)):
                 raise RuntimeError("PHR rho/dual scope mismatch")
-            for actual, target in zip(record["dual_before"], dual):
-                _near(actual, target, "PHR dual continuity", 1e-6)
+            if not _exact_float_vector(record["dual_before"], dual):
+                raise RuntimeError("PHR dual continuity differs from FP32 replay")
             caps = [quota["global_cap"], *[quota["local_caps"][g]
                                                 for g in sorted(quota["local_caps"])]]
             soft = [before[2], *[before[3][g] for g in sorted(quota["local_caps"])]]
@@ -338,11 +350,22 @@ def _audit_side(record, pto, side, groups, quota, arm, dual=None):
                            for lam, g in zip(dual, values))
             _near(record["penalty_before"], penalty(residual), "PHR before penalty", 1e-4)
             _near(record["penalty_after"], penalty(residual_after), "PHR after penalty", 1e-4)
-            projected = [max(0.0, lam + RHO * g) for lam, g in zip(dual, residual_after)]
+            # The runner computes residuals and the projected dual from FP32
+            # probability tensors. Reconstruct that path from the saved side
+            # artifact; carrying Python-double estimates over epochs can drift
+            # by more than the continuity tolerance without any run corruption.
+            q = side[:, base.CAPPED]
+            names = sorted(quota["local_caps"])
+            counts = [q.sum(), *[q[[g == name for g in groups]].sum() for name in names]]
+            residual_fp32 = (torch.stack(counts) - side.new_tensor(caps)) / side.new_tensor(
+                [max(cap, 1) for cap in caps])
+            if not _exact_float_vector(record["residuals_after"], residual_fp32.tolist()):
+                raise RuntimeError("PHR residuals after differ from FP32 artifact replay")
+            projected = _project_phr_dual(residual_fp32, dual)
             if len(record["dual_after"]) != len(projected):
                 raise RuntimeError("PHR projected dual scope mismatch")
-            for value, expected in zip(record["dual_after"], projected):
-                _near(value, expected, "PHR projected dual", 1e-5)
+            if not _exact_float_vector(record["dual_after"], projected):
+                raise RuntimeError("PHR projected dual differs from FP32 artifact replay")
             norm = record["gradient_norm"]
             if type(norm) not in (float, int) or not math.isfinite(norm) or norm < 0:
                 raise RuntimeError("PHR gradient norm invalid")

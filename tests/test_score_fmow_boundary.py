@@ -131,16 +131,92 @@ def test_phr_zero_gradient_keeps_pto_but_projects_dual():
               "soft_before_local": {"A": .8, "B": .8},
               "soft_after_local": {"A": .8, "B": .8},
               "residuals_before": [.6, -.2, -.2],
-              "residuals_after": [.6, -.2, -.2],
-              "dual_before": [0., 0., 0.], "dual_after": [.3, 0., 0.],
+              "residuals_after": [0.6000000238418579,
+                                  -0.19999998807907104, -0.19999998807907104],
+              "dual_before": [0., 0., 0.],
+              "dual_after": [0.30000001192092896, 0., 0.],
               "penalty_before": .09, "penalty_after": .09}
     next_dual = score._audit_side(record, pto, pto.clone(), ["A", "B"],
                                   quota, "phr_local", [0., 0., 0.])
     assert next_dual == pytest.approx([.3, 0., 0.])
-    record["dual_after"][0] = .31
+    record["dual_after"][0] += 5e-7
     with pytest.raises(RuntimeError, match="projected dual"):
         score._audit_side(record, pto, pto.clone(), ["A", "B"], quota,
                           "phr_local", [0., 0., 0.])
+
+
+def test_phr_fp32_dual_replay_avoids_six_epoch_double_drift_and_rejects_mutation():
+    # Recorded Netherlands scope of seed 6409, cap divisor 20. The runner's
+    # float32 state diverges from a Python-double reconstruction by epoch 6.
+    residuals = [5.029261589050293, 4.451845645904541,
+                 4.337318420410156, 4.203888893127441,
+                 4.481339931488037, 3.7643966674804688]
+    recorded = [2.5146307945251465, 4.740553855895996,
+                6.909213066101074, 9.011157989501953,
+                11.25182819366455, 13.134026527404785]
+    state, double_state = [0.], 0.
+    for residual, expected in zip(residuals, recorded):
+        state = score._project_phr_dual(torch.tensor([residual], dtype=torch.float32),
+                                        state)
+        double_state = max(0., double_state + score.RHO * residual)
+        assert state == [expected]
+    assert abs(double_state - recorded[-1]) > 9e-7
+
+
+def test_phr_side_artifact_replay_carries_fp32_state_across_six_epochs():
+    quota = {"global_cap": 1, "local_caps": {"A": 1}}
+    groups = ["A"] * 50
+    state, double_state = [0., 0.], 0.
+    for target in (5.029261589050293, 4.451845645904541,
+                   4.337318420410156, 4.203888893127441,
+                   4.481339931488037, 3.7643966674804688):
+        side = torch.zeros(50, score.base.CLASSES, dtype=torch.float32)
+        side[:, score.base.CAPPED] = (1 + target) / 50 + .001
+        side[:, 0] = 1 - side[:, score.base.CAPPED]
+        counts = score._counts(side, groups, quota)
+        q = side[:, score.base.CAPPED]
+        residual_fp32 = (torch.stack((q.sum(), q[[True] * len(groups)].sum()))
+                         - side.new_tensor([1, 1])) / side.new_tensor([1, 1])
+        projected = score._project_phr_dual(residual_fp32, state)
+        residual_double = counts[2] - 1
+        penalty = sum((max(0., lam + score.RHO * residual_double) ** 2 - lam ** 2)
+                      / (2 * score.RHO) for lam in state)
+        record = {"applied": False, "radius": 0., "displacement": 0., "rho": score.RHO,
+                  "gradient_norm": 0., "activation_reason": "zero_phr_gradient",
+                  "scope_directional_derivatives": {},
+                  "boundary_policy": {"applied": False, "radius": 0.,
+                                      "reason": "zero_phr_gradient", "probes": []},
+                  "hard_before_global": counts[0], "hard_after_global": counts[0],
+                  "hard_before_local": counts[1], "hard_after_local": counts[1],
+                  "soft_before_global": counts[2], "soft_after_global": counts[2],
+                  "soft_before_local": counts[3], "soft_after_local": counts[3],
+                  "residuals_before": residual_fp32.tolist(),
+                  "residuals_after": residual_fp32.tolist(),
+                  "dual_before": state[:], "dual_after": projected[:],
+                  "penalty_before": penalty, "penalty_after": penalty}
+        previous = state
+        state = score._audit_side(record, side, side.clone(), groups, quota,
+                                  "phr_local", state)
+        assert state == projected
+        double_state = max(0., double_state + score.RHO * residual_double)
+    assert abs(state[0] - double_state) > 1e-6
+    corrupted = copy.deepcopy(record)
+    corrupted["dual_after"][0] += 5e-7
+    with pytest.raises(RuntimeError, match="projected dual"):
+        score._audit_side(corrupted, side, side.clone(), groups, quota,
+                          "phr_local", previous)
+    corrupted = copy.deepcopy(record)
+    corrupted["residuals_after"][0] += 5e-7
+    with pytest.raises(RuntimeError, match="residuals after"):
+        score._audit_side(corrupted, side, side.clone(), groups, quota,
+                          "phr_local", previous)
+
+
+def test_exact_float_vector_rejects_json_bools_and_nonfinite_values():
+    assert score._exact_float_vector([0., 1.], [0., 1.])
+    assert not score._exact_float_vector([False, True], [0., 1.])
+    assert not score._exact_float_vector([float("nan"), 1.], [0., 1.])
+    assert not score._exact_float_vector([0.], [0., 1.])
 
 
 def test_fixed_full_block_denominator_required_before_labels(tmp_path, monkeypatch):
