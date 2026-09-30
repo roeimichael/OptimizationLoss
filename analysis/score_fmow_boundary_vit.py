@@ -22,6 +22,9 @@ from analysis import score_fmow_local as base
 from analysis import score_fmow_local_alm as alm
 
 PILOT = 6600
+PILOT_RELEASE = "0f12bde246ccfabc64d549046550e9bd44cfda9a"
+RELEASE_ROOT = Path(__file__).resolve().parents[1]
+PILOT_RELEASE_ROOT = Path("/home/dsi/michaer8/tralo-rebuild/releases") / PILOT_RELEASE
 SEEDS = tuple(range(6601, 6613))
 STUDY = "local_boundary_vit_v2"
 WEIGHT_SHA256 = "c867db91d3e12c6cbadabb610d73c24a546bf82d8c03a9fea34f43a712ddb0e9"
@@ -612,8 +615,13 @@ def _full_pilot_gate(root, audited):
     saved = base._json(path)
     if (saved.get("status") != "vit_pilot_integrity_pass" or
             saved.get("development_labels_accessed") is not False or
-            saved.get("release_commit") != launches[0]["release_commit"] or
+            saved.get("release_commit") != PILOT_RELEASE or
             saved.get("host") != launches[0]["host"] or
+            saved.get("source_sha256") != base.source() or
+            saved.get("data_file_sha256") != base.FILES or
+            saved.get("input_config_sha256") != {
+                "step": base.sha256(CONFIGS / "fmow_local_6600_step.json"),
+                "ref": base.sha256(CONFIGS / "fmow_local_6600_ref.json")} or
             not isinstance(saved.get("pilot_step_root"), str) or
             not isinstance(saved.get("pilot_ref_root"), str)):
         raise RuntimeError("ViT full pilot gate identity/status mismatch")
@@ -640,6 +648,35 @@ def _job_queue_seconds(root, job, release, host):
     return seconds
 
 
+def _cross_release_identity(root, full_release):
+    """Recheck the queue's byte comparison without opening development labels."""
+    path = Path(root) / "vit_cross_release_identity.json"
+    saved = base._json(path)
+    config_root = Path("experiments/configs/fmow_local_boundary_vit_v2_20261001")
+    modules = {item.relative_to(RELEASE_ROOT) for item in (RELEASE_ROOT / "tralo").glob("*.py")}
+    pilot_modules = {item.relative_to(PILOT_RELEASE_ROOT)
+                     for item in (PILOT_RELEASE_ROOT / "tralo").glob("*.py")}
+    expected = modules | {config_root / f"fmow_local_{job}.json"
+                          for job in ("6600_step", "6600_ref",
+                                      *(f"{seed}_step" for seed in SEEDS))} | {
+        Path("tools/fmow_local_boundary_vit_smoke.py"),
+        Path("tools/fmow_local_boundary_vit_real_preflight.py")}
+    if (RELEASE_ROOT.name != full_release or modules != pilot_modules or
+            saved.get("pilot_release_commit") != PILOT_RELEASE or
+            saved.get("full_release_commit") != full_release or
+            saved.get("source_config_and_preflights_equal") is not True or
+            not isinstance(saved.get("files"), dict) or
+            set(saved["files"]) != {item.as_posix() for item in expected}):
+        raise RuntimeError("ViT pilot/full source, config or generator identity differs")
+    for item in expected:
+        digest = saved["files"][item.as_posix()]
+        if (not isinstance(digest, str) or len(digest) != 64 or
+                base.sha256(RELEASE_ROOT / item) != digest or
+                base.sha256(PILOT_RELEASE_ROOT / item) != digest):
+            raise RuntimeError(f"ViT pilot/full bytes differ: {item}")
+    return path
+
+
 def _full_cost_gate(root, audited, pilot_gate):
     """Recount the pre-dispatch cost gate including actual full-queue smoke."""
     d = Path(root)
@@ -651,7 +688,9 @@ def _full_cost_gate(root, audited, pilot_gate):
         raise RuntimeError("ViT full block lacks same queue-owned cost gate receipt")
     saved = base._json(path)
     pilot_gate_path = d / "vit_pilot_gate_recheck.json"
+    identity_path = _cross_release_identity(d, launches[0]["release_commit"])
     expected = {"release_commit": launches[0]["release_commit"],
+                "pilot_release_commit": PILOT_RELEASE,
                 "host": launches[0]["host"], "ceiling_gpu_hours": 24.0,
                 "prior_failed_reserve_gpu_hours": PRIOR_FAILED_RESERVE_HOURS,
                 "gate_passed": True,
@@ -659,14 +698,16 @@ def _full_cost_gate(root, audited, pilot_gate):
                 "pilot_ref_root": pilot_gate["pilot_ref_root"],
                 "full_root": str(d.resolve()),
                 "pilot_gate_receipt_path": str(pilot_gate_path),
-                "pilot_gate_receipt_sha256": base.sha256(pilot_gate_path)}
+                "pilot_gate_receipt_sha256": base.sha256(pilot_gate_path),
+                "cross_release_identity_path": str(identity_path),
+                "cross_release_identity_sha256": base.sha256(identity_path)}
     if any(saved.get(key) != value or type(saved[key]) is not type(value)
            for key, value in expected.items()):
         raise RuntimeError("ViT full cost gate identity/status mismatch")
     step_seconds = _job_queue_seconds(pilot_gate["pilot_step_root"], "6600_step",
-                                      expected["release_commit"], expected["host"])
+                                      PILOT_RELEASE, expected["host"])
     ref_seconds = _job_queue_seconds(pilot_gate["pilot_ref_root"], "6600_ref",
-                                     expected["release_commit"], expected["host"])
+                                     PILOT_RELEASE, expected["host"])
     smoke_seconds = {"pilot_step": pilot_gate["pilot_smoke_seconds"][0],
                      "pilot_ref": pilot_gate["pilot_smoke_seconds"][1],
                      "full": launches[0]["_smoke_seconds"]}

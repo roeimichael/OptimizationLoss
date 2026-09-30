@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import re
 import shlex
+import shutil
 import subprocess
 
 import pytest
@@ -196,8 +197,10 @@ if __name__ == "__main__":
         "from pathlib import Path\n"
         "if sys.argv[1] != '--gate': raise SystemExit(2)\n"
         "step, ref, output = sys.argv[2:]\n"
+        "launch = json.loads((Path(step) / 'seed6600_step.launch.json').read_text())\n"
         "with open(output, 'x', encoding='utf-8') as stream:\n"
         "    json.dump({'status': 'vit_pilot_integrity_pass',\n"
+        "               'release_commit': launch['release_commit'],\n"
         "               'pilot_step_root': step, 'pilot_ref_root': ref}, stream)\n")
     for job in ("6600_step", "6600_ref", *(f"{seed}_step" for seed in range(6601, 6613))):
         seed, arm = job.split("_")
@@ -233,6 +236,10 @@ if __name__ == "__main__":
     script = tmp_path / "queue.sh"
     text = SCRIPT.read_text().replace(
         "REL=/home/dsi/michaer8/tralo-rebuild/releases/$SHA", f"REL={linux(release)}"
+    ).replace(
+        "PILOT_RELEASE=0f12bde246ccfabc64d549046550e9bd44cfda9a", f"PILOT_RELEASE={sha}"
+    ).replace(
+        "PILOT_REL=/home/dsi/michaer8/tralo-rebuild/releases/$PILOT_RELEASE", f"PILOT_REL={linux(release)}"
     ).replace(
         "RUNS=/home/dsi/michaer8/tralo-rebuild/runs", f"RUNS={linux(runs)}"
     ).replace(
@@ -270,6 +277,7 @@ def prepare_pilots(queue):
     assert ref_result.returncode == 0, ref_result.stderr
     gate = queue[2] / "pilot-gate.json"
     gate.write_text(json.dumps({"status": "vit_pilot_integrity_pass",
+                                "release_commit": queue[1],
                                 "pilot_step_root": linux(step_root),
                                 "pilot_ref_root": linux(ref_root)}))
     env = {"FMOW_VIT_PILOT_STEP_ROOT": linux(step_root),
@@ -277,6 +285,25 @@ def prepare_pilots(queue):
            "FMOW_VIT_PILOT_GATE_RECEIPT": linux(gate)}
     (queue[2] / "compute_queries").write_text("0")
     return env, step_root, ref_root, gate
+
+
+def fork_full_release(queue, changed_file):
+    """Keep a clean pilot checkout, then make a distinct full release."""
+    script, old_sha, parent, env = queue
+    release = parent / "release"
+    pilot_release = parent / "pilot-release"
+    shutil.copytree(release, pilot_release)
+    target = release / changed_file
+    target.write_text(target.read_text() + "\n# full release change\n")
+    wsl("git", "-C", linux(release), "add", changed_file)
+    wsl("git", "-C", linux(release), "-c", "user.name=Test", "-c",
+        "user.email=test@example.invalid", "commit", "-qm", "full release")
+    new_sha = wsl("git", "-C", linux(release), "rev-parse", "HEAD")
+    assert new_sha != old_sha
+    script.write_bytes(script.read_bytes().replace(
+        f"PILOT_REL={linux(release)}".encode(),
+        f"PILOT_REL={linux(pilot_release)}".encode()))
+    return script, new_sha, parent, env
 
 
 def test_shell_syntax():
@@ -388,6 +415,30 @@ def test_full_mode_uses_only_the_registered_twelve_seeds(queue):
     launch = json.loads((root / "seed6601_step.launch.json").read_text())
     assert launch["cost_gate_receipt_path"] == linux(root / "vit_cost_gate.json")
     assert launch["pilot_gate_receipt_path"] == linux(root / "vit_pilot_gate_recheck.json")
+
+
+def test_distinct_full_release_preserves_pilot_provenance(queue):
+    env, *_ = prepare_pilots(queue)
+    full_queue = fork_full_release(queue, "analysis/score_fmow_boundary_vit.py")
+    result, root = run_queue(full_queue, mode="full", extra_env=env)
+    assert result.returncode == 0, result.stderr
+    cost = json.loads((root / "vit_cost_gate.json").read_text())
+    identity = json.loads((root / "vit_cross_release_identity.json").read_text())
+    assert cost["pilot_release_commit"] == queue[1]
+    assert cost["release_commit"] == full_queue[1]
+    assert identity["pilot_release_commit"] == queue[1]
+    assert identity["full_release_commit"] == full_queue[1]
+    assert len(list(root.glob("seed*.complete.json"))) == 12
+
+
+def test_distinct_full_release_rejects_changed_runner_before_seed(queue):
+    env, *_ = prepare_pilots(queue)
+    full_queue = fork_full_release(queue, "tralo/fmow_local.py")
+    result, root = run_queue(full_queue, mode="full", extra_env=env)
+    assert result.returncode == 2
+    assert "pilot/full tracked input differs" in result.stderr.lower()
+    assert not (root / "seed6601_step.launch.json").exists()
+    assert not (queue[2] / "runs" / ".fmow-local-boundary-vit-claims" / "6601_step").exists()
 
 
 def test_failed_fit_preserves_receipt_and_does_not_run_reference(queue):

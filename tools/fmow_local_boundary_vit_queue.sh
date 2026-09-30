@@ -19,6 +19,8 @@ case $MODE in
 esac
 
 REL=/home/dsi/michaer8/tralo-rebuild/releases/$SHA
+PILOT_RELEASE=0f12bde246ccfabc64d549046550e9bd44cfda9a
+PILOT_REL=/home/dsi/michaer8/tralo-rebuild/releases/$PILOT_RELEASE
 RUNS=/home/dsi/michaer8/tralo-rebuild/runs
 DATA=/home/dsi/michaer8/optloss-audit/data/fmow2/oodslice
 PY=/home/dsi/michaer8/anaconda3/envs/optloss/bin/python
@@ -38,7 +40,19 @@ check_release() {
   fi
   [[ -z $DIRTY ]] || fail "release checkout is dirty"
 }
+check_pilot_release() {
+  [[ -d $PILOT_REL ]] || fail "pinned pilot release is missing"
+  [[ $(git -c gc.auto=0 -C "$PILOT_REL" rev-parse HEAD 2>/dev/null) = "$PILOT_RELEASE" ]] ||
+    fail "pinned pilot release HEAD differs"
+  local dirty
+  dirty=$(git -c gc.auto=0 -C "$PILOT_REL" status --porcelain --untracked-files=all 2>/dev/null) ||
+    fail "cannot inspect pinned pilot release cleanliness"
+  [[ -z $dirty ]] || fail "pinned pilot release is dirty"
+}
 check_release
+if [[ $MODE = full ]]; then
+  check_pilot_release
+fi
 cd "$REL" || fail "cannot enter release"
 export PYTHONDONTWRITEBYTECODE=1
 
@@ -106,6 +120,41 @@ check_gpu_free "ViT memory smoke"
 mkdir "$ROOT" || fail "could not claim new run root"
 PILOT_GATE_RECHECK=
 if [[ $MODE = full ]]; then
+  CROSS_RELEASE=$ROOT/vit_cross_release_identity.json
+  "$PY" - "$REL" "$PILOT_REL" "$SHA" "$PILOT_RELEASE" "$CROSS_RELEASE" <<'PY' || fail "pilot/full source, config or preflight-generator bytes differ; preserve $ROOT"
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+full, pilot = [Path(path) for path in sys.argv[1:3]]
+full_sha, pilot_sha, output = sys.argv[3:]
+config_root = Path("experiments/configs/fmow_local_boundary_vit_v2_20261001")
+paths = set(Path("tralo").glob("*.py"))
+paths |= {config_root / f"fmow_local_{job}.json"
+          for job in ("6600_step", "6600_ref",
+                      *(f"{seed}_step" for seed in range(6601, 6613)))}
+paths |= {Path("tools/fmow_local_boundary_vit_smoke.py"),
+          Path("tools/fmow_local_boundary_vit_real_preflight.py")}
+pilot_modules = {item.relative_to(pilot) for item in (pilot / "tralo").glob("*.py")}
+full_modules = {item.relative_to(full) for item in (full / "tralo").glob("*.py")}
+if pilot_modules != full_modules:
+    raise ValueError("pilot/full tralo source file sets differ")
+hashes = {}
+for path in sorted(paths):
+    left, right = pilot / path, full / path
+    if not left.is_file() or not right.is_file() or left.is_symlink() or right.is_symlink():
+        raise ValueError(f"missing or linked cross-release input: {path}")
+    pilot_bytes, full_bytes = left.read_bytes(), right.read_bytes()
+    if pilot_bytes != full_bytes:
+        raise ValueError(f"pilot/full tracked input differs: {path}")
+    hashes[path.as_posix()] = hashlib.sha256(full_bytes).hexdigest()
+with open(output, "x", encoding="utf-8") as stream:
+    json.dump(dict(pilot_release_commit=pilot_sha, full_release_commit=full_sha,
+                   files=hashes, source_config_and_preflights_equal=True),
+              stream, sort_keys=True, indent=2)
+    stream.write("\n")
+PY
   STEP_ROOT=${FMOW_VIT_PILOT_STEP_ROOT:-}
   REF_ROOT=${FMOW_VIT_PILOT_REF_ROOT:-}
   PILOT_GATE_INPUT=${FMOW_VIT_PILOT_GATE_RECEIPT:-}
@@ -115,14 +164,16 @@ if [[ $MODE = full ]]; then
   "$PY" analysis/score_fmow_boundary_vit.py --gate "$STEP_ROOT" "$REF_ROOT" "$PILOT_GATE_RECHECK" \
     > "$ROOT/vit_pilot_gate_recheck.log" 2>&1 ||
     fail "independent pilot gate recomputation failed; preserve $ROOT"
-  "$PY" - "$PILOT_GATE_INPUT" "$PILOT_GATE_RECHECK" <<'PY' || fail "supplied pilot gate differs from independent recomputation; preserve $ROOT"
+  "$PY" - "$PILOT_GATE_INPUT" "$PILOT_GATE_RECHECK" "$PILOT_RELEASE" <<'PY' || fail "supplied pilot gate differs from independent recomputation; preserve $ROOT"
 import json
 import sys
 from pathlib import Path
 
-supplied, rechecked = [json.loads(Path(path).read_text()) for path in sys.argv[1:]]
+supplied, rechecked = [json.loads(Path(path).read_text()) for path in sys.argv[1:3]]
+pilot_release = sys.argv[3]
 if (supplied != rechecked or
-        rechecked.get("status") != "vit_pilot_integrity_pass"):
+        rechecked.get("status") != "vit_pilot_integrity_pass" or
+        rechecked.get("release_commit") != pilot_release):
     raise ValueError("pilot gate is absent, failed or differs from recomputation")
 PY
 fi
@@ -301,7 +352,7 @@ PY
 COST_GATE=
 if [[ $MODE = full ]]; then
   COST_GATE=$ROOT/vit_cost_gate.json
-  "$PY" - "$COST_GATE" "$STEP_ROOT" "$REF_ROOT" "$ROOT" "$SHA" "$HOST" "$RUNS_CANON" "$PILOT_GATE_RECHECK" <<'PY' || fail "ViT full queue exceeds or cannot verify 24 GPU-hour ceiling; preserve $ROOT"
+  "$PY" - "$COST_GATE" "$STEP_ROOT" "$REF_ROOT" "$ROOT" "$SHA" "$PILOT_RELEASE" "$HOST" "$RUNS_CANON" "$PILOT_GATE_RECHECK" "$CROSS_RELEASE" <<'PY' || fail "ViT full queue exceeds or cannot verify 24 GPU-hour ceiling; preserve $ROOT"
 import hashlib
 import json
 import math
@@ -309,13 +360,16 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-output, step_root, ref_root, full_root, commit, host, runs_root, pilot_gate = sys.argv[1:]
-result = dict(release_commit=commit, host=host, ceiling_gpu_hours=24.0,
+output, step_root, ref_root, full_root, commit, pilot_commit, host, runs_root, pilot_gate, cross_release = sys.argv[1:]
+result = dict(release_commit=commit, pilot_release_commit=pilot_commit,
+              host=host, ceiling_gpu_hours=24.0,
               prior_failed_reserve_gpu_hours=0.5,
               gate_passed=False, pilot_step_root=step_root,
               pilot_ref_root=ref_root, full_root=full_root,
               pilot_gate_receipt_path=pilot_gate,
-              pilot_gate_receipt_sha256=hashlib.sha256(Path(pilot_gate).read_bytes()).hexdigest())
+              pilot_gate_receipt_sha256=hashlib.sha256(Path(pilot_gate).read_bytes()).hexdigest(),
+              cross_release_identity_path=cross_release,
+              cross_release_identity_sha256=hashlib.sha256(Path(cross_release).read_bytes()).hexdigest())
 
 def read(root, name):
     return json.loads((root / name).read_text())
@@ -323,7 +377,7 @@ def read(root, name):
 def duration(root, job):
     launch = read(root, f"seed{job}.launch.json")
     done = read(root, f"seed{job}.complete.json")
-    if (launch.get("release_commit") != commit or done.get("release_commit") != commit or
+    if (launch.get("release_commit") != pilot_commit or done.get("release_commit") != pilot_commit or
             launch.get("host") != host or done.get("host") != host or
             done.get("exit_code") != 0):
         raise ValueError("pilot seed provenance or completion differs")
@@ -333,13 +387,13 @@ def duration(root, job):
         raise ValueError("invalid pilot seed runtime")
     return seconds
 
-def smoke_duration(root):
+def smoke_duration(root, expected_commit):
     smoke = read(root, "vit_memory_smoke.json")
     launch = read(root, "vit_memory_smoke.launch.json")
     done = read(root, "vit_memory_smoke.complete.json")
-    if (smoke.get("release_commit") != commit or smoke.get("host") != host or
+    if (smoke.get("release_commit") != expected_commit or smoke.get("host") != host or
             smoke.get("memory_smoke_passed") is not True or
-            launch.get("release_commit") != commit or done.get("release_commit") != commit or
+            launch.get("release_commit") != expected_commit or done.get("release_commit") != expected_commit or
             launch.get("host") != host or done.get("host") != host or
             done.get("exit_code") != 0):
         raise ValueError("pilot/full smoke provenance differs")
@@ -349,13 +403,13 @@ def smoke_duration(root):
         raise ValueError("invalid GPU smoke runtime")
     return seconds
 
-def preflight_duration(root):
+def preflight_duration(root, expected_commit):
     real = read(root, "vit_real_preflight.json")
     launch = read(root, "vit_real_preflight.launch.json")
     done = read(root, "vit_real_preflight.complete.json")
-    if (real.get("release_commit") != commit or real.get("host") != host or
+    if (real.get("release_commit") != expected_commit or real.get("host") != host or
             real.get("preflight_passed") is not True or
-            launch.get("release_commit") != commit or done.get("release_commit") != commit or
+            launch.get("release_commit") != expected_commit or done.get("release_commit") != expected_commit or
             launch.get("host") != host or done.get("host") != host or
             done.get("exit_code") != 0):
         raise ValueError("pilot/full real-image preflight provenance differs")
@@ -375,12 +429,12 @@ try:
         raise ValueError("pilot and full roots must be distinct under owned runs")
     step_seconds = duration(step, "6600_step")
     ref_seconds = duration(ref, "6600_ref")
-    smoke_seconds = {"pilot_step": smoke_duration(step),
-                     "pilot_ref": smoke_duration(ref),
-                     "full": smoke_duration(full)}
-    preflight_seconds = {"pilot_step": preflight_duration(step),
-                         "pilot_ref": preflight_duration(ref),
-                         "full": preflight_duration(full)}
+    smoke_seconds = {"pilot_step": smoke_duration(step, pilot_commit),
+                     "pilot_ref": smoke_duration(ref, pilot_commit),
+                     "full": smoke_duration(full, commit)}
+    preflight_seconds = {"pilot_step": preflight_duration(step, pilot_commit),
+                         "pilot_ref": preflight_duration(ref, pilot_commit),
+                         "full": preflight_duration(full, commit)}
     # Preserve a 25% runtime margin for the fixed training/step workload.
     projected_hours = (1.25 * (13 * step_seconds + ref_seconds) +
                        sum(smoke_seconds.values()) +
@@ -403,6 +457,42 @@ fi
 
 for JOB in "${JOBS[@]}"; do
   check_release
+  if [[ $MODE = full ]]; then
+    check_pilot_release
+    "$PY" - "$CROSS_RELEASE" "$REL" "$PILOT_REL" "$SHA" "$PILOT_RELEASE" "$COST_GATE" "$PILOT_GATE_RECHECK" "$PILOT_GATE_INPUT" <<'PY' || fail "full/pilot identity or saved gate changed before $JOB"
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+receipt, full, pilot, full_sha, pilot_sha, cost_path, gate_path, saved_path = sys.argv[1:]
+identity = json.loads(Path(receipt).read_text())
+cost = json.loads(Path(cost_path).read_text())
+gate = json.loads(Path(gate_path).read_text())
+saved = json.loads(Path(saved_path).read_text())
+if (identity.get("full_release_commit") != full_sha or
+        identity.get("pilot_release_commit") != pilot_sha or
+        identity.get("source_config_and_preflights_equal") is not True or
+        cost.get("release_commit") != full_sha or
+        cost.get("pilot_release_commit") != pilot_sha or
+        cost.get("gate_passed") is not True or
+        cost.get("cross_release_identity_sha256") != hashlib.sha256(Path(receipt).read_bytes()).hexdigest() or
+        cost.get("pilot_gate_receipt_sha256") != hashlib.sha256(Path(gate_path).read_bytes()).hexdigest() or
+        gate != saved or gate.get("release_commit") != pilot_sha or
+        gate.get("status") != "vit_pilot_integrity_pass"):
+    raise ValueError("full/pilot receipt identity changed")
+files = identity.get("files")
+if not isinstance(files, dict) or not files:
+    raise ValueError("cross-release file list missing")
+for name, expected in files.items():
+    relative = Path(name)
+    for root in (Path(full), Path(pilot)):
+        path = root / relative
+        if (not path.is_file() or path.is_symlink() or
+                hashlib.sha256(path.read_bytes()).hexdigest() != expected):
+            raise ValueError(f"cross-release file changed: {name}")
+PY
+  fi
   check_gpu_free "$JOB"
 
   SEED=${JOB%%_*}

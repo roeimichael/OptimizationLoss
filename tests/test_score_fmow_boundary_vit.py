@@ -525,7 +525,12 @@ def test_full_contrasts_keep_viT_seeds_and_six_test_family(tmp_path, monkeypatch
 def test_full_pilot_gate_recomputes_instead_of_trusting_success_flag(tmp_path, monkeypatch):
     path = tmp_path / "vit_pilot_gate_recheck.json"
     saved = {"status": "vit_pilot_integrity_pass", "development_labels_accessed": False,
-             "release_commit": "a" * 40, "host": "dsisco02",
+             "release_commit": score.PILOT_RELEASE, "host": "dsisco02",
+             "source_sha256": score.base.source(),
+             "data_file_sha256": score.base.FILES,
+             "input_config_sha256": {
+                 "step": score.base.sha256(score.CONFIGS / "fmow_local_6600_step.json"),
+                 "ref": score.base.sha256(score.CONFIGS / "fmow_local_6600_ref.json")},
              "pilot_step_root": "/runs/step", "pilot_ref_root": "/runs/ref"}
     path.write_text(json.dumps(saved) + "\n")
     launch = {"release_commit": "a" * 40, "host": "dsisco02",
@@ -535,6 +540,18 @@ def test_full_pilot_gate_recomputes_instead_of_trusting_success_flag(tmp_path, m
     actual_audit = copy.deepcopy(saved)
     monkeypatch.setattr(score, "gate", lambda *_args: copy.deepcopy(actual_audit))
     assert score._full_pilot_gate(tmp_path, audited) == saved
+    saved["release_commit"] = "a" * 40
+    path.write_text(json.dumps(saved) + "\n")
+    launch["pilot_gate_receipt_sha256"] = score.base.sha256(path)
+    with pytest.raises(RuntimeError, match="identity/status"):
+        score._full_pilot_gate(tmp_path, audited)
+    saved["release_commit"] = score.PILOT_RELEASE
+    saved["source_sha256"] = {"changed.py": "0" * 64}
+    path.write_text(json.dumps(saved) + "\n")
+    launch["pilot_gate_receipt_sha256"] = score.base.sha256(path)
+    with pytest.raises(RuntimeError, match="identity/status"):
+        score._full_pilot_gate(tmp_path, audited)
+    saved["source_sha256"] = score.base.source()
     saved["pto_equal"] = False
     path.write_text(json.dumps(saved) + "\n")
     launch["pilot_gate_receipt_sha256"] = score.base.sha256(path)
@@ -542,25 +559,28 @@ def test_full_pilot_gate_recomputes_instead_of_trusting_success_flag(tmp_path, m
         score._full_pilot_gate(tmp_path, audited)
 
 
-def test_full_cost_gate_recounts_jobs_and_smoke_before_labels(tmp_path):
+def test_full_cost_gate_recounts_jobs_and_smoke_before_labels(tmp_path, monkeypatch):
     step, ref = tmp_path / "pilot_step", tmp_path / "pilot_ref"
     step.mkdir()
     ref.mkdir()
     for root, job, seconds in ((step, "6600_step", 100), (ref, "6600_ref", 90)):
         (root / f"seed{job}.launch.json").write_text(json.dumps({
-            "release_commit": "a" * 40, "host": "dsisco02",
+            "release_commit": score.PILOT_RELEASE, "host": "dsisco02",
             "started_utc": "1970-01-01T00:00:00+00:00"}))
         (root / f"seed{job}.complete.json").write_text(json.dumps({
-            "release_commit": "a" * 40, "host": "dsisco02", "exit_code": 0,
+            "release_commit": score.PILOT_RELEASE, "host": "dsisco02", "exit_code": 0,
             "ended_utc": f"1970-01-01T00:{seconds // 60:02d}:{seconds % 60:02d}+00:00"}))
     gate_path = tmp_path / "vit_pilot_gate_recheck.json"
     gate_path.write_text("{}\n")
+    identity_path = tmp_path / "vit_cross_release_identity.json"
+    identity_path.write_text("{}\n")
     cost_path = tmp_path / "vit_cost_gate.json"
     pilot_gate = {"pilot_step_root": str(step), "pilot_ref_root": str(ref),
                   "pilot_smoke_seconds": [3., 4.],
                   "pilot_preflight_seconds": [2., 3.]}
     projected = (1.25 * (13 * 100 + 90) + 3 + 4 + 5 + 2 + 3 + 4) / 3600
     cost = {"release_commit": "a" * 40, "host": "dsisco02",
+            "pilot_release_commit": score.PILOT_RELEASE,
             "ceiling_gpu_hours": 24.0,
             "prior_failed_reserve_gpu_hours": score.PRIOR_FAILED_RESERVE_HOURS,
             "gate_passed": True,
@@ -568,6 +588,8 @@ def test_full_cost_gate_recounts_jobs_and_smoke_before_labels(tmp_path):
             "full_root": str(tmp_path.resolve()),
             "pilot_gate_receipt_path": str(gate_path),
             "pilot_gate_receipt_sha256": score.base.sha256(gate_path),
+            "cross_release_identity_path": str(identity_path),
+            "cross_release_identity_sha256": score.base.sha256(identity_path),
             "pilot_step_seconds": 100., "pilot_ref_seconds": 90.,
             "smoke_seconds": {"pilot_step": 3., "pilot_ref": 4., "full": 5.},
             "preflight_seconds": {"pilot_step": 2., "pilot_ref": 3., "full": 4.},
@@ -578,7 +600,14 @@ def test_full_cost_gate_recounts_jobs_and_smoke_before_labels(tmp_path):
               "cost_gate_receipt_path": str(cost_path),
               "cost_gate_receipt_sha256": score.base.sha256(cost_path)}
     audited = [((None,) * 6 + (launch,), None)]
+    monkeypatch.setattr(score, "_cross_release_identity", lambda *_args: identity_path)
     assert score._full_cost_gate(tmp_path, audited, pilot_gate) == cost
+    cost["pilot_release_commit"] = "a" * 40
+    cost_path.write_text(json.dumps(cost) + "\n")
+    launch["cost_gate_receipt_sha256"] = score.base.sha256(cost_path)
+    with pytest.raises(RuntimeError, match="identity/status"):
+        score._full_cost_gate(tmp_path, audited, pilot_gate)
+    cost["pilot_release_commit"] = score.PILOT_RELEASE
     cost["projected_gpu_hours"] = 0.001
     cost_path.write_text(json.dumps(cost) + "\n")
     launch["cost_gate_receipt_sha256"] = score.base.sha256(cost_path)
@@ -590,6 +619,40 @@ def test_full_cost_gate_recounts_jobs_and_smoke_before_labels(tmp_path):
     launch["cost_gate_receipt_sha256"] = score.base.sha256(cost_path)
     with pytest.raises(RuntimeError, match="preflight runtime recount"):
         score._full_cost_gate(tmp_path, audited, pilot_gate)
+
+
+def test_cross_release_identity_rechecks_every_pilot_and_full_input(tmp_path, monkeypatch):
+    full = tmp_path / ("a" * 40)
+    pilot = tmp_path / score.PILOT_RELEASE
+    monkeypatch.setattr(score, "RELEASE_ROOT", full)
+    monkeypatch.setattr(score, "PILOT_RELEASE_ROOT", pilot)
+    config_root = "experiments/configs/fmow_local_boundary_vit_v2_20261001"
+    names = {"tralo/model.py", "tools/fmow_local_boundary_vit_smoke.py",
+             "tools/fmow_local_boundary_vit_real_preflight.py"}
+    names |= {f"{config_root}/fmow_local_{job}.json"
+              for job in ("6600_step", "6600_ref",
+                          *(f"{seed}_step" for seed in score.SEEDS))}
+    hashes = {}
+    for name in names:
+        for release in (full, pilot):
+            path = release / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(name + "\n", encoding="utf-8")
+        hashes[name] = score.base.sha256(full / name)
+    receipt = tmp_path / "vit_cross_release_identity.json"
+    value = {"pilot_release_commit": score.PILOT_RELEASE,
+             "full_release_commit": full.name,
+             "source_config_and_preflights_equal": True, "files": hashes}
+    receipt.write_text(json.dumps(value) + "\n", encoding="utf-8")
+    assert score._cross_release_identity(tmp_path, full.name) == receipt
+    (pilot / "tralo/model.py").write_text("changed\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="pilot/full bytes differ"):
+        score._cross_release_identity(tmp_path, full.name)
+    (pilot / "tralo/model.py").write_text("tralo/model.py\n", encoding="utf-8")
+    value["pilot_release_commit"] = "b" * 40
+    receipt.write_text(json.dumps(value) + "\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="identity differs"):
+        score._cross_release_identity(tmp_path, full.name)
 
 
 def test_failed_label_free_seed_audit_prevents_any_label_open(tmp_path, monkeypatch):
