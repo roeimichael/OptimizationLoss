@@ -1,29 +1,28 @@
 # Rebuild work queue
 
-## Active, 28 September: fixed fmow2 pooled-plus-country constraint study
+## Completed, 30 September: fixed fmow2 pooled-plus-country constraint study
 
 The user authorized a local-constraint TraLO extension on the previously audited
 fmow2 country-disjoint development pool, with autonomous design decisions and a
-validated GPU campaign. The isolated implementation and fixed protocol are in
-`experiments/fmow_joint_local_protocol_20260928.md`. They compare a joint
-pooled/country side-step, a radius-matched pooled-only step, a matched sham and
-the unchanged PTO snapshot ensemble at two quota levels over 48 fixed seeds.
+validated GPU campaign. The first raw-feasibility pilot in
+`experiments/fmow_joint_local_protocol_20260928.md` failed and was preserved.
+The amended fixed-dose protocol compared a joint pooled/country side-step, a
+radius-matched pooled-only step, a sham, and unchanged PTO at two quota levels
+over 12 prespecified seeds. All runs, integrity checks, and independent scores
+are complete; see `experiments/fmow_local_fixed_dose_result_20260930.md`.
 The five development countries have already been inspected in earlier studies;
 their scores will be exploratory. The five excluded countries are not globally
 untouched because older fmow2 work inspected the original test pool. No new
 country labels enter training, quota construction or the side step.
 
-At this checkpoint, local CPU mathematics and regression tests pass, while the
-independent scorer's end-to-end dry run and remote release checks remain to be
-completed. The DSI hosts timed out at SSH banner/connectivity on 28 September;
-GPU ownership and job state are **unknown**, so no local pilot or full run has
-been dispatched. The next steps are: finish the independent scorer fixture;
-commit and push the tested source; deploy a new immutable release when SSH
-returns; verify both hosts and their actual GPU UUID/PID/owners; run the fixed
-6099 step-on/off integrity pilot; audit source, data, saved probabilities, country quotas,
-doses, exact PTO parity and projected GPU cost; only then dispatch seeds
-6100-6147 on genuinely free cards. Preserve any pilot or seed failure, and do
-not adjust the quota or step based on development outcomes.
+The fixed-dose joint step harmed class-1 cc-F1 against unchanged PTO at both
+caps (paired means −0.0866 and −0.0697), and secondary metrics were worse.
+This closes the 0.1-L2 fixed-dose hypothesis on the repeatedly viewed fmow2
+development countries. The original five reserved countries remain unscored.
+Next: specify a separate, matched local ALM comparison or an independently
+identified dataset/backbone before further GPU work. Do not tune this study's
+radius or country rule from its development results, or pool it with the failed
+raw-feasibility pilot.
 
 ## Active research direction: paper-aligned single-grade knee study, 24 September
 
@@ -164,11 +163,11 @@ slots, so the revised question is allocated identity/quality, not raw
 feasibility. The separate fixed-dose protocol is
 `experiments/fmow_local_fixed_dose_protocol_20260928.md`: pilot6199 on/off,
 then only after matched integrity, label firewall, offline metric recomputation
-and 72 GPU-hour cost gates, full seeds6200-6211. No run from the new protocol
-has yet started at the time of this edit. The old failed release and outputs
-remain untouched. ALM country-local comparison and new datasets/backbones
-require separately matched protocols; old global frozen-feature ALM scores
-are not a direct comparator here.
+and 72 GPU-hour cost gates, full seeds6200-6211. This fixed-dose study is now
+complete and negative; see `experiments/fmow_local_fixed_dose_result_20260930.md`.
+The old failed release and outputs remain untouched. ALM country-local
+comparison and new datasets/backbones require separately matched protocols;
+old global frozen-feature ALM scores are not a direct comparator here.
 
 ## What current tests establish
 
