@@ -21,11 +21,14 @@ from .knee_experiment import cuda_setup, digest, save, source
 from .knee_yuval import SHAM_OFFSET, train_run
 from .local_policy import size_share_caps
 from .local_targeted_step import local_targeted_step
+from .local_alm import snapshot_phr_step
 
 PILOT = 6099
 SEEDS = range(6100, 6148)
 FIXED_PILOT = 6199
 FIXED_SEEDS = range(6200, 6212)
+ALM_PILOT = 6300
+ALM_SEEDS = range(6301, 6313)
 DIVISORS = (10, 20)
 RECIPE = dict(backbone="mobilenet_v3_large", capped_class=CAPPED,
               max_epochs=75, patience=5, batch_size=32, lr=1e-4,
@@ -36,16 +39,21 @@ RECIPE = dict(backbone="mobilenet_v3_large", capped_class=CAPPED,
 def validate(config):
     if not isinstance(config, dict):
         raise ValueError("config must be a dictionary")
-    fixed = config.get("study") == "local_fixed_dose_v1"
+    alm = config.get("study") == "local_alm_direction_v1"
+    fixed = config.get("study") == "local_fixed_dose_v1" or alm
     expected = set(RECIPE) | {"seed", "snapshot_steps"}
     if fixed:
         expected |= {"study", "step_radius"}
         if type(config.get("step_radius")) is not float or config["step_radius"] != 0.1:
             raise ValueError("fixed-dose study requires radius 0.1")
+    if alm:
+        expected.add("alm_rho")
+        if type(config.get("alm_rho")) is not float or config["alm_rho"] != 0.5:
+            raise ValueError("local ALM direction study requires rho 0.5")
     if set(config) != expected:
         raise ValueError("config keys differ from the named local protocol")
-    pilot = FIXED_PILOT if fixed else PILOT
-    seeds = FIXED_SEEDS if fixed else SEEDS
+    pilot = ALM_PILOT if alm else FIXED_PILOT if fixed else PILOT
+    seeds = ALM_SEEDS if alm else FIXED_SEEDS if fixed else SEEDS
     if type(config["seed"]) is not int or config["seed"] not in seeds and config["seed"] != pilot:
         raise ValueError("seed is outside the named study and pilot blocks")
     if type(config["snapshot_steps"]) is not bool or not config["snapshot_steps"] and config["seed"] != pilot:
@@ -71,7 +79,7 @@ def budgets(groups):
 
 
 def snapshot_side_steps(model, pool, groups, quota, seed, epoch, directory,
-                        fixed_radius=None):
+                        fixed_radius=None, phr_state=None, phr_rho=None):
     """Save joint, same-radius pooled-direction and sham snapshots for one cap."""
     import torch
     cpu = torch.get_rng_state()
@@ -102,6 +110,20 @@ def snapshot_side_steps(model, pool, groups, quota, seed, epoch, directory,
                 steps[arm]["probability_sha256"] = digest(artifact)
             finally:
                 del side
+        if phr_state is not None:
+            side = copy.deepcopy(model)
+            try:
+                record, next_dual = snapshot_phr_step(
+                    side, pool, groups, CAPPED, quota["global_cap"],
+                    quota["local_caps"], phr_state["dual"], rho=phr_rho,
+                    radius=fixed_radius)
+                artifact = Path(directory) / f"epoch{epoch:02d}_phr_local.pt"
+                torch.save(infer(side, pool).cpu(), artifact)
+                record["probability_sha256"] = digest(artifact)
+                steps["phr_local"] = record
+                phr_state["dual"] = next_dual
+            finally:
+                del side
         if _state_hash(model) != state:
             raise RuntimeError("side steps changed the PTO model")
         if steps["joint"]["applied"] and any(
@@ -130,7 +152,8 @@ def run(data_root, config_path, output):
     with audited_arm_log(output / "events.jsonl") as log:
         cuda_setup()
         images, train_labels, pool_rows, roles = load(
-            data_root, include_pool_labels=config.get("study") != "local_fixed_dose_v1")
+            data_root, include_pool_labels=config.get("study") not in
+            ("local_fixed_dose_v1", "local_alm_direction_v1"))
         groups = [row["location"] for row in pool_rows]
         quota = budgets(groups)
         counts = dict(train=len(roles["train"]), stop=len(roles["stop"]), dev=len(roles["dev"]))
@@ -169,6 +192,9 @@ def run(data_root, config_path, output):
         with audited_arm_log(directory / "events.jsonl") as rlog:
             snapshots = {}
             snapshot_hashes = {}
+            phr_states = ({str(divisor): {"dual": torch.zeros(1 + len(quota[str(divisor)]["local_caps"]))}
+                          for divisor in DIVISORS}
+                          if config.get("study") == "local_alm_direction_v1" else None)
 
             def snapshot(epoch, probabilities):
                 artifact = directory / f"epoch{epoch:02d}.pt"
@@ -182,7 +208,9 @@ def run(data_root, config_path, output):
                         cap_directory.mkdir(exist_ok=True)
                         step_record = snapshot_side_steps(
                             model, pool, groups, quota[str(divisor)], config["seed"], epoch,
-                            cap_directory, fixed_radius=config.get("step_radius"))
+                            cap_directory, fixed_radius=config.get("step_radius"),
+                            phr_state=phr_states[str(divisor)] if phr_states is not None else None,
+                            phr_rho=config.get("alm_rho"))
                         side_steps[str(epoch)][str(divisor)] = step_record
                         rlog.emit("snapshot_cap", epoch=epoch, divisor=divisor,
                                   quota=quota[str(divisor)], steps=step_record)
