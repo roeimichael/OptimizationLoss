@@ -1,0 +1,1518 @@
+{
+  "status": "complete_label_free_allocator_diagnostic",
+  "study_release_commit": "2f6a68eb006cf2d9cd535a7dfa51f5c09ce9850e",
+  "run_root": "/home/dsi/michaer8/tralo-rebuild/runs/fmow-local-alm-direction-20260930-2f6a68eb/full6301_6312",
+  "release_root": "/home/dsi/michaer8/tralo-rebuild/releases/2f6a68eb006cf2d9cd535a7dfa51f5c09ce9850e",
+  "runner_source_sha256": {
+    "__init__.py": "9850a04301ac870ccd5f2966600f062c2c0fa1ebdeb0f9f679ee24628219e418",
+    "achieved_counts.py": "945ebf6f403765f52eece2fa7ba9650484622b3ceb1b8aafe0e1967c704bc6ba",
+    "alm.py": "55c9b618fd767762c354bab14c1131134ab7334a0cb2aa67302cf6abdf928ca1",
+    "band_consistency.py": "a650cb9ad54ab7e36e72a9ef39eb400175bab6ee3e8649e4b9d485a2deed8b3e",
+    "comparison_checks.py": "07f282eb9cc689b2c2673b2e74070513f629a793a2a53c2b49a88944bd2337a7",
+    "constraint_optimizers.py": "b79f978807a192d449cd65cc7f4298246270a1f582476c6a54e120cb07f8698d",
+    "cutoff_rank.py": "be6faa38bfb76baae15c252f402aa464808e887bfb22637b495e4bdd67845299",
+    "cutpair_gate.py": "5e02e560fa095721553b5578ccbfe561cf5617639ce7c70c79e591ce84ead42d",
+    "events.py": "89f019a0395e190770a6794f2273318f30af4b7119240ea6f350fb252c9d6687",
+    "fmow_local.py": "454ab913e537cb1362a4a572e49b55401d35c4739b09896d4db81e9064fe68b1",
+    "fmow_yuval.py": "8d7d8e4de6c40bcd6d9ad46a4718138a1634af3ba4998d497c3c7b093ca2f24d",
+    "global_clipper.py": "5ebe2e51d72ac007557cb8680bbb37b8493da8ba84df1ece5d8356858a5f48fa",
+    "global_comparison.py": "2f2c817927beea6902eb5c790b02fb448d7b64038316e38aab8636ea00e4211e",
+    "global_constraint.py": "3d51f3a64cff24a71db4d3bbe3bafd12ac54b150a96f5de7cd414692f3975986",
+    "global_report.py": "f1f7735e9daf74146771f87e8f012e43b08ef854158f1f0c63a1eb83e8ddf5c4",
+    "hard_pair_rank.py": "a0da385a15e633c6e47e750f279c29d07ce8017fcfc2707a5b0abbb27fde58b4",
+    "image_baseline.py": "9c649ad40181271c27b517fae0390fb4cf6c01b496862d461f2d095e706eced2",
+    "inspect_predictions.py": "5f89be011a0f40ed72a3faeacaa7e872e521971e90be8bc356af6f439002beb8",
+    "knee_cutoff_experiment.py": "83bf6d8fd37c93a9e829058bbc09cfd1e6f48d26e26bd425b8c29a11e84aac3b",
+    "knee_data.py": "7260698d732412a27e0f36547e1ea6a30ee8b251e507ec780f11c520d8c369f2",
+    "knee_e2e_v2.py": "e022272a161de72af77a715818f1fc1f3e7fc84f4f1b088ebbc7308a4bd454fc",
+    "knee_e2e_v3.py": "d0ad98b563ebf5ec943ed167e90a4ba12dc529f185291eba2226a323e95f1347",
+    "knee_e2e_v4.py": "3a327499b3e30227550ee5f5e5dc95f858fa5a31455d4d4a377bd37a22f48ae2",
+    "knee_e2e_v5.py": "daf60d74cffcbb2036e6fc6de7dfde16571f0d60b09d0dd15fb8b990378ee522",
+    "knee_end_to_end.py": "0e99c770b64e33cac00aa81ca5d071121dc9b2875aa14901be6cbbf37719cf36",
+    "knee_experiment.py": "f2c92f75f3b6e3641b9ee7cf12de805e01da26ca7aca7b699877dc09659f85c8",
+    "knee_yuval.py": "ce5edb9599109342a8b83a9ecdfc4ae4adca131db6e83dc2a99707cb8ddb1539",
+    "local_alm.py": "28931acc09b85ba1d32e834bc69514e92746ede3be53fd4e0ca1f8f6812deada",
+    "local_policy.py": "841721752627af7bd03954f063bba5a7c012dcbf740180c3075e4c7746f96b84",
+    "local_targeted_step.py": "112e0c79173482b4023bd716aaa36431d3de4ae2b16cb9afcd41b1ab87b80968",
+    "medmnist_data.py": "cd0a2faaf7109e7452a4cd8cebb33b2745064f3e8b723c3c3c238b4e9103f6e0",
+    "metrics.py": "cb78098e214975daee4211908b613fba3877e4a6d57febbcceb62afb2a83f4a4",
+    "quotas.py": "e65061becc27140620f87b929852f3dfba8d46424aa30fd8e951418317524f9e",
+    "sample_losses.py": "ea778847c98f8bae6f930aefee1b814c1bea64b4267c292e781cd8765524cdc3",
+    "step_probe.py": "7b7bc2d2931b2597827a0dd292137cdd9fae2c90132862b4504866f3464c9da5",
+    "streamed_constraint.py": "612ff0dea0edee3903660a8508592ed65e5335814867a575661c28796c25b915",
+    "streamed_rank.py": "cbb04db05c55ff337385c77397e38379908d03df648bdc51bc991d832c5f86ff",
+    "supervised_adaptation.py": "2335c083ceb287e5cb8d216ff390b3e67bf08a49a49f729d98c7447143c954c5",
+    "targeted_step.py": "33fb9284df7ac68a4c3af371d7b014c2ad9faa2a3a16ba163ffdb1d9e1a494bc",
+    "trajectory.py": "464771b58a5a294fb17c9bf613a8fad07f4115da8cc1c05da4d6b5b90cf7fbe7"
+  },
+  "pool_identity_sha256": "ab89c2c8e942fc97a14dbfcc2a1f7e9da744fd0869ac1d18a3f8f48f32723daf",
+  "data_file_sha256_receipts": {
+    "train_images.npy": "f62e48c2c763d52dd9b63b179938377ebc0062ff052a747f44538f56ff868db8",
+    "train_labels.npy": "61aa4855ad7b05dc05167a7fc5779fc13e59048f262be51ee4154df10ebda93d",
+    "train_meta.csv": "c2c9462630dc174e7984fc4fe04a0b41bf1b7ff8970fa678c542f2a272715e4a",
+    "test_images.npy": "b363f1529663efc212854762ec1b9d9244414ce2ff5929f56d98d3ec22281ac5",
+    "test_labels.npy": "75eaccbebe2b192d71dae9ed5207ded47fc8a8f23bc3766f1b9465ca83d788a6",
+    "test_meta.csv": "20d97b086cde8e85d8dad79c93fa06cd8c2781f892ab6055d9193704a3ad2b63"
+  },
+  "labels_accessed": false,
+  "reserved_countries_scored": false,
+  "methods": [
+    "global_capped_first",
+    "local_capped_first"
+  ],
+  "aggregate": {
+    "10": {
+      "seeds": 12,
+      "global_clipper_country_cap_violation_seeds": 12,
+      "global_clipper_country_cap_excess_total": 953,
+      "selected_overlap_mean": 87.58333333333333,
+      "selected_overlap_range": [
+        83,
+        92
+      ]
+    },
+    "20": {
+      "seeds": 12,
+      "global_clipper_country_cap_violation_seeds": 12,
+      "global_clipper_country_cap_excess_total": 566,
+      "selected_overlap_mean": 35.833333333333336,
+      "selected_overlap_range": [
+        29,
+        42
+      ]
+    }
+  },
+  "per_seed": [
+    {
+      "seed": 6301,
+      "best_epoch": 1,
+      "epochs_run": 6,
+      "ensemble_window": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "config_sha256": "0f2fef303744774675c7e55669cc67720ea52245f4d7bf8d488c833e652725c6",
+      "pto_snapshot_sha256": {
+        "1": "d1d5769bc4de2ab56ba26fe5eaf89ba547b2b6f86f2da85f8bfa0975f7ad31f1",
+        "2": "025b1b08534b243817470f22919fa47386032350cabd1436850089635004a3c0",
+        "3": "ab01e5cd506484da980f2f4e433bc5d58512b4f893cae7c05ccd4e2f270b8008",
+        "4": "03b4f5ea266057c068aece6eb89054f3f0e6baa54020805e09599ae608a77fbd",
+        "5": "ac42ecace0541c04a247f5c66330c7f87ee201ca3d22092e1d8ffc995cd059de",
+        "6": "caa1980d5ccb9befd26fcd0ba43b05bfde870c1db1a0780d2229f2ac8cbc70d5"
+      },
+      "ensemble_probabilities_sha256": "2d055902de6b66f3a7cf9e48315d3b2c1b9735915cd194aa858ee2711745a8e0",
+      "caps": {
+        "10": {
+          "global_selected": 167,
+          "local_selected": 167,
+          "country_counts": {
+            "DZA": {
+              "cap": 56,
+              "global_clipper_count": 9,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 28
+            },
+            "IRQ": {
+              "cap": 62,
+              "global_clipper_count": 28,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 57
+            },
+            "NLD": {
+              "cap": 19,
+              "global_clipper_count": 56,
+              "global_clipper_excess": 37,
+              "local_clipper_count": 19
+            },
+            "PHL": {
+              "cap": 23,
+              "global_clipper_count": 66,
+              "global_clipper_excess": 43,
+              "local_clipper_count": 23
+            },
+            "TUR": {
+              "cap": 49,
+              "global_clipper_count": 8,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 40
+            }
+          },
+          "global_country_cap_excess_total": 80,
+          "global_violated_countries": [
+            "NLD",
+            "PHL"
+          ],
+          "selected_overlap": 87,
+          "global_only_selected": 80,
+          "local_only_selected": 80,
+          "selected_jaccard": 0.3522267206477733,
+          "global_selected_id_sha256": "87a3e8626769ba06e0c52ea949b0d07b0aa9399a98df7f03dfae00c7ee26a2f4",
+          "local_selected_id_sha256": "e980af6ec6f7e4e4c4aa08b0d8a887097be1991cb3a26afa362283911db53ce6"
+        },
+        "20": {
+          "global_selected": 83,
+          "local_selected": 83,
+          "country_counts": {
+            "DZA": {
+              "cap": 28,
+              "global_clipper_count": 2,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 13
+            },
+            "IRQ": {
+              "cap": 31,
+              "global_clipper_count": 13,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 31
+            },
+            "NLD": {
+              "cap": 10,
+              "global_clipper_count": 43,
+              "global_clipper_excess": 33,
+              "local_clipper_count": 10
+            },
+            "PHL": {
+              "cap": 11,
+              "global_clipper_count": 22,
+              "global_clipper_excess": 11,
+              "local_clipper_count": 11
+            },
+            "TUR": {
+              "cap": 24,
+              "global_clipper_count": 3,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 18
+            }
+          },
+          "global_country_cap_excess_total": 44,
+          "global_violated_countries": [
+            "NLD",
+            "PHL"
+          ],
+          "selected_overlap": 39,
+          "global_only_selected": 44,
+          "local_only_selected": 44,
+          "selected_jaccard": 0.30708661417322836,
+          "global_selected_id_sha256": "47dd2ca8f3ad82f85ce19472b5c3cc7204d0d3d1925417e2b9ce67fa14329521",
+          "local_selected_id_sha256": "eea9e6968cc9e239c5b305de5c880d72a2479723d6ca432f6b7b4e80c8df4800"
+        }
+      }
+    },
+    {
+      "seed": 6302,
+      "best_epoch": 1,
+      "epochs_run": 6,
+      "ensemble_window": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "config_sha256": "8dea1fec254fc6d47430435ea754f4fc99ce1e7562117107a87d72e3a00bde31",
+      "pto_snapshot_sha256": {
+        "1": "ac1da0caa2c1430ec4f711bba3b416f33b4fe2c151a70f2c761fca8b63c62262",
+        "2": "d8ec64e7a193092c31ebdc48a4d3c2a183ed78831ba8d687857b9766fe27a74f",
+        "3": "046cdb477c74db1650e5929ce314426f49e4b150c35d042674128b3ae05b5f64",
+        "4": "130069baf1abd7e2c88c72fe7aef712ed36e9b8be19f4e7df35d545436b7fb6f",
+        "5": "201d6754215fef109fd6e253d27fbfd7f0e04536c8a63d7cf6650f95e757b2e9",
+        "6": "bfb675e5407a98c6394f2027a8a13bd35ae6b27e9e64dda4f75c7df94068fa05"
+      },
+      "ensemble_probabilities_sha256": "6634535ae373aafa9c5c01a140822025e44f3137e3c4aff93316d433108ac28d",
+      "caps": {
+        "10": {
+          "global_selected": 167,
+          "local_selected": 167,
+          "country_counts": {
+            "DZA": {
+              "cap": 56,
+              "global_clipper_count": 10,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 20
+            },
+            "IRQ": {
+              "cap": 62,
+              "global_clipper_count": 22,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 59
+            },
+            "NLD": {
+              "cap": 19,
+              "global_clipper_count": 55,
+              "global_clipper_excess": 36,
+              "local_clipper_count": 19
+            },
+            "PHL": {
+              "cap": 23,
+              "global_clipper_count": 69,
+              "global_clipper_excess": 46,
+              "local_clipper_count": 23
+            },
+            "TUR": {
+              "cap": 49,
+              "global_clipper_count": 11,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 46
+            }
+          },
+          "global_country_cap_excess_total": 82,
+          "global_violated_countries": [
+            "NLD",
+            "PHL"
+          ],
+          "selected_overlap": 85,
+          "global_only_selected": 82,
+          "local_only_selected": 82,
+          "selected_jaccard": 0.3413654618473896,
+          "global_selected_id_sha256": "45637493e49ebe8b893e0443aa8c2451979d50b7244567e729dd118bbc9bd81c",
+          "local_selected_id_sha256": "6e4df8a1c70529cfe29fd4a0c86cab5d13b77bc39e36b46ccccd8fee5581a920"
+        },
+        "20": {
+          "global_selected": 83,
+          "local_selected": 83,
+          "country_counts": {
+            "DZA": {
+              "cap": 28,
+              "global_clipper_count": 2,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 12
+            },
+            "IRQ": {
+              "cap": 31,
+              "global_clipper_count": 3,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 31
+            },
+            "NLD": {
+              "cap": 10,
+              "global_clipper_count": 43,
+              "global_clipper_excess": 33,
+              "local_clipper_count": 10
+            },
+            "PHL": {
+              "cap": 11,
+              "global_clipper_count": 32,
+              "global_clipper_excess": 21,
+              "local_clipper_count": 11
+            },
+            "TUR": {
+              "cap": 24,
+              "global_clipper_count": 3,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 19
+            }
+          },
+          "global_country_cap_excess_total": 54,
+          "global_violated_countries": [
+            "NLD",
+            "PHL"
+          ],
+          "selected_overlap": 29,
+          "global_only_selected": 54,
+          "local_only_selected": 54,
+          "selected_jaccard": 0.2116788321167883,
+          "global_selected_id_sha256": "675b89f76f814f4cfac0469443380ca2201fdcd7cb7f80cdb78eae2533e1fe35",
+          "local_selected_id_sha256": "5f1b763c2c9fec4f7b1d26380a6624a13ea8f0ae49f6754302705f6a900849b9"
+        }
+      }
+    },
+    {
+      "seed": 6303,
+      "best_epoch": 1,
+      "epochs_run": 6,
+      "ensemble_window": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "config_sha256": "631ff8280e65eb7c22327ea17e48766d299a1ab05bd8b61db426a6d994f51735",
+      "pto_snapshot_sha256": {
+        "1": "a8e721c5131fc2557401a9cbcad89931dd18ea917aa9043cea451ae07ab0d314",
+        "2": "45ed5847a7ca952c0c6aa853e67a47c3de61980e36f1aff99f1064db70a3f1a9",
+        "3": "29ebf2b404f5aa55fdc4c4d64b23bd12ca00ed8e0d7f7c7e0b7e678c98862714",
+        "4": "56c6a2934aa0542603364e69ad43612a486b5a9a3c869409f0d428226c041c0d",
+        "5": "63d0e3aedca85c412c3a7d5f5b1e34b3de07c01a6c982730a7895c2afef10900",
+        "6": "e90818152e967b490cc3382559e4ef8f98d974dbf9d199c92303f59dfd949c41"
+      },
+      "ensemble_probabilities_sha256": "97faa4100fae68282573c1a0bd4c3a0d2e0b73320892608b65f1cfaee24a432a",
+      "caps": {
+        "10": {
+          "global_selected": 167,
+          "local_selected": 167,
+          "country_counts": {
+            "DZA": {
+              "cap": 56,
+              "global_clipper_count": 8,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 24
+            },
+            "IRQ": {
+              "cap": 62,
+              "global_clipper_count": 28,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 60
+            },
+            "NLD": {
+              "cap": 19,
+              "global_clipper_count": 51,
+              "global_clipper_excess": 32,
+              "local_clipper_count": 19
+            },
+            "PHL": {
+              "cap": 23,
+              "global_clipper_count": 68,
+              "global_clipper_excess": 45,
+              "local_clipper_count": 23
+            },
+            "TUR": {
+              "cap": 49,
+              "global_clipper_count": 12,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 41
+            }
+          },
+          "global_country_cap_excess_total": 77,
+          "global_violated_countries": [
+            "NLD",
+            "PHL"
+          ],
+          "selected_overlap": 90,
+          "global_only_selected": 77,
+          "local_only_selected": 77,
+          "selected_jaccard": 0.36885245901639346,
+          "global_selected_id_sha256": "3eaa5493e73d0b1371e7e2bf616bea3787a389dd36917599967fbde08502a484",
+          "local_selected_id_sha256": "4261d8a51ed0d316026d9ccb297e759833a54af675004dc34ac9cbca32815b3e"
+        },
+        "20": {
+          "global_selected": 83,
+          "local_selected": 83,
+          "country_counts": {
+            "DZA": {
+              "cap": 28,
+              "global_clipper_count": 2,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 12
+            },
+            "IRQ": {
+              "cap": 31,
+              "global_clipper_count": 14,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 31
+            },
+            "NLD": {
+              "cap": 10,
+              "global_clipper_count": 39,
+              "global_clipper_excess": 29,
+              "local_clipper_count": 10
+            },
+            "PHL": {
+              "cap": 11,
+              "global_clipper_count": 26,
+              "global_clipper_excess": 15,
+              "local_clipper_count": 11
+            },
+            "TUR": {
+              "cap": 24,
+              "global_clipper_count": 2,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 19
+            }
+          },
+          "global_country_cap_excess_total": 44,
+          "global_violated_countries": [
+            "NLD",
+            "PHL"
+          ],
+          "selected_overlap": 39,
+          "global_only_selected": 44,
+          "local_only_selected": 44,
+          "selected_jaccard": 0.30708661417322836,
+          "global_selected_id_sha256": "5e7dcd18c1a4ad704633a8b76275e7e9ae4399c9962f550ec273daa8a7efcdb8",
+          "local_selected_id_sha256": "89fe5134e089f65e920d7db417ac0b4a003054ada23f91d4e12d6d70636ed335"
+        }
+      }
+    },
+    {
+      "seed": 6304,
+      "best_epoch": 1,
+      "epochs_run": 6,
+      "ensemble_window": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "config_sha256": "5f5bee2561472cca8cc47633516f3642e3244c150d901ce01f15fc01fa5ee015",
+      "pto_snapshot_sha256": {
+        "1": "ca71f5cefcf2bb7bbe6437ad8a64350f7e1a71cd5597733c5072e19fd635c622",
+        "2": "cb873a3badc975fcea196bd1cb197c748a6de0c1cb84463bc8c441155bd30bce",
+        "3": "31bd647af41804e0418de78c7fadd44fcd20cab18cf9ac29c686753432c5c1fb",
+        "4": "e4282a1f0a67479b9c604490ed60e465c16f022a799a0beb6c3fdd857b4082ed",
+        "5": "3a146092d24825ceaf0fdd7a82fc0b426c2446d622dee6da4f900d4fbe2a8eef",
+        "6": "ad61e80309b90e51fc64b636ff6b667b07bf4f34f8c5e2c18bca8b27b56d1833"
+      },
+      "ensemble_probabilities_sha256": "e1755659daface87579d7cc97f52be7f95495739533b8a4c6c687fae60b5a0ef",
+      "caps": {
+        "10": {
+          "global_selected": 167,
+          "local_selected": 167,
+          "country_counts": {
+            "DZA": {
+              "cap": 56,
+              "global_clipper_count": 12,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 28
+            },
+            "IRQ": {
+              "cap": 62,
+              "global_clipper_count": 23,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 59
+            },
+            "NLD": {
+              "cap": 19,
+              "global_clipper_count": 58,
+              "global_clipper_excess": 39,
+              "local_clipper_count": 19
+            },
+            "PHL": {
+              "cap": 23,
+              "global_clipper_count": 62,
+              "global_clipper_excess": 39,
+              "local_clipper_count": 23
+            },
+            "TUR": {
+              "cap": 49,
+              "global_clipper_count": 12,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 38
+            }
+          },
+          "global_country_cap_excess_total": 78,
+          "global_violated_countries": [
+            "NLD",
+            "PHL"
+          ],
+          "selected_overlap": 89,
+          "global_only_selected": 78,
+          "local_only_selected": 78,
+          "selected_jaccard": 0.363265306122449,
+          "global_selected_id_sha256": "5fba95135cfa597db984ba6a9625a339942e63c6c1c671f27d9fcdfb628f804f",
+          "local_selected_id_sha256": "d34d872dd6c5d7eda54fe949983d5439e597a96166c3f075377e2cf14cfaf4b8"
+        },
+        "20": {
+          "global_selected": 83,
+          "local_selected": 83,
+          "country_counts": {
+            "DZA": {
+              "cap": 28,
+              "global_clipper_count": 3,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 15
+            },
+            "IRQ": {
+              "cap": 31,
+              "global_clipper_count": 11,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 31
+            },
+            "NLD": {
+              "cap": 10,
+              "global_clipper_count": 43,
+              "global_clipper_excess": 33,
+              "local_clipper_count": 10
+            },
+            "PHL": {
+              "cap": 11,
+              "global_clipper_count": 24,
+              "global_clipper_excess": 13,
+              "local_clipper_count": 11
+            },
+            "TUR": {
+              "cap": 24,
+              "global_clipper_count": 2,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 16
+            }
+          },
+          "global_country_cap_excess_total": 46,
+          "global_violated_countries": [
+            "NLD",
+            "PHL"
+          ],
+          "selected_overlap": 37,
+          "global_only_selected": 46,
+          "local_only_selected": 46,
+          "selected_jaccard": 0.2868217054263566,
+          "global_selected_id_sha256": "7b42ce6a785f1085a3f3219437b7cc7b1a558bbd35be4ad3235351f5df83aee1",
+          "local_selected_id_sha256": "ee4c3f0b710859af039d8eed769123879ceda6cb015514a5dd911ada498dfb13"
+        }
+      }
+    },
+    {
+      "seed": 6305,
+      "best_epoch": 1,
+      "epochs_run": 6,
+      "ensemble_window": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "config_sha256": "c02891b4bc775d5383352d4dbc0aa91a5d3c6abb3ef7631a1ff1e974eb414090",
+      "pto_snapshot_sha256": {
+        "1": "e302c6cb029a1d929679026b327a2355940261b7a274cc6dda5d5def7517af07",
+        "2": "6f089a1a6139e3273846bbd52711fff969fa3fdbde966d02672d57864112bad2",
+        "3": "61e16dbccf5cd301411d0ff90b4eb122bbdb8032f8d2643df7cd4d9d93aed263",
+        "4": "39c7e6131fd5e728d40eacc08f5e2be1050692c278f179671e01eb6f4d7076ea",
+        "5": "cc99701509057acde2c530c93ae5f437dc6cc5d998b58a9962c9b50c035c7979",
+        "6": "2253f46039d99c69e1089b356f26e238eca0592862ecaba1b10885fa37b000a3"
+      },
+      "ensemble_probabilities_sha256": "2330d60bad7505a392878902d64f8e3e1c09b42fe8d53850a38cdcb1b29747fc",
+      "caps": {
+        "10": {
+          "global_selected": 167,
+          "local_selected": 167,
+          "country_counts": {
+            "DZA": {
+              "cap": 56,
+              "global_clipper_count": 11,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 23
+            },
+            "IRQ": {
+              "cap": 62,
+              "global_clipper_count": 28,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 56
+            },
+            "NLD": {
+              "cap": 19,
+              "global_clipper_count": 55,
+              "global_clipper_excess": 36,
+              "local_clipper_count": 19
+            },
+            "PHL": {
+              "cap": 23,
+              "global_clipper_count": 64,
+              "global_clipper_excess": 41,
+              "local_clipper_count": 23
+            },
+            "TUR": {
+              "cap": 49,
+              "global_clipper_count": 9,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 46
+            }
+          },
+          "global_country_cap_excess_total": 77,
+          "global_violated_countries": [
+            "NLD",
+            "PHL"
+          ],
+          "selected_overlap": 90,
+          "global_only_selected": 77,
+          "local_only_selected": 77,
+          "selected_jaccard": 0.36885245901639346,
+          "global_selected_id_sha256": "4de551753348952084b32ea6f3c5d2036b48c2612c0860e307752a579e7f107f",
+          "local_selected_id_sha256": "bd9182ad26f3ef820507a254698223634e65ec740c0fb27e1a4ea25e61f70fda"
+        },
+        "20": {
+          "global_selected": 83,
+          "local_selected": 83,
+          "country_counts": {
+            "DZA": {
+              "cap": 28,
+              "global_clipper_count": 2,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 13
+            },
+            "IRQ": {
+              "cap": 31,
+              "global_clipper_count": 8,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 31
+            },
+            "NLD": {
+              "cap": 10,
+              "global_clipper_count": 44,
+              "global_clipper_excess": 34,
+              "local_clipper_count": 10
+            },
+            "PHL": {
+              "cap": 11,
+              "global_clipper_count": 27,
+              "global_clipper_excess": 16,
+              "local_clipper_count": 11
+            },
+            "TUR": {
+              "cap": 24,
+              "global_clipper_count": 2,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 18
+            }
+          },
+          "global_country_cap_excess_total": 50,
+          "global_violated_countries": [
+            "NLD",
+            "PHL"
+          ],
+          "selected_overlap": 33,
+          "global_only_selected": 50,
+          "local_only_selected": 50,
+          "selected_jaccard": 0.24812030075187969,
+          "global_selected_id_sha256": "4c71b82b6853c7903693deb3ff9b32e7b7e9e2a5facfe6240577ae07aa55c9f3",
+          "local_selected_id_sha256": "a21ad662a302857068bc71e77bc20fda335cb03e9ea6d28f6d0acc366ac4421a"
+        }
+      }
+    },
+    {
+      "seed": 6306,
+      "best_epoch": 1,
+      "epochs_run": 6,
+      "ensemble_window": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "config_sha256": "937ae3c0dd29327a0e3f71afb1dd8e263c543897752b2defa631a3f1e90d953f",
+      "pto_snapshot_sha256": {
+        "1": "16c4184a5700ca72c7d0b07bd0158eade8875935b54d01cc3f61e459a41ae0a9",
+        "2": "8a04a20cd99305556923b95ab198b9587ad5a0d68a32e7c31a65b9203c142185",
+        "3": "aeb4962c974dd0367c768be8f07eaa3216338f4c091dee0f53fb554b02f90db7",
+        "4": "41ae9b311b871cd299a1272bcaa6a1807636ec9360428e7f323050b2ec93e614",
+        "5": "93ad3c31c118c2e53af5168f3614f845df3bf4a0769f57ac485d0d7dcf79554b",
+        "6": "07c7c4d449b86cde9c97bd85fde77725f1efc941765e2bdea0cdee54a5ccc5be"
+      },
+      "ensemble_probabilities_sha256": "a1d3248455d8d2a0d244f1f8cc68155709c71a21350aa0743484eafcb6a3f6e8",
+      "caps": {
+        "10": {
+          "global_selected": 167,
+          "local_selected": 167,
+          "country_counts": {
+            "DZA": {
+              "cap": 56,
+              "global_clipper_count": 11,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 24
+            },
+            "IRQ": {
+              "cap": 62,
+              "global_clipper_count": 24,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 57
+            },
+            "NLD": {
+              "cap": 19,
+              "global_clipper_count": 56,
+              "global_clipper_excess": 37,
+              "local_clipper_count": 19
+            },
+            "PHL": {
+              "cap": 23,
+              "global_clipper_count": 64,
+              "global_clipper_excess": 41,
+              "local_clipper_count": 23
+            },
+            "TUR": {
+              "cap": 49,
+              "global_clipper_count": 12,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 44
+            }
+          },
+          "global_country_cap_excess_total": 78,
+          "global_violated_countries": [
+            "NLD",
+            "PHL"
+          ],
+          "selected_overlap": 89,
+          "global_only_selected": 78,
+          "local_only_selected": 78,
+          "selected_jaccard": 0.363265306122449,
+          "global_selected_id_sha256": "58d7b0bd778694299a1f3bf21d96b2b9eaf9a04359a4b1c59d4613dad676e61c",
+          "local_selected_id_sha256": "81bf9fe5fe35153ad5c896762357f01e8d820b7c9ea8f9193aee9d26de4be7e0"
+        },
+        "20": {
+          "global_selected": 83,
+          "local_selected": 83,
+          "country_counts": {
+            "DZA": {
+              "cap": 28,
+              "global_clipper_count": 3,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 12
+            },
+            "IRQ": {
+              "cap": 31,
+              "global_clipper_count": 9,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 31
+            },
+            "NLD": {
+              "cap": 10,
+              "global_clipper_count": 43,
+              "global_clipper_excess": 33,
+              "local_clipper_count": 10
+            },
+            "PHL": {
+              "cap": 11,
+              "global_clipper_count": 25,
+              "global_clipper_excess": 14,
+              "local_clipper_count": 11
+            },
+            "TUR": {
+              "cap": 24,
+              "global_clipper_count": 3,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 19
+            }
+          },
+          "global_country_cap_excess_total": 47,
+          "global_violated_countries": [
+            "NLD",
+            "PHL"
+          ],
+          "selected_overlap": 36,
+          "global_only_selected": 47,
+          "local_only_selected": 47,
+          "selected_jaccard": 0.27692307692307694,
+          "global_selected_id_sha256": "c4569e1df800e9da033de9f70e83473aac8e67ae85e3cf5f0dd7f592bb1e6b3d",
+          "local_selected_id_sha256": "f4c8c039da28453c56c0dee31a2acfc74d4f66b14088f86ec7ee3d338689cbef"
+        }
+      }
+    },
+    {
+      "seed": 6307,
+      "best_epoch": 1,
+      "epochs_run": 6,
+      "ensemble_window": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "config_sha256": "e07108c1658756c54fe5d6e5a46f4a6fe72b714b39ad3ac3e6750a8b6f41a426",
+      "pto_snapshot_sha256": {
+        "1": "f3699e36596dcdd06fd149c5a78396a13e2ae8841f68b42e7775d1fedb573f40",
+        "2": "0b709e98b2c75a29391274287a237a62709e9cb3cf232e374bab538003285225",
+        "3": "067c6b7ec041736ae871c1534b274adcddfbfa499b7b075cab2ce19af5348a41",
+        "4": "298e3e9c070309dd69aff041a899b386bc727d014fbb27192e7b61354f3e1403",
+        "5": "33a85b5cbf9c63c4ca93469ab949739bd3edc27bb3f68c585d1233889d68f058",
+        "6": "6dc0b6619385838c785340aadbc0a3aaac5f85c4b8f2c2a742715ab9c9aaf662"
+      },
+      "ensemble_probabilities_sha256": "39739cd4c3169de9fc706325ccb395f600c85ed54591677c2db9400846736589",
+      "caps": {
+        "10": {
+          "global_selected": 167,
+          "local_selected": 167,
+          "country_counts": {
+            "DZA": {
+              "cap": 56,
+              "global_clipper_count": 8,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 26
+            },
+            "IRQ": {
+              "cap": 62,
+              "global_clipper_count": 29,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 62
+            },
+            "NLD": {
+              "cap": 19,
+              "global_clipper_count": 56,
+              "global_clipper_excess": 37,
+              "local_clipper_count": 19
+            },
+            "PHL": {
+              "cap": 23,
+              "global_clipper_count": 66,
+              "global_clipper_excess": 43,
+              "local_clipper_count": 23
+            },
+            "TUR": {
+              "cap": 49,
+              "global_clipper_count": 8,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 37
+            }
+          },
+          "global_country_cap_excess_total": 80,
+          "global_violated_countries": [
+            "NLD",
+            "PHL"
+          ],
+          "selected_overlap": 87,
+          "global_only_selected": 80,
+          "local_only_selected": 80,
+          "selected_jaccard": 0.3522267206477733,
+          "global_selected_id_sha256": "0d78f262a17dbd07cc00f129bbf0b1589138e1a53e62ba96b1d3bb2fc1ef95bf",
+          "local_selected_id_sha256": "711448d832ccc1340b4f053e9853cde1786ff4715e388ce22740b2f410259e56"
+        },
+        "20": {
+          "global_selected": 83,
+          "local_selected": 83,
+          "country_counts": {
+            "DZA": {
+              "cap": 28,
+              "global_clipper_count": 2,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 14
+            },
+            "IRQ": {
+              "cap": 31,
+              "global_clipper_count": 12,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 31
+            },
+            "NLD": {
+              "cap": 10,
+              "global_clipper_count": 42,
+              "global_clipper_excess": 32,
+              "local_clipper_count": 10
+            },
+            "PHL": {
+              "cap": 11,
+              "global_clipper_count": 25,
+              "global_clipper_excess": 14,
+              "local_clipper_count": 11
+            },
+            "TUR": {
+              "cap": 24,
+              "global_clipper_count": 2,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 17
+            }
+          },
+          "global_country_cap_excess_total": 46,
+          "global_violated_countries": [
+            "NLD",
+            "PHL"
+          ],
+          "selected_overlap": 37,
+          "global_only_selected": 46,
+          "local_only_selected": 46,
+          "selected_jaccard": 0.2868217054263566,
+          "global_selected_id_sha256": "e1f8b5684ebe2a2139187463facc25735dad6f7dbe0a33b600c393e8f8dea919",
+          "local_selected_id_sha256": "29c9d989e7ce33f43032cc82cc21c90acf091e16c626dac8b7abb78dfb2a787b"
+        }
+      }
+    },
+    {
+      "seed": 6308,
+      "best_epoch": 1,
+      "epochs_run": 6,
+      "ensemble_window": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "config_sha256": "48e0d65ee9dea480fb7be3f111a1869089a538c8f0b51547c2972527c457c154",
+      "pto_snapshot_sha256": {
+        "1": "645f70ac07a54458f2b92c49cfa3f040bce0dbbb2f2ba84fe41d2750efb191e4",
+        "2": "3eecb4cb74404d4b7c4bb7659f5316de82ca1bf4e6f6101121c8c0850cae4a0c",
+        "3": "7d3722710adc88ec79ab6641421a2c0a752696b71e938f2c8f76a426ab5b20e5",
+        "4": "c94bbb0871e078081fd9288dcde8f4ba68cd716b48a784c9c87f421383feab49",
+        "5": "1d5c1d11756d266f393d644166eb288e5222d616f50af9b630804ec6105c9baa",
+        "6": "c3118e98f1771adcc8f1ec2b5f8ab670e313f31c00a2b0b6863040c4641bdc84"
+      },
+      "ensemble_probabilities_sha256": "9a1f5e7b92f8b5dffb96a1fdcd4fade3e3adac7942cddd02801ba9b82d8f8742",
+      "caps": {
+        "10": {
+          "global_selected": 167,
+          "local_selected": 167,
+          "country_counts": {
+            "DZA": {
+              "cap": 56,
+              "global_clipper_count": 9,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 25
+            },
+            "IRQ": {
+              "cap": 62,
+              "global_clipper_count": 23,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 59
+            },
+            "NLD": {
+              "cap": 19,
+              "global_clipper_count": 56,
+              "global_clipper_excess": 37,
+              "local_clipper_count": 19
+            },
+            "PHL": {
+              "cap": 23,
+              "global_clipper_count": 67,
+              "global_clipper_excess": 44,
+              "local_clipper_count": 23
+            },
+            "TUR": {
+              "cap": 49,
+              "global_clipper_count": 12,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 41
+            }
+          },
+          "global_country_cap_excess_total": 81,
+          "global_violated_countries": [
+            "NLD",
+            "PHL"
+          ],
+          "selected_overlap": 86,
+          "global_only_selected": 81,
+          "local_only_selected": 81,
+          "selected_jaccard": 0.3467741935483871,
+          "global_selected_id_sha256": "e4c62f5da44900a7f059891e7a4249a819b5b2f6ed49e32b211b282f4bdfd1c9",
+          "local_selected_id_sha256": "653e012f5ccfe625c5ebc3663b21051559930b7423f81d929efe5c09f164cfae"
+        },
+        "20": {
+          "global_selected": 83,
+          "local_selected": 83,
+          "country_counts": {
+            "DZA": {
+              "cap": 28,
+              "global_clipper_count": 4,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 11
+            },
+            "IRQ": {
+              "cap": 31,
+              "global_clipper_count": 10,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 31
+            },
+            "NLD": {
+              "cap": 10,
+              "global_clipper_count": 41,
+              "global_clipper_excess": 31,
+              "local_clipper_count": 10
+            },
+            "PHL": {
+              "cap": 11,
+              "global_clipper_count": 26,
+              "global_clipper_excess": 15,
+              "local_clipper_count": 11
+            },
+            "TUR": {
+              "cap": 24,
+              "global_clipper_count": 2,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 20
+            }
+          },
+          "global_country_cap_excess_total": 46,
+          "global_violated_countries": [
+            "NLD",
+            "PHL"
+          ],
+          "selected_overlap": 37,
+          "global_only_selected": 46,
+          "local_only_selected": 46,
+          "selected_jaccard": 0.2868217054263566,
+          "global_selected_id_sha256": "ff5345b51e811566eac1386078600a8acf83327c951a1bb1b82bf51aebb6e1cc",
+          "local_selected_id_sha256": "77b17cda74de8c34adc5f1b252f82163c1a2b9030f2dd94f625220c40c046deb"
+        }
+      }
+    },
+    {
+      "seed": 6309,
+      "best_epoch": 1,
+      "epochs_run": 6,
+      "ensemble_window": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "config_sha256": "2d5cc4c60688bc3fb38ece08cd28e740d31ee1ac8cd648018865226f7f8d2ddf",
+      "pto_snapshot_sha256": {
+        "1": "bfd9d508fd00201557da93cd70d83c2b39f6b275e067dd9b6aa90a3e96bd5fb6",
+        "2": "1422b8f06ee81829036c673a7fc5d67ff8f727bade64b9f89b85657a757c7ed7",
+        "3": "aaccd10fc19b9dd6a1e38997bfc3fe7d1a732a525663baa429bcc89e090f06fb",
+        "4": "8a867ee7cf554cb4cdd450c5f5ed305682babd2cc8dc7066e93f3602b2a82a94",
+        "5": "f8c454098c95c2568df86d8b77ba89820c069faeace0de61e8f78d06cb7272d9",
+        "6": "093948423ff07c5578d48b682dfe09ada4fe8e0c7e445b0863d280fbd874b085"
+      },
+      "ensemble_probabilities_sha256": "2e2aebf53e75d0738747d1a44b04643a7e55ab6c9c5f8161ebb21a56a05f1939",
+      "caps": {
+        "10": {
+          "global_selected": 167,
+          "local_selected": 167,
+          "country_counts": {
+            "DZA": {
+              "cap": 56,
+              "global_clipper_count": 10,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 27
+            },
+            "IRQ": {
+              "cap": 62,
+              "global_clipper_count": 23,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 57
+            },
+            "NLD": {
+              "cap": 19,
+              "global_clipper_count": 58,
+              "global_clipper_excess": 39,
+              "local_clipper_count": 19
+            },
+            "PHL": {
+              "cap": 23,
+              "global_clipper_count": 67,
+              "global_clipper_excess": 44,
+              "local_clipper_count": 23
+            },
+            "TUR": {
+              "cap": 49,
+              "global_clipper_count": 9,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 41
+            }
+          },
+          "global_country_cap_excess_total": 83,
+          "global_violated_countries": [
+            "NLD",
+            "PHL"
+          ],
+          "selected_overlap": 84,
+          "global_only_selected": 83,
+          "local_only_selected": 83,
+          "selected_jaccard": 0.336,
+          "global_selected_id_sha256": "2ea774549eb983c859ddba1e43d6fdd121a928f751e6fe11f3aff2a1756136df",
+          "local_selected_id_sha256": "20740eecb711eb60059cdbefe4ca3fd453355004d5f1d336c913ef2dd78eb06a"
+        },
+        "20": {
+          "global_selected": 83,
+          "local_selected": 83,
+          "country_counts": {
+            "DZA": {
+              "cap": 28,
+              "global_clipper_count": 2,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 13
+            },
+            "IRQ": {
+              "cap": 31,
+              "global_clipper_count": 13,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 31
+            },
+            "NLD": {
+              "cap": 10,
+              "global_clipper_count": 47,
+              "global_clipper_excess": 37,
+              "local_clipper_count": 10
+            },
+            "PHL": {
+              "cap": 11,
+              "global_clipper_count": 19,
+              "global_clipper_excess": 8,
+              "local_clipper_count": 11
+            },
+            "TUR": {
+              "cap": 24,
+              "global_clipper_count": 2,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 18
+            }
+          },
+          "global_country_cap_excess_total": 45,
+          "global_violated_countries": [
+            "NLD",
+            "PHL"
+          ],
+          "selected_overlap": 38,
+          "global_only_selected": 45,
+          "local_only_selected": 45,
+          "selected_jaccard": 0.296875,
+          "global_selected_id_sha256": "893ef638dd9a146eb881e5e374681cc4ef56abf421d3b3fc17a053a7ff663978",
+          "local_selected_id_sha256": "478ac6325fc84b526374bc6f535857a48f88757f41231ffba867074925112c3b"
+        }
+      }
+    },
+    {
+      "seed": 6310,
+      "best_epoch": 1,
+      "epochs_run": 6,
+      "ensemble_window": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "config_sha256": "6988de0cbe9d28706c9fd964a166e5735458da86d352968b36eed62944a92a7a",
+      "pto_snapshot_sha256": {
+        "1": "983bf9b9ecbb36d2ca9ae930f54e62dc4e5480f0937b724e8cb2a6ce38123e33",
+        "2": "ee0e89cbb3cd1652d5d1b851716d276a4ecfe4847c27853abfcd6169a572d599",
+        "3": "0e9ac21e74e4153682200a99a6d7464e8e3e76a43705fe22a1cd0008433f122b",
+        "4": "d1f3a598a6e78d705d533b47d88141a99b894f8e8f85f6b0488c57012cc2c9ec",
+        "5": "575995bdf5994df56ae9e4ce47819a189ed5cf888c75e8ac770506abde200734",
+        "6": "fbc43e6e8a7d417bb9cc03ba23e025f2a33774d2cc2252fee691abc7e6a8c2e4"
+      },
+      "ensemble_probabilities_sha256": "dcc5d32b0a26a4a6a69d6d2aced4806cfd4057438ac3d04bb88225635d2bfac2",
+      "caps": {
+        "10": {
+          "global_selected": 167,
+          "local_selected": 167,
+          "country_counts": {
+            "DZA": {
+              "cap": 56,
+              "global_clipper_count": 11,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 22
+            },
+            "IRQ": {
+              "cap": 62,
+              "global_clipper_count": 24,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 57
+            },
+            "NLD": {
+              "cap": 19,
+              "global_clipper_count": 58,
+              "global_clipper_excess": 39,
+              "local_clipper_count": 19
+            },
+            "PHL": {
+              "cap": 23,
+              "global_clipper_count": 62,
+              "global_clipper_excess": 39,
+              "local_clipper_count": 23
+            },
+            "TUR": {
+              "cap": 49,
+              "global_clipper_count": 12,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 46
+            }
+          },
+          "global_country_cap_excess_total": 78,
+          "global_violated_countries": [
+            "NLD",
+            "PHL"
+          ],
+          "selected_overlap": 89,
+          "global_only_selected": 78,
+          "local_only_selected": 78,
+          "selected_jaccard": 0.363265306122449,
+          "global_selected_id_sha256": "e3e02e0498a20c38542abb427a4bda8692ab0878c094461ea8bdd5d6420ceb85",
+          "local_selected_id_sha256": "e1b6f887e5beac430fc21731e087ffbfb599065f1c0a9046cb89d979df134912"
+        },
+        "20": {
+          "global_selected": 83,
+          "local_selected": 83,
+          "country_counts": {
+            "DZA": {
+              "cap": 28,
+              "global_clipper_count": 2,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 13
+            },
+            "IRQ": {
+              "cap": 31,
+              "global_clipper_count": 7,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 31
+            },
+            "NLD": {
+              "cap": 10,
+              "global_clipper_count": 43,
+              "global_clipper_excess": 33,
+              "local_clipper_count": 10
+            },
+            "PHL": {
+              "cap": 11,
+              "global_clipper_count": 29,
+              "global_clipper_excess": 18,
+              "local_clipper_count": 11
+            },
+            "TUR": {
+              "cap": 24,
+              "global_clipper_count": 2,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 18
+            }
+          },
+          "global_country_cap_excess_total": 51,
+          "global_violated_countries": [
+            "NLD",
+            "PHL"
+          ],
+          "selected_overlap": 32,
+          "global_only_selected": 51,
+          "local_only_selected": 51,
+          "selected_jaccard": 0.23880597014925373,
+          "global_selected_id_sha256": "fb3d656806c4a4fdbf6c600b5b1e3f86a7dfcd1b060fb3323b934116c59f593a",
+          "local_selected_id_sha256": "d8676381d64884911f4f358ff94c087128bd15ee5a875da83ffa8b63e69829c7"
+        }
+      }
+    },
+    {
+      "seed": 6311,
+      "best_epoch": 1,
+      "epochs_run": 6,
+      "ensemble_window": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "config_sha256": "ee7d2f6c53260e1e795a4c7ba6ff3e5fda6928081264fe44ea47e26fdfedd8a5",
+      "pto_snapshot_sha256": {
+        "1": "96513069608dc9dbbdae58fe441aa064099fe798e2a4d3ba887ded56abafee7b",
+        "2": "63d08efbc720c69b9eaa21995b14630fdf87c54583efdce10b4f4afaa1a5bee6",
+        "3": "3bcd57347618db425be33747520dd789f05bd0b3dd58c43b364c205f7b0f0367",
+        "4": "4ab997fa0832dffe9dd1fd200babd02910417ec7f0661faa3829727a23779aab",
+        "5": "6bcf15e0541c453828b345234e9095eb939e2ed29a52e1eecaa4d97d0a2247e4",
+        "6": "c76115900bfc08e5aab696f4bb12113d23f78bcb102ae3c9e00d4d50817764c9"
+      },
+      "ensemble_probabilities_sha256": "2c5fb089e74e77fc038458e1e64fe50ed1cdd8853b61feb89a106a1266424404",
+      "caps": {
+        "10": {
+          "global_selected": 167,
+          "local_selected": 167,
+          "country_counts": {
+            "DZA": {
+              "cap": 56,
+              "global_clipper_count": 8,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 23
+            },
+            "IRQ": {
+              "cap": 62,
+              "global_clipper_count": 25,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 61
+            },
+            "NLD": {
+              "cap": 19,
+              "global_clipper_count": 57,
+              "global_clipper_excess": 38,
+              "local_clipper_count": 19
+            },
+            "PHL": {
+              "cap": 23,
+              "global_clipper_count": 69,
+              "global_clipper_excess": 46,
+              "local_clipper_count": 23
+            },
+            "TUR": {
+              "cap": 49,
+              "global_clipper_count": 8,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 41
+            }
+          },
+          "global_country_cap_excess_total": 84,
+          "global_violated_countries": [
+            "NLD",
+            "PHL"
+          ],
+          "selected_overlap": 83,
+          "global_only_selected": 84,
+          "local_only_selected": 84,
+          "selected_jaccard": 0.33067729083665337,
+          "global_selected_id_sha256": "bbcb592f7a8605d32649e877ac8b6ddca5dd1135bf051049e05a3c173b5983ef",
+          "local_selected_id_sha256": "6f29505a5cd2dd4f773944c2dedd625756bc9e666a07b621ee7daa5b65d1d431"
+        },
+        "20": {
+          "global_selected": 83,
+          "local_selected": 83,
+          "country_counts": {
+            "DZA": {
+              "cap": 28,
+              "global_clipper_count": 1,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 15
+            },
+            "IRQ": {
+              "cap": 31,
+              "global_clipper_count": 8,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 31
+            },
+            "NLD": {
+              "cap": 10,
+              "global_clipper_count": 44,
+              "global_clipper_excess": 34,
+              "local_clipper_count": 10
+            },
+            "PHL": {
+              "cap": 11,
+              "global_clipper_count": 29,
+              "global_clipper_excess": 18,
+              "local_clipper_count": 11
+            },
+            "TUR": {
+              "cap": 24,
+              "global_clipper_count": 1,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 16
+            }
+          },
+          "global_country_cap_excess_total": 52,
+          "global_violated_countries": [
+            "NLD",
+            "PHL"
+          ],
+          "selected_overlap": 31,
+          "global_only_selected": 52,
+          "local_only_selected": 52,
+          "selected_jaccard": 0.22962962962962963,
+          "global_selected_id_sha256": "536cc184b72ded4c68499b89dd683d437d06ce0686ef93f4fd592c6b6e6818a1",
+          "local_selected_id_sha256": "0b622665e4fc72a324435ae619696b7b925a6a3e9acbcebd6ecdee071afb913f"
+        }
+      }
+    },
+    {
+      "seed": 6312,
+      "best_epoch": 2,
+      "epochs_run": 7,
+      "ensemble_window": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "config_sha256": "6b9f863c8c52673dd8f4e42a3881d638d26205961f92b3766bab4a621f53ac65",
+      "pto_snapshot_sha256": {
+        "1": "33842873e418feeda2f62296c76a1ee751efacbfb9e1ee804e1c92f029c8b32e",
+        "2": "b7a71f32fd9717b32554e35c0773e0a2a3b2b226dd2aa3bfec645062855b5f5b",
+        "3": "ce6f00baf34e89d67b55f1afa6f69930e6b07b20d6b1e7e57daae74aa87e4b47",
+        "4": "a693fda0be12e058406548aa5b95b3af66db58f76d7140aea0a1de289de48b4e",
+        "5": "176f572ef5340bd52fa320f7fc6a90378efdd3764c97ee1e0174b26e3437c3b6",
+        "6": "425c4e98c99bc3d52b1e316534b964fbface1592d1e239cabdd50a6e4abf719f",
+        "7": "7af51de1a48385cbe169d3de836e33b103f858abd1108ec026de3ee414cdf106"
+      },
+      "ensemble_probabilities_sha256": "eb62e7e55cb5f33363fe4f3650777578614e734a74b2fe41e4dc01d2a52ef499",
+      "caps": {
+        "10": {
+          "global_selected": 167,
+          "local_selected": 167,
+          "country_counts": {
+            "DZA": {
+              "cap": 56,
+              "global_clipper_count": 10,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 24
+            },
+            "IRQ": {
+              "cap": 62,
+              "global_clipper_count": 28,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 62
+            },
+            "NLD": {
+              "cap": 19,
+              "global_clipper_count": 53,
+              "global_clipper_excess": 34,
+              "local_clipper_count": 19
+            },
+            "PHL": {
+              "cap": 23,
+              "global_clipper_count": 64,
+              "global_clipper_excess": 41,
+              "local_clipper_count": 23
+            },
+            "TUR": {
+              "cap": 49,
+              "global_clipper_count": 12,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 39
+            }
+          },
+          "global_country_cap_excess_total": 75,
+          "global_violated_countries": [
+            "NLD",
+            "PHL"
+          ],
+          "selected_overlap": 92,
+          "global_only_selected": 75,
+          "local_only_selected": 75,
+          "selected_jaccard": 0.38016528925619836,
+          "global_selected_id_sha256": "7b515883af818052e9468e298c50d6915917295a5664624bb74e7cce22c4c8b6",
+          "local_selected_id_sha256": "edd96439fbe289870c792b97db1dd3458e51495cf20254a320991894bae61818"
+        },
+        "20": {
+          "global_selected": 83,
+          "local_selected": 83,
+          "country_counts": {
+            "DZA": {
+              "cap": 28,
+              "global_clipper_count": 4,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 15
+            },
+            "IRQ": {
+              "cap": 31,
+              "global_clipper_count": 12,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 31
+            },
+            "NLD": {
+              "cap": 10,
+              "global_clipper_count": 38,
+              "global_clipper_excess": 28,
+              "local_clipper_count": 10
+            },
+            "PHL": {
+              "cap": 11,
+              "global_clipper_count": 24,
+              "global_clipper_excess": 13,
+              "local_clipper_count": 11
+            },
+            "TUR": {
+              "cap": 24,
+              "global_clipper_count": 5,
+              "global_clipper_excess": 0,
+              "local_clipper_count": 16
+            }
+          },
+          "global_country_cap_excess_total": 41,
+          "global_violated_countries": [
+            "NLD",
+            "PHL"
+          ],
+          "selected_overlap": 42,
+          "global_only_selected": 41,
+          "local_only_selected": 41,
+          "selected_jaccard": 0.3387096774193548,
+          "global_selected_id_sha256": "481158b801ea4275275a95286ced6109c691bb6c124abb03e5820974eb330300",
+          "local_selected_id_sha256": "f53099fa96dc13cad7e3b0276bcda596c7b3ce95149aa771ab113c3c81e2040b"
+        }
+      }
+    }
+  ],
+  "diagnostic_source_sha256": "7b3ca8cf05e9e2ce3bbe66c84c5a5a665003714d4b9fc87e8bda45ca7ad1239a"
+}
