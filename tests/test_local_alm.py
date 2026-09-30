@@ -155,3 +155,111 @@ def test_slack_snapshot_does_not_move_model_or_dual():
     assert not record["applied"] and record["gradient_norm"] == 0
     assert torch.equal(dual, torch.zeros(3))
     assert all(torch.equal(model.state_dict()[key], value) for key, value in before.items())
+
+
+def test_boundary_phr_step_records_real_probe_and_preserves_buffers_rng():
+    torch.manual_seed(41)
+    model = torch.nn.Sequential(torch.nn.Linear(2, 2), torch.nn.BatchNorm1d(2),
+                                torch.nn.Linear(2, 2))
+    model.train()
+    with torch.no_grad():
+        model[2].bias[:] = torch.tensor([0.0, 1.0])
+    images = [torch.tensor([[1.0, 0.2], [0.3, -0.1]]),
+              torch.tensor([[-0.6, 0.4], [0.5, 0.8]])]
+    before = {key: value.clone() for key, value in model.state_dict().items()}
+    rng = torch.get_rng_state().clone()
+    record, dual = snapshot_phr_step(
+        model, images, ["A", "A", "B", "B"], 1, 1,
+        {"A": 0, "B": 1}, torch.zeros(3), boundary_calibrated=True)
+    policy = record["boundary_policy"]
+    assert record["applied"] and policy["applied"]
+    assert 0 < record["radius"] <= 0.1
+    assert abs(record["displacement"] - record["radius"]) < 1e-5
+    assert policy["probes"] and policy["probes"][-1]["accepted"]
+    assert record["activation_reason"] == "boundary_accepted"
+    assert torch.any(dual > 0)
+    assert model.training and torch.equal(torch.get_rng_state(), rng)
+    for key in ("1.running_mean", "1.running_var", "1.num_batches_tracked"):
+        assert torch.equal(model.state_dict()[key], before[key])
+
+
+def test_boundary_phr_slack_does_not_move_model_or_dual():
+    model = torch.nn.Linear(2, 2)
+    with torch.no_grad():
+        model.weight.zero_()
+        model.bias[:] = torch.tensor([2.0, 0.0])
+    before = {key: value.clone() for key, value in model.state_dict().items()}
+    record, dual = snapshot_phr_step(
+        model, [torch.zeros(2, 2)], ["A", "B"], 1, 2,
+        {"A": 1, "B": 1}, torch.zeros(3), boundary_calibrated=True)
+    assert not record["applied"] and record["radius"] == 0.0
+    assert record["boundary_policy"]["reason"] == "zero_phr_gradient"
+    assert torch.equal(dual, torch.zeros(3))
+    assert all(torch.equal(model.state_dict()[key], value) for key, value in before.items())
+
+
+def test_boundary_phr_rejects_a_final_replay_mismatch(monkeypatch):
+    model = torch.nn.Linear(2, 2)
+    with torch.no_grad():
+        model.weight.zero_()
+        model.bias[:] = torch.tensor([0.0, 1.0])
+    original = {key: value.clone() for key, value in model.state_dict().items()}
+
+    def forged_policy(*args, **kwargs):
+        return dict(applied=True, radius=0.05, reason="accepted", probes=[
+            dict(pooled_hard=999, pooled_soft=999.0,
+                 local_soft={"A": 999.0, "B": 0.0})])
+
+    monkeypatch.setattr("tralo.local_alm.choose_boundary_step", forged_policy)
+    with pytest.raises(RuntimeError, match="did not replay exactly"):
+        snapshot_phr_step(model, [torch.zeros(2, 2)], ["A", "B"], 1, 1,
+                          {"A": 0, "B": 0}, torch.zeros(3),
+                          boundary_calibrated=True)
+    assert all(torch.equal(model.state_dict()[key], value)
+               for key, value in original.items())
+
+
+def test_boundary_phr_restores_a_rejected_probe(monkeypatch):
+    model = torch.nn.Linear(2, 2)
+    with torch.no_grad():
+        model.weight.zero_()
+        model.bias[:] = torch.tensor([0.0, 1.0])
+    original = {key: value.clone() for key, value in model.state_dict().items()}
+
+    def rejecting_policy(*args, **kwargs):
+        probe = args[7]
+        probe(0.1)
+        return dict(applied=False, radius=0.0, reason="no_acceptable_probe",
+                    probes=[dict(radius=0.1, accepted=False)])
+
+    monkeypatch.setattr("tralo.local_alm.choose_boundary_step", rejecting_policy)
+    record, _ = snapshot_phr_step(
+        model, [torch.zeros(2, 2)], ["A", "B"], 1, 1,
+        {"A": 0, "B": 0}, torch.zeros(3), boundary_calibrated=True)
+    assert not record["applied"] and record["radius"] == 0.0
+    assert record["activation_reason"] == "boundary_no_acceptable_probe"
+    assert all(torch.equal(model.state_dict()[key], value)
+               for key, value in original.items())
+
+
+def test_boundary_phr_rejects_and_restores_mutable_eval_buffer():
+    class MutableEval(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.linear = torch.nn.Linear(2, 2)
+            self.register_buffer("calls", torch.zeros((), dtype=torch.long))
+
+        def forward(self, images):
+            self.calls.add_(1)
+            return self.linear(images)
+
+    model = MutableEval()
+    with torch.no_grad():
+        model.linear.weight.zero_()
+        model.linear.bias[:] = torch.tensor([0.0, 1.0])
+    original = model.calls.clone()
+    with pytest.raises(RuntimeError, match="changed model buffers"):
+        snapshot_phr_step(model, [torch.zeros(2, 2)], ["A", "B"], 1, 1,
+                          {"A": 0, "B": 0}, torch.zeros(3),
+                          boundary_calibrated=True)
+    assert torch.equal(model.calls, original)

@@ -29,6 +29,8 @@ FIXED_PILOT = 6199
 FIXED_SEEDS = range(6200, 6212)
 ALM_PILOT = 6300
 ALM_SEEDS = range(6301, 6313)
+BOUNDARY_PILOT = 6400
+BOUNDARY_SEEDS = range(6401, 6413)
 DIVISORS = (10, 20)
 RECIPE = dict(backbone="mobilenet_v3_large", capped_class=CAPPED,
               max_epochs=75, patience=5, batch_size=32, lr=1e-4,
@@ -40,20 +42,22 @@ def validate(config):
     if not isinstance(config, dict):
         raise ValueError("config must be a dictionary")
     alm = config.get("study") == "local_alm_direction_v1"
-    fixed = config.get("study") == "local_fixed_dose_v1" or alm
+    boundary = config.get("study") == "local_boundary_v1"
+    fixed = config.get("study") == "local_fixed_dose_v1" or alm or boundary
     expected = set(RECIPE) | {"seed", "snapshot_steps"}
     if fixed:
         expected |= {"study", "step_radius"}
         if type(config.get("step_radius")) is not float or config["step_radius"] != 0.1:
             raise ValueError("fixed-dose study requires radius 0.1")
-    if alm:
+    if alm or boundary:
         expected.add("alm_rho")
         if type(config.get("alm_rho")) is not float or config["alm_rho"] != 0.5:
-            raise ValueError("local ALM direction study requires rho 0.5")
+            raise ValueError(("boundary study" if boundary else
+                              "local ALM direction study") + " requires rho 0.5")
     if set(config) != expected:
         raise ValueError("config keys differ from the named local protocol")
-    pilot = ALM_PILOT if alm else FIXED_PILOT if fixed else PILOT
-    seeds = ALM_SEEDS if alm else FIXED_SEEDS if fixed else SEEDS
+    pilot = BOUNDARY_PILOT if boundary else ALM_PILOT if alm else FIXED_PILOT if fixed else PILOT
+    seeds = BOUNDARY_SEEDS if boundary else ALM_SEEDS if alm else FIXED_SEEDS if fixed else SEEDS
     if type(config["seed"]) is not int or config["seed"] not in seeds and config["seed"] != pilot:
         raise ValueError("seed is outside the named study and pilot blocks")
     if type(config["snapshot_steps"]) is not bool or not config["snapshot_steps"] and config["seed"] != pilot:
@@ -79,9 +83,17 @@ def budgets(groups):
 
 
 def snapshot_side_steps(model, pool, groups, quota, seed, epoch, directory,
-                        fixed_radius=None, phr_state=None, phr_rho=None):
+                        fixed_radius=None, phr_state=None, phr_rho=None,
+                        boundary_calibrated=False, pto_probabilities=None):
     """Save joint, same-radius pooled-direction and sham snapshots for one cap."""
     import torch
+    if type(boundary_calibrated) is not bool:
+        raise ValueError("boundary_calibrated must be a bool")
+    if boundary_calibrated and (fixed_radius != 0.1 or phr_state is None or
+                                phr_rho != 0.5):
+        raise ValueError("boundary study requires radius ceiling 0.1 and PHR rho 0.5")
+    if boundary_calibrated and not isinstance(pto_probabilities, torch.Tensor):
+        raise ValueError("boundary study requires the saved PTO snapshot probabilities")
     cpu = torch.get_rng_state()
     cuda = torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None
     state = _state_hash(model)
@@ -91,7 +103,9 @@ def snapshot_side_steps(model, pool, groups, quota, seed, epoch, directory,
             side = copy.deepcopy(model)
             try:
                 kwargs = {}
-                if arm == "joint" and fixed_radius is not None:
+                if arm == "joint" and boundary_calibrated:
+                    kwargs.update(boundary_calibrated=True, max_radius=fixed_radius)
+                elif arm == "joint" and fixed_radius is not None:
                     kwargs.update(fixed_radius=fixed_radius, require_common_descent=False)
                 if arm == "global_dose":
                     kwargs.update(fixed_radius=steps["joint"]["radius"], global_only_direction=True)
@@ -100,13 +114,33 @@ def snapshot_side_steps(model, pool, groups, quota, seed, epoch, directory,
                                   sham_generator=torch.Generator().manual_seed(
                                       seed + SHAM_OFFSET + 1000 * epoch))
                 if arm != "joint" and not steps["joint"]["applied"]:
-                    steps[arm] = dict(applied=False, displacement=0.0)
+                    if boundary_calibrated:
+                        joint = steps["joint"]
+                        steps[arm] = dict(
+                            applied=False, radius=0.0, displacement=0.0,
+                            skip_reason="joint_boundary_skip",
+                            hard_before_global=joint["hard_before_global"],
+                            hard_after_global=joint["hard_before_global"],
+                            hard_before_local=joint["hard_before_local"],
+                            hard_after_local=joint["hard_before_local"],
+                            soft_before_global=joint["soft_before_global"],
+                            soft_after_global=joint["soft_before_global"],
+                            soft_before_local=joint["soft_before_local"],
+                            soft_after_local=joint["soft_before_local"],
+                            tensor_displacement_norms=[
+                                0.0 for p in side.parameters() if p.requires_grad])
+                    else:
+                        steps[arm] = dict(applied=False, displacement=0.0)
                 else:
                     steps[arm] = local_targeted_step(
                         side, pool, groups, CAPPED, quota["global_cap"],
                         quota["local_caps"], **kwargs)
                 artifact = Path(directory) / f"epoch{epoch:02d}_{arm}.pt"
-                torch.save(infer(side, pool).cpu(), artifact)
+                probabilities = infer(side, pool).cpu()
+                if boundary_calibrated and not steps[arm]["applied"] and not torch.equal(
+                        probabilities, pto_probabilities.cpu()):
+                    raise RuntimeError("skipped boundary arm differs from PTO probabilities")
+                torch.save(probabilities, artifact)
                 steps[arm]["probability_sha256"] = digest(artifact)
             finally:
                 del side
@@ -116,9 +150,14 @@ def snapshot_side_steps(model, pool, groups, quota, seed, epoch, directory,
                 record, next_dual = snapshot_phr_step(
                     side, pool, groups, CAPPED, quota["global_cap"],
                     quota["local_caps"], phr_state["dual"], rho=phr_rho,
-                    radius=fixed_radius)
+                    radius=fixed_radius,
+                    boundary_calibrated=boundary_calibrated)
                 artifact = Path(directory) / f"epoch{epoch:02d}_phr_local.pt"
-                torch.save(infer(side, pool).cpu(), artifact)
+                probabilities = infer(side, pool).cpu()
+                if boundary_calibrated and not record["applied"] and not torch.equal(
+                        probabilities, pto_probabilities.cpu()):
+                    raise RuntimeError("skipped PHR arm differs from PTO probabilities")
+                torch.save(probabilities, artifact)
                 record["probability_sha256"] = digest(artifact)
                 steps["phr_local"] = record
                 phr_state["dual"] = next_dual
@@ -153,7 +192,7 @@ def run(data_root, config_path, output):
         cuda_setup()
         images, train_labels, pool_rows, roles = load(
             data_root, include_pool_labels=config.get("study") not in
-            ("local_fixed_dose_v1", "local_alm_direction_v1"))
+            ("local_fixed_dose_v1", "local_alm_direction_v1", "local_boundary_v1"))
         groups = [row["location"] for row in pool_rows]
         quota = budgets(groups)
         counts = dict(train=len(roles["train"]), stop=len(roles["stop"]), dev=len(roles["dev"]))
@@ -194,7 +233,8 @@ def run(data_root, config_path, output):
             snapshot_hashes = {}
             phr_states = ({str(divisor): {"dual": torch.zeros(1 + len(quota[str(divisor)]["local_caps"]))}
                           for divisor in DIVISORS}
-                          if config.get("study") == "local_alm_direction_v1" else None)
+                          if config.get("study") in ("local_alm_direction_v1",
+                                                      "local_boundary_v1") else None)
 
             def snapshot(epoch, probabilities):
                 artifact = directory / f"epoch{epoch:02d}.pt"
@@ -210,7 +250,9 @@ def run(data_root, config_path, output):
                             model, pool, groups, quota[str(divisor)], config["seed"], epoch,
                             cap_directory, fixed_radius=config.get("step_radius"),
                             phr_state=phr_states[str(divisor)] if phr_states is not None else None,
-                            phr_rho=config.get("alm_rho"))
+                            phr_rho=config.get("alm_rho"),
+                            boundary_calibrated=config.get("study") == "local_boundary_v1",
+                            pto_probabilities=probabilities)
                         side_steps[str(epoch)][str(divisor)] = step_record
                         rlog.emit("snapshot_cap", epoch=epoch, divisor=divisor,
                                   quota=quota[str(divisor)], steps=step_record)

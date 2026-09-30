@@ -10,6 +10,7 @@ import torch
 
 from .alm import augmented_penalty, update_dual
 from .knee_end_to_end import infer
+from .local_boundary_policy import choose_boundary_step
 from .targeted_step import _place
 
 
@@ -81,9 +82,9 @@ def _scope_counts(probabilities, groups, capped_class, local_caps):
     return sum(hard.values()), dict(sorted(hard.items())), dict(sorted(soft.items()))
 
 
-def snapshot_phr_step(model, chunks, groups, capped_class, global_cap,
-                      local_caps, dual, rho=0.5, radius=0.1):
-    """Take one fixed-dose PHR step on a side model and advance its dual.
+def _snapshot_phr_step_impl(model, chunks, groups, capped_class, global_cap,
+                            local_caps, dual, rho, radius, boundary_calibrated):
+    """Take one PHR step on a side model and advance its dual.
 
     The input model is a disposable copy of a common PTO snapshot. Duals are
     CPU tensors so their scope order and values can be logged independent of GPU.
@@ -92,6 +93,8 @@ def snapshot_phr_step(model, chunks, groups, capped_class, global_cap,
         raise ValueError("chunks must be replayable and nonempty")
     if type(radius) is not float or radius != 0.1:
         raise ValueError("the named study requires a 0.1 parameter radius")
+    if type(boundary_calibrated) is not bool:
+        raise ValueError("boundary_calibrated must be a bool")
     if not isinstance(dual, torch.Tensor) or dual.device.type != "cpu":
         raise ValueError("PHR dual must be a CPU tensor")
     before = infer(model, chunks)
@@ -152,23 +155,61 @@ def snapshot_phr_step(model, chunks, groups, capped_class, global_cap,
                                             if g is not None)
                 start = end
             record["scope_directional_derivatives"] = scope_dots
-            _place(params, origin, direction, radius)
-            if any(not bool(torch.isfinite(p).all()) for p in params):
-                raise RuntimeError("nonfinite parameter after PHR step")
-            moved = math.sqrt(sum(float((p.detach() - old).double().square().sum())
-                                  for p, old in zip(params, origin)))
-            if abs(moved - radius) > 1e-5:
-                raise RuntimeError("PHR parameter dose differs from fixed radius")
-            record.update(applied=True, displacement=moved,
-                          tensor_displacement_norms=[float((p.detach()-old).double().norm())
-                                                     for p, old in zip(params, origin)])
-            record["activation_reason"] = "finite_nonzero_phr_gradient"
+            selected_radius = radius
+            if boundary_calibrated:
+                def probe(candidate):
+                    _place(params, origin, direction, candidate)
+                    candidate_probabilities = infer(model, chunks)
+                    hard, _, soft = _scope_counts(
+                        candidate_probabilities, groups, capped_class, local_caps)
+                    return dict(pooled_hard=hard, pooled_soft=math.fsum(soft.values()),
+                                local_soft=soft)
+
+                policy = choose_boundary_step(
+                    hard_before, math.fsum(soft_local_before.values()), global_cap,
+                    soft_local_before, local_caps, scope_dots["global"],
+                    {group: scope_dots[group] for group in local_caps}, probe,
+                    max_radius=radius)
+                record["boundary_policy"] = policy
+                selected_radius = policy["radius"]
+                record["radius"] = selected_radius
+            _place(params, origin, direction, selected_radius)
+            if selected_radius > 0:
+                if any(not bool(torch.isfinite(p).all()) for p in params):
+                    raise RuntimeError("nonfinite parameter after PHR step")
+                moved = math.sqrt(sum(float((p.detach() - old).double().square().sum())
+                                      for p, old in zip(params, origin)))
+                if abs(moved - selected_radius) > 1e-5:
+                    raise RuntimeError("PHR parameter dose differs from selected radius")
+                record.update(applied=True, displacement=moved,
+                              tensor_displacement_norms=[float((p.detach()-old).double().norm())
+                                                         for p, old in zip(params, origin)])
+                record["activation_reason"] = (
+                    "boundary_accepted" if boundary_calibrated else
+                    "finite_nonzero_phr_gradient")
+            else:
+                record["activation_reason"] = "boundary_" + policy["reason"]
         else:
             record["scope_directional_derivatives"] = {}
             record["activation_reason"] = "zero_phr_gradient"
+            if boundary_calibrated:
+                record["radius"] = 0.0
+                record["boundary_policy"] = dict(applied=False, radius=0.0,
+                                                 reason="zero_phr_gradient", probes=[])
         after = infer(model, chunks)
         hard_after, hard_local_after, soft_local_after = _scope_counts(
             after, groups, capped_class, local_caps)
+        if boundary_calibrated and record["boundary_policy"]["applied"]:
+            accepted = record["boundary_policy"]["probes"][-1]
+            if (hard_after != accepted["pooled_hard"] or
+                    not math.isclose(math.fsum(soft_local_after.values()),
+                                     accepted["pooled_soft"], rel_tol=1e-7,
+                                     abs_tol=1e-7) or
+                    any(not math.isclose(soft_local_after[group],
+                                         accepted["local_soft"][group],
+                                         rel_tol=1e-7, abs_tol=1e-7)
+                        for group in local_caps)):
+                raise RuntimeError("accepted PHR boundary probe did not replay exactly")
         after_residuals, after_penalty, _ = residuals_and_gradient(
             after, groups, capped_class, global_cap, local_caps, dual, rho)
         next_dual = projected_dual(after_residuals, dual, rho)
@@ -185,3 +226,34 @@ def snapshot_phr_step(model, chunks, groups, capped_class, global_cap,
     finally:
         model.zero_grad(set_to_none=True)
         model.train(was_training)
+
+
+def snapshot_phr_step(model, chunks, groups, capped_class, global_cap,
+                      local_caps, dual, rho=0.5, radius=0.1,
+                      boundary_calibrated=False):
+    """Apply a fixed or opt-in calibrated PHR side step.
+
+    The calibrated path additionally proves RNG and buffer neutrality. The
+    historical fixed-dose path remains unchanged for its frozen studies.
+    """
+    if not boundary_calibrated:
+        return _snapshot_phr_step_impl(model, chunks, groups, capped_class,
+                                       global_cap, local_caps, dual, rho,
+                                       radius, boundary_calibrated)
+    params = [p for p in model.parameters() if p.requires_grad]
+    devices = sorted({p.device.index if p.device.index is not None else
+                      torch.cuda.current_device() for p in params
+                      if p.device.type == "cuda"})
+    buffers = [(buffer, buffer.detach().clone()) for buffer in model.buffers()]
+    with torch.random.fork_rng(devices=devices):
+        try:
+            result = _snapshot_phr_step_impl(model, chunks, groups, capped_class,
+                                             global_cap, local_caps, dual, rho,
+                                             radius, boundary_calibrated)
+            if any(not torch.equal(buffer, base) for buffer, base in buffers):
+                raise RuntimeError("PHR boundary replay changed model buffers")
+            return result
+        finally:
+            with torch.no_grad():
+                for buffer, base in buffers:
+                    buffer.copy_(base)

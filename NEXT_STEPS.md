@@ -1,5 +1,23 @@
 # Rebuild work queue
 
+## Active, 30 September: fixed boundary-calibrated fmow2 study
+
+The complete numerical status and manuscript draft are
+`experiments/tralo_local_status_20260930.md` and
+`experiments/tralo_paper_results_draft_20260930.md`. A new, label-free
+boundary-calibrated snapshot policy and independent scorer are prepared under
+`experiments/fmow_boundary_mnv3_protocol_20260930.md`: pilot seed 6400,
+fresh full seeds 6401–6412, five arms, two caps, and a measured 8 GPU-hour
+ceiling. The existing negative fixed-dose and PHR blocks remain immutable.
+No new quality result exists until the source/data/gradient and label-blind
+pilot gates pass. The runner's pooled-call floor is one below the smaller of
+baseline raw calls and pooled cap, so correct selected exits remain a primary
+diagnostic. The unchanged PTO ensemble uses the same local Clipper extension
+as each stepped arm; it is not a matched full-training Clipper or ALM result.
+ViT-B/16 has a separate fixed preflight design and no matched TraLO result.
+Do not score reserved countries or tune this repeatedly viewed development
+pool to any new pilot metric.
+
 ## Completed, 30 September: fmow2 snapshot PHR-ALM local comparison
 
 The separate fixed snapshot-direction comparison, immutable run release

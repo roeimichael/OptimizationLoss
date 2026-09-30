@@ -93,3 +93,13 @@ def test_array_images_decode_rows_in_order_with_their_own_labels():
 def test_model_has_a_fresh_eight_way_head():
     model = make_model(pretrained=False)
     assert type(model).__name__ == 'MobileNetV3' and model(torch.zeros(2, 3, 64, 64)).shape == (2, CLASSES)
+
+
+def test_vit_model_has_a_fresh_eight_way_head_at_fixed_image_size():
+    model = make_model(pretrained=False, backbone='vit_b_16')
+    assert type(model).__name__ == 'VisionTransformer'
+    assert model.heads.head.out_features == CLASSES
+    with torch.no_grad():
+        assert model.eval()(torch.zeros(1, 3, 224, 224)).shape == (1, CLASSES)
+    with pytest.raises(ValueError, match='unsupported fmow2 backbone'):
+        make_model(pretrained=False, backbone='unknown')

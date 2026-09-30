@@ -12,6 +12,7 @@ import math
 import torch
 
 from .knee_end_to_end import infer
+from .local_boundary_policy import choose_boundary_step
 from .targeted_step import _place
 
 
@@ -74,10 +75,201 @@ def _random_direction(unit, generator):
     return step
 
 
+def _boundary_step(model, chunks, groups, capped_class, global_cap, local_caps,
+                   max_radius):
+    """Calibrate the existing hard-active direction using unlabeled replay.
+
+    This path is separate from the historical radius search so an opt-in
+    experiment cannot change its fixed-radius or feasibility behavior.
+    """
+    params = [p for p in model.parameters() if p.requires_grad]
+    if not params:
+        raise ValueError("boundary step requires trainable parameters")
+    devices = sorted({p.device.index if p.device.index is not None else torch.cuda.current_device()
+                      for p in params if p.device.type == "cuda"})
+    was_training = model.training
+    buffers = [(buffer, buffer.detach().clone()) for buffer in model.buffers()]
+    origin = [p.detach().clone() for p in params]
+    with torch.random.fork_rng(devices=devices):
+        try:
+            model.eval()
+            probabilities = infer(model, chunks)
+            _validate(groups, len(probabilities), capped_class, probabilities.shape[1],
+                      global_cap, local_caps)
+            before_global, before_local = _counts(probabilities, groups, capped_class)
+            group_indices = {group: [i for i, name in enumerate(groups) if name == group]
+                             for group in sorted(local_caps)}
+
+            def soft_counts(values):
+                return (float(values[:, capped_class].sum()),
+                        {group: float(values[indices, capped_class].sum())
+                         for group, indices in group_indices.items()})
+
+            before_soft_global, before_soft_local = soft_counts(probabilities)
+            active_global = before_global > global_cap
+            active_local = sorted(group for group, count in before_local.items()
+                                  if count > local_caps[group])
+            out = dict(hard_before_global=before_global, hard_before_local=before_local,
+                       soft_before_global=before_soft_global,
+                       soft_before_local=before_soft_local,
+                       active_global=active_global, active_local=active_local,
+                       applied=False, radius=0.0, displacement=0.0, evaluations=1)
+            if not active_global and not active_local:
+                out.update(skip_reason="no_hard_active_scope",
+                           boundary_policy=dict(applied=False, radius=0.0,
+                                                reason="no_hard_active_scope", probes=[]),
+                           hard_after_global=before_global,
+                           hard_after_local=before_local,
+                           soft_after_global=before_soft_global,
+                           soft_after_local=before_soft_local,
+                           tensor_displacement_norms=[0.0 for _ in params])
+                if any(not torch.equal(buffer, base) for buffer, base in buffers):
+                    raise RuntimeError("boundary replay changed model buffers")
+                return out
+
+            if (before_soft_global <= global_cap and all(
+                    before_soft_local[group] <= cap
+                    for group, cap in local_caps.items())):
+                decision = choose_boundary_step(
+                    before_global, before_soft_global, global_cap,
+                    before_soft_local, local_caps, 0.0,
+                    {group: 0.0 for group in local_caps},
+                    lambda _radius: None, max_radius=max_radius)
+                out.update(skip_reason=decision['reason'], boundary_policy=decision,
+                           hard_after_global=before_global,
+                           hard_after_local=before_local,
+                           soft_after_global=before_soft_global,
+                           soft_after_local=before_soft_local,
+                           tensor_displacement_norms=[0.0 for _ in params])
+                if any(not torch.equal(buffer, base) for buffer, base in buffers):
+                    raise RuntimeError("boundary replay changed model buffers")
+                return out
+
+            # Every normalized scope derivative is needed for the soft rule,
+            # including a country whose hard calls do not exceed its cap.
+            scopes = [("global", None, max(global_cap, 1))] + [
+                ("local", group, max(local_caps[group], 1)) for group in sorted(local_caps)]
+            scope_grads = {(kind, group): [torch.zeros_like(p) for p in params]
+                           for kind, group, _ in scopes}
+            device = params[0].device
+            start = 0
+            for images in chunks:
+                logits = model(images.to(device))
+                end = start + len(images)
+                if not torch.allclose(logits.detach().softmax(1).cpu(), probabilities[start:end],
+                                      atol=1e-7, rtol=1e-6):
+                    raise RuntimeError("boundary replay changed logits at fixed weights")
+                p = logits.softmax(1)[:, capped_class]
+                for index, (kind, group, scale) in enumerate(scopes):
+                    if kind == "local":
+                        mask = torch.tensor([g == group for g in groups[start:end]],
+                                            device=device)
+                        term = p[mask].sum() / scale
+                    else:
+                        term = p.sum() / scale
+                    gradients = torch.autograd.grad(term, params,
+                                                    retain_graph=index + 1 < len(scopes),
+                                                    allow_unused=True)
+                    for acc, gradient in zip(scope_grads[(kind, group)], gradients):
+                        if gradient is not None:
+                            acc.add_(gradient.detach())
+                start = end
+            if start != len(probabilities):
+                raise RuntimeError("boundary constraint cohort length changed")
+
+            active_keys = ([('global', None)] if active_global else []) + [
+                ('local', group) for group in active_local]
+            joint = [sum(scope_grads[key][i] for key in active_keys)
+                     for i in range(len(params))]
+            if any(not bool(torch.isfinite(gradient).all()) for gradient in joint):
+                raise RuntimeError("invalid boundary joint gradient")
+            norm = math.sqrt(sum(float(gradient.double().square().sum())
+                                 for gradient in joint))
+            if not math.isfinite(norm) or norm <= 0:
+                raise RuntimeError("boundary joint gradient is zero or nonfinite")
+            unit = [-gradient / norm for gradient in joint]
+            derivatives = {
+                ('pooled' if kind == 'global' else f'local:{group}'):
+                sum(float((gradient.double() * direction.double()).sum())
+                    for gradient, direction in zip(scope_grads[(kind, group)], unit))
+                for kind, group, _ in scopes
+            }
+            out.update(gradient_norm=norm, scope_directional_derivatives=derivatives)
+
+            local_probe_hard = []
+
+            def probe(radius):
+                _place(params, origin, unit, radius)
+                values = infer(model, chunks)
+                hard_global, hard_local = _counts(values, groups, capped_class)
+                soft_global, soft_local = soft_counts(values)
+                local_probe_hard.append(hard_local)
+                return dict(pooled_hard=hard_global, pooled_soft=soft_global,
+                            local_soft=soft_local)
+
+            decision = choose_boundary_step(
+                before_global, before_soft_global, global_cap,
+                before_soft_local, local_caps, derivatives['pooled'],
+                {group: derivatives[f'local:{group}'] for group in local_caps},
+                probe, max_radius=max_radius)
+            for record, hard_local in zip(decision['probes'], local_probe_hard):
+                record['local_hard'] = hard_local
+            out.update(boundary_policy=decision, evaluations=1 + len(decision['probes']))
+            if decision['applied']:
+                _place(params, origin, unit, decision['radius'])
+                after = infer(model, chunks)
+                hard_global, hard_local = _counts(after, groups, capped_class)
+                soft_global, soft_local = soft_counts(after)
+                accepted = decision['probes'][-1]
+                if (hard_global != accepted['pooled_hard'] or
+                        hard_local != accepted['local_hard'] or
+                        not math.isclose(soft_global, accepted['pooled_soft'],
+                                         rel_tol=1e-7, abs_tol=1e-7) or
+                        any(not math.isclose(soft_local[group], accepted['local_soft'][group],
+                                             rel_tol=1e-7, abs_tol=1e-7)
+                            for group in local_caps)):
+                    raise RuntimeError("accepted boundary probe did not replay exactly")
+                if any(not bool(torch.isfinite(param).all()) for param in params):
+                    raise RuntimeError("nonfinite parameter after boundary step")
+                tensor_norms = [float((param.detach() - base).double().norm())
+                                for param, base in zip(params, origin)]
+                moved = math.sqrt(sum(value * value for value in tensor_norms))
+                if not math.isfinite(moved):
+                    raise RuntimeError("nonfinite boundary displacement")
+                if not math.isclose(moved, decision['radius'], rel_tol=1e-4,
+                                    abs_tol=1e-5):
+                    raise RuntimeError("boundary model dose disagrees with selected radius")
+                out.update(applied=True, radius=decision['radius'], displacement=moved,
+                           tensor_displacement_norms=tensor_norms,
+                           evaluations=out['evaluations'] + 1,
+                           hard_after_global=hard_global, hard_after_local=hard_local,
+                           soft_after_global=soft_global, soft_after_local=soft_local)
+            else:
+                _place(params, origin, unit, 0.0)
+                out.update(skip_reason=decision['reason'],
+                           hard_after_global=before_global,
+                           hard_after_local=before_local,
+                           soft_after_global=before_soft_global,
+                           soft_after_local=before_soft_local,
+                           tensor_displacement_norms=[0.0 for _ in params])
+            if any(not torch.equal(buffer, base) for buffer, base in buffers):
+                raise RuntimeError("boundary replay changed model buffers")
+            return out
+        except BaseException:
+            _place(params, origin, [torch.zeros_like(p) for p in params], 0.0)
+            raise
+        finally:
+            with torch.no_grad():
+                for buffer, base in buffers:
+                    buffer.copy_(base)
+            model.train(was_training)
+
+
 def local_targeted_step(model, chunks, groups, capped_class, global_cap, local_caps,
                         sham_generator=None, r0=1e-3, max_doublings=30,
                         scan_points=24, max_radius=0.1, fixed_radius=None,
-                        global_only_direction=False, require_common_descent=True):
+                        global_only_direction=False, require_common_descent=True,
+                        boundary_calibrated=False):
     """Try one joint direction on a side copy; restore parameters on failure.
 
     The sham uses the real direction's sampled radius and per-tensor norms. Its
@@ -99,6 +291,13 @@ def local_targeted_step(model, chunks, groups, capped_class, global_cap, local_c
         raise ValueError("global-only comparison requires a matched fixed radius")
     if type(require_common_descent) is not bool:
         raise ValueError("require_common_descent must be a bool")
+    if type(boundary_calibrated) is not bool:
+        raise ValueError("boundary_calibrated must be a bool")
+    if boundary_calibrated:
+        if sham_generator is not None or fixed_radius is not None or global_only_direction:
+            raise ValueError("boundary calibration requires the joint real direction")
+        return _boundary_step(model, chunks, groups, capped_class, global_cap,
+                              local_caps, max_radius)
     probabilities = infer(model, chunks)
     _validate(groups, len(probabilities), capped_class, probabilities.shape[1],
               global_cap, local_caps)

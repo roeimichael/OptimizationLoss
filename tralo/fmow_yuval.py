@@ -168,10 +168,18 @@ def pool_chunks(array, indices, transform, batch_size):
             for s in range(0, len(indices), batch_size)]
 
 
-def make_model(pretrained=True):
+def make_model(pretrained=True, backbone='mobilenet_v3_large'):
     import torch
-    model = build_model('mobilenet_v3_large', pretrained)
-    model.classifier[3] = torch.nn.Linear(model.classifier[3].in_features, CLASSES)
+    if backbone == 'mobilenet_v3_large':
+        model = build_model('mobilenet_v3_large', pretrained)
+        model.classifier[3] = torch.nn.Linear(model.classifier[3].in_features, CLASSES)
+    elif backbone == 'vit_b_16':
+        from torchvision.models import ViT_B_16_Weights, vit_b_16
+        weights = ViT_B_16_Weights.IMAGENET1K_V1 if pretrained else None
+        model = vit_b_16(weights=weights)
+        model.heads.head = torch.nn.Linear(model.heads.head.in_features, CLASSES)
+    else:
+        raise ValueError('unsupported fmow2 backbone: ' + str(backbone))
     return model
 
 
