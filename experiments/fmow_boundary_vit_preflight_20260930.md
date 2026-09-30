@@ -19,7 +19,7 @@ The frozen DSI Python environment also loaded those weights on both hosts
 and exposed the expected 768-input, 1,000-class original head. The new
 eight-class head has only had a no-download local CPU shape check. Actual
 remote new-factory load, image transform, full gradient and GPU memory remain
-to be verified. A missing or changed cached weight file is a failed
+to be verified by the queue-owned CUDA preflights. A missing or changed cached weight file is a failed
 preflight, not permission to substitute random initialization or a different
 weight preset.
 
@@ -29,16 +29,47 @@ zero-step PTO/local Clipper analogue, calibrated joint TraLO, pooled-only at
 the joint radius, dose-matched sham, and calibrated PHR. Keep the allocator,
 unlabeled development group/size quotas, primary deployed class-1 cc-F1,
 paired six-contrast family, secondary metrics and data boundary identical.
-Only the backbone and an up-front, within-ViT matched training batch size may
-differ. Choose that size from a label-free GPU memory smoke, before any ViT
-development metric. A ViT result is a separate atomic cell and cannot be
-pooled with MobileNetV3 seed deltas.
+Only the backbone and the up-front, within-ViT matched batch sizes differ.
+The new ViT configs provisionally fix training batch size **16** and
+development inference chunk size **8** for both step-on and step-off. An
+exclusive, label-free GPU memory smoke must exercise those exact sizes and
+pass before the first pilot launch or development metric. Each queue invocation
+runs the immutable release's `python -m tools.fmow_local_boundary_vit_smoke`
+on its selected exclusive card **before claiming any study seed**. It
+measures a synthetic label-free batch-16 FP32 forward/backward and Adam step,
+all 1,673 development images in unlabeled chunks of eight, and all four
+side-copy arms at both caps, with per-phase peak memory, gradient and PTO
+neutrality diagnostics. The queue preserves its own smoke launch, log,
+positive or negative receipt and completion in the new run root. Each seed
+launch binds their hashes, source release, physical GPU and checkpoint.
+The queue also executes `python -m tools.fmow_local_boundary_vit_real_preflight`
+on the same locked card before any seed claim. It uses the first three
+development images in each of DZA, IRQ, NLD, PHL and TUR by fixed pool order,
+in production-size chunks of eight and seven that cross country boundaries,
+without opening development labels. A fixed diagnostic eight-way head activates
+the six pooled/country constraints solely to test the numerical implementation;
+it is never used for training or efficacy measurement. The preflight requires
+full-batch versus chunked real-image probability agreement within 1e-6,
+all six scope-gradient relative errors at most 0.01, and central finite
+differences at radii 0.01 and 0.02 within
+`0.05 * max(abs(analytic), abs(numeric)) + 0.003`. It independently audits the
+four side-copy artifacts and unchanged PTO weights. Its release, data hashes,
+checkpoint, host, GPU UUID, launch/completion and artifact hashes are bound to
+every seed launch and checked again by the independent scorer. The queue
+preserves positive or negative receipts, artifacts and logs; a failed check
+stops before any study seed is claimed. Do not widen tolerances after seeing a
+failure. If the memory smoke fails, preserve it and write a new named protocol/release before
+changing a batch size; never adjust a live config. A ViT result is a separate
+atomic cell and cannot be pooled with MobileNetV3 seed deltas.
 
 Proposed distinct ViT seed IDs are pilot **6500** step-on and same-host
 step-off, then full **6501–6512** if and only if every identity, gradient,
 allocator, dose and label-blind pilot gate passes. Before full dispatch, use
-the measured host runtime to project all 13 step-on seeds plus the reference
-at no more than **24 GPU-hours**; a larger projection stops the full block.
+measured pilot runtimes to project all 13 step-on seeds, the reference and
+all three queue-owned GPU smoke runs and all three real-image numerical
+preflights at no more than **24 GPU-hours**. The
+full queue rechecks that ceiling with its actual smoke and preflight times before claiming
+seed 6501; a larger projection stops the block with a preserved gate receipt.
 This ceiling is a limit, not a commitment to spend it. ViT-B/16 has about
 86.6 million parameters and 17.56 GFLOPs of nominal inference versus
 MobileNetV3-Large's 5.48 million and 0.22 GFLOPs under torchvision's

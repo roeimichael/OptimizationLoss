@@ -31,20 +31,37 @@ ALM_PILOT = 6300
 ALM_SEEDS = range(6301, 6313)
 BOUNDARY_PILOT = 6400
 BOUNDARY_SEEDS = range(6401, 6413)
+VIT_BOUNDARY_PILOT = 6500
+VIT_BOUNDARY_SEEDS = range(6501, 6513)
 DIVISORS = (10, 20)
 RECIPE = dict(backbone="mobilenet_v3_large", capped_class=CAPPED,
               max_epochs=75, patience=5, batch_size=32, lr=1e-4,
               weight_decay=1e-4, decay_epoch=5, decay_factor=0.8,
               development_batch_size=16)
+VIT_RECIPE = dict(RECIPE, backbone="vit_b_16", batch_size=16,
+                  development_batch_size=8)
+VIT_WEIGHT_FILE = "vit_b_16-c867db91.pth"
+VIT_WEIGHT_SHA256 = "c867db91d3e12c6cbadabb610d73c24a546bf82d8c03a9fea34f43a712ddb0e9"
+
+
+def vit_weight_provenance():
+    """Require the pinned local checkpoint before the model factory can download."""
+    import torch
+    path = Path(torch.hub.get_dir()) / "checkpoints" / VIT_WEIGHT_FILE
+    if not path.is_file() or digest(path) != VIT_WEIGHT_SHA256:
+        raise RuntimeError("pinned ViT-B/16 pretrained checkpoint is missing or changed")
+    return dict(file=str(path), sha256=VIT_WEIGHT_SHA256)
 
 
 def validate(config):
     if not isinstance(config, dict):
         raise ValueError("config must be a dictionary")
     alm = config.get("study") == "local_alm_direction_v1"
-    boundary = config.get("study") == "local_boundary_v1"
+    vit_boundary = config.get("study") == "local_boundary_vit_v1"
+    boundary = config.get("study") == "local_boundary_v1" or vit_boundary
     fixed = config.get("study") == "local_fixed_dose_v1" or alm or boundary
-    expected = set(RECIPE) | {"seed", "snapshot_steps"}
+    recipe = VIT_RECIPE if vit_boundary else RECIPE
+    expected = set(recipe) | {"seed", "snapshot_steps"}
     if fixed:
         expected |= {"study", "step_radius"}
         if type(config.get("step_radius")) is not float or config["step_radius"] != 0.1:
@@ -56,13 +73,15 @@ def validate(config):
                               "local ALM direction study") + " requires rho 0.5")
     if set(config) != expected:
         raise ValueError("config keys differ from the named local protocol")
-    pilot = BOUNDARY_PILOT if boundary else ALM_PILOT if alm else FIXED_PILOT if fixed else PILOT
-    seeds = BOUNDARY_SEEDS if boundary else ALM_SEEDS if alm else FIXED_SEEDS if fixed else SEEDS
+    pilot = (VIT_BOUNDARY_PILOT if vit_boundary else BOUNDARY_PILOT if boundary
+             else ALM_PILOT if alm else FIXED_PILOT if fixed else PILOT)
+    seeds = (VIT_BOUNDARY_SEEDS if vit_boundary else BOUNDARY_SEEDS if boundary
+             else ALM_SEEDS if alm else FIXED_SEEDS if fixed else SEEDS)
     if type(config["seed"]) is not int or config["seed"] not in seeds and config["seed"] != pilot:
         raise ValueError("seed is outside the named study and pilot blocks")
     if type(config["snapshot_steps"]) is not bool or not config["snapshot_steps"] and config["seed"] != pilot:
         raise ValueError("only the pilot may disable side steps for trajectory parity")
-    for key, value in RECIPE.items():
+    for key, value in recipe.items():
         if config[key] != value or type(config[key]) is not type(value):
             raise ValueError("config differs from the fixed fmow2 recipe: " + key)
 
@@ -192,7 +211,8 @@ def run(data_root, config_path, output):
         cuda_setup()
         images, train_labels, pool_rows, roles = load(
             data_root, include_pool_labels=config.get("study") not in
-            ("local_fixed_dose_v1", "local_alm_direction_v1", "local_boundary_v1"))
+            ("local_fixed_dose_v1", "local_alm_direction_v1", "local_boundary_v1",
+             "local_boundary_vit_v1"))
         groups = [row["location"] for row in pool_rows]
         quota = budgets(groups)
         counts = dict(train=len(roles["train"]), stop=len(roles["stop"]), dev=len(roles["dev"]))
@@ -218,11 +238,17 @@ def run(data_root, config_path, output):
                 for i in range(0, len(held.labels), bs)]
         pool = pool_chunks(images["test"], roles["dev"], eval_tf, config["development_batch_size"])
         torch.manual_seed(config["seed"])
-        base = make_model()
+        vit_provenance = (vit_weight_provenance()
+                          if config.get("study") == "local_boundary_vit_v1" else None)
+        base = make_model(backbone=config["backbone"])
         initial_sha = _state_hash(base)
+        identity_fields = (dict(pretrained_weight=vit_provenance,
+                                transform="full-frame RGB 224x224 ImageNet mean/std")
+                           if vit_provenance is not None else {})
         log.emit("model_initialized", initial_sha256=initial_sha, architecture=config["backbone"],
                  classes=CLASSES, sampler="class-balanced with replacement", early_stop=True,
-                 train_label_counts=[data.labels.count(c) for c in range(CLASSES)])
+                 train_label_counts=[data.labels.count(c) for c in range(CLASSES)],
+                 **identity_fields)
         model = copy.deepcopy(base).cuda()
         directory = output / "retrain1"
         directory.mkdir()
@@ -234,7 +260,8 @@ def run(data_root, config_path, output):
             phr_states = ({str(divisor): {"dual": torch.zeros(1 + len(quota[str(divisor)]["local_caps"]))}
                           for divisor in DIVISORS}
                           if config.get("study") in ("local_alm_direction_v1",
-                                                      "local_boundary_v1") else None)
+                                                      "local_boundary_v1",
+                                                      "local_boundary_vit_v1") else None)
 
             def snapshot(epoch, probabilities):
                 artifact = directory / f"epoch{epoch:02d}.pt"
@@ -251,7 +278,8 @@ def run(data_root, config_path, output):
                             cap_directory, fixed_radius=config.get("step_radius"),
                             phr_state=phr_states[str(divisor)] if phr_states is not None else None,
                             phr_rho=config.get("alm_rho"),
-                            boundary_calibrated=config.get("study") == "local_boundary_v1",
+                            boundary_calibrated=config.get("study") in
+                            ("local_boundary_v1", "local_boundary_vit_v1"),
                             pto_probabilities=probabilities)
                         side_steps[str(epoch)][str(divisor)] = step_record
                         rlog.emit("snapshot_cap", epoch=epoch, divisor=divisor,

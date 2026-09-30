@@ -4,7 +4,9 @@ import json
 import pytest
 import torch
 
-from tralo.fmow_local import RECIPE, budgets, run, snapshot_side_steps, validate
+from tralo.fmow_local import (RECIPE, VIT_RECIPE, VIT_WEIGHT_SHA256,
+                              budgets, run, snapshot_side_steps, validate,
+                              vit_weight_provenance)
 from tralo.knee_end_to_end import infer
 
 
@@ -98,6 +100,61 @@ def test_boundary_run_requests_no_development_labels(tmp_path, monkeypatch):
     with pytest.raises(ReachedLoader):
         run(tmp_path, path, tmp_path / "output")
     assert seen == [False]
+
+
+def test_vit_boundary_study_has_a_separate_fixed_recipe_and_seed_block():
+    config = dict(VIT_RECIPE, seed=6500, snapshot_steps=True,
+                  study="local_boundary_vit_v1", step_radius=0.1, alm_rho=0.5)
+    validate(config)
+    validate(dict(config, snapshot_steps=False))
+    for seed in range(6501, 6513):
+        validate(dict(config, seed=seed))
+    for seed in (6400, 6412, 6513):
+        with pytest.raises(ValueError, match="seed"):
+            validate(dict(config, seed=seed))
+    for key, value in (("backbone", "mobilenet_v3_large"), ("batch_size", 32),
+                       ("development_batch_size", 16), ("lr", 2e-4),
+                       ("step_radius", 0.2), ("alm_rho", 0.4)):
+        with pytest.raises(ValueError):
+            validate(dict(config, **{key: value}))
+    with pytest.raises(ValueError, match="pilot"):
+        validate(dict(config, seed=6501, snapshot_steps=False))
+    validate(dict(RECIPE, seed=6400, snapshot_steps=True,
+                  study="local_boundary_v1", step_radius=0.1, alm_rho=0.5))
+
+
+def test_vit_boundary_run_requests_no_development_labels(tmp_path, monkeypatch):
+    config = dict(VIT_RECIPE, seed=6500, snapshot_steps=False,
+                  study="local_boundary_vit_v1", step_radius=0.1, alm_rho=0.5)
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps(config))
+    seen = []
+
+    class ReachedLoader(Exception):
+        pass
+
+    def preflight_loader(_root, *, include_pool_labels):
+        seen.append(include_pool_labels)
+        raise ReachedLoader
+
+    monkeypatch.setattr("tralo.fmow_local.cuda_setup", lambda: None)
+    monkeypatch.setattr("tralo.fmow_local.load", preflight_loader)
+    with pytest.raises(ReachedLoader):
+        run(tmp_path, path, tmp_path / "output")
+    assert seen == [False]
+
+
+def test_vit_checkpoint_requires_present_exact_cached_bytes(tmp_path, monkeypatch):
+    checkpoint = tmp_path / "checkpoints" / "vit_b_16-c867db91.pth"
+    monkeypatch.setattr(torch.hub, "get_dir", lambda: str(tmp_path))
+    with pytest.raises(RuntimeError, match="missing or changed"):
+        vit_weight_provenance()
+    checkpoint.parent.mkdir()
+    checkpoint.write_bytes(b"wrong-checkpoint")
+    with pytest.raises(RuntimeError, match="missing or changed"):
+        vit_weight_provenance()
+    monkeypatch.setattr("tralo.fmow_local.digest", lambda _: VIT_WEIGHT_SHA256)
+    assert vit_weight_provenance()["sha256"] == VIT_WEIGHT_SHA256
 
 
 class _BiasOnly(torch.nn.Module):
