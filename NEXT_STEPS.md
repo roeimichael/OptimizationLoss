@@ -1,5 +1,30 @@
 # Rebuild work queue
 
+## Completed, 30 September: fmow2 snapshot PHR-ALM local comparison
+
+The separate fixed snapshot-direction comparison, immutable run release
+`2f6a68eb006cf2d9cd535a7dfa51f5c09ce9850e`, is complete. Pilot 6300
+passed its label-blind gate. All 12 full seeds 6301–6312 exited 0 and were
+independently scored after SSH access returned; no run was repeated. The
+scorer, full per-seed JSON and independent log audit are described in
+`experiments/fmow_local_alm_direction_result_20260930.md`. At pooled cap 167,
+PHR minus fixed TraLO cc-F1 is −0.00696 [−0.01079, −0.00313]; at cap 83 it
+is 0.00000 [−0.00601, +0.00601]. Both PHR and TraLO lose to no-step PTO at
+both caps. This tests snapshot policies, **not full ALM training**. No queue
+or scoring work remains. Preserve all negative outputs and immutable releases;
+never duplicate the block or choose a setting from these viewed development
+countries. Reserved countries and the Chen test remain unscored.
+
+The active decision document is `experiments/tralo_local_status_20260930.md`.
+The next candidate is a new, label-free boundary-calibrated local side step,
+with a matched zero-step Clipper analogue, sham/null, pooled-only and PHR
+directions. First prove on CPU that its derivative, line search, pooled/local
+quota interaction, dose, PTO neutrality, label boundary and allocator checks
+work. Fix a protocol, independent data boundary, source/data/preprocessing
+validation and compute projection before a GPU pilot. The current fmow2
+development scores cannot tune or confirm it. No GPU study is queued merely
+because a card is free.
+
 ## Completed, 30 September: fixed fmow2 pooled-plus-country constraint study
 
 The user authorized a local-constraint TraLO extension on the previously audited
