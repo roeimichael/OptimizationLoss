@@ -1,90 +1,11 @@
-# OptimizationLoss (TraLO)
+# TraLO research: start with the right checkout
 
-Thesis project. Train neural networks to satisfy **transductive prediction-count
-constraints** -- "within group *G*, predict class *C* at most *K* times" -- via soft
-constraint optimization during training, and test whether that beats simply clipping the
-predictions after the fact.
+This checkout preserves the original dual-constraint pipeline, the September 2026 evidence reset, and the governing [research framework](docs/FRAMEWORK.md). It is **not** the code that launched the current matched knee runs. Do not combine a result from this older pipeline with a rebuilt-run result merely because both are called TraLO.
 
-Active research repository, not a library. The maintained training pipeline and
-evidence audit live here; historical experiments are not a second active architecture.
+The active thesis implementation is the [thesis-cleanup branch](https://github.com/roeimichael/OptimizationLoss/tree/codex/thesis-cleanup-20261001), frozen and verified on both DSI hosts at `765a25196201b186bfc74f920102b394d75b7b4e`. Start with that branch's [research guide](https://github.com/roeimichael/OptimizationLoss/blob/codex/thesis-cleanup-20261001/README.md), [method and novelty explanation](https://github.com/roeimichael/OptimizationLoss/blob/codex/thesis-cleanup-20261001/docs/THESIS_METHOD.md), and [experiment map](https://github.com/roeimichael/OptimizationLoss/blob/codex/thesis-cleanup-20261001/experiments/README.md). The frozen releases that trained earlier runs remain unchanged.
 
----
+The scientific question is whether a training-time prediction-count update improves **deployed constrained-class F1** over the same backbone trained without that update and clipped to the same decision capacity. Kassif and Singer's PAO cost-sensitive retraining, a dose-matched random direction, and a no-change control are necessary comparisons. Meeting a cap alone is not a quality win. The current single-cap knee update tests a normalized count-gradient direction and a hard-cap search; it does not yet isolate the benefit of TraLO's original saturating loss formula. No new image architecture is claimed.
 
-## Read this first
+The knee and fMoW development cohorts have been viewed repeatedly. Results there are exploratory until a fixed method is evaluated on an untouched cohort. The sealed Chen knee test and reserved fMoW countries remain outside exploratory scoring. Negative results and failed gates are retained.
 
-> **[`docs/FRAMEWORK.md`](docs/FRAMEWORK.md) is the protocol, and it wins every
-> conflict.** It defines the evidence boundary, metrics, validation gates and
-> comparison protocol.
-
-Three files carry the rest, and between them they are the whole live record:
-
-| File | Answers |
-|---|---|
-| [`RULESET.md`](RULESET.md) | How to work. Rules, gates, re-entry checklist. |
-| [`docs/MISSION.md`](docs/MISSION.md) | Where the project stands, what is running, what is next. |
-| [`docs/LEDGER.md`](docs/LEDGER.md) | What is proved, what is measured, what is closed. |
-
-The user requested an evidence reset on 2026-09-14: old tables and folder names
-are not validation. Superseded documents are preserved in `docs/archive/` and
-recoverable in full from git history. If other material disagrees with the
-framework, the framework wins.
-
-Git tracks source, tests, split metadata and curated notes. Results, checkpoints,
-compiled papers and local audit dumps stay outside GitHub. See
-[`docs/GIT_TRACKING.md`](docs/GIT_TRACKING.md) for tracking and evidence recovery.
-
-## Method
-
-```
-Warm-up (CE, or focal for the focal baseline)
-  ──► alternating task and global/local constraint updates (trained arms)
-      ──► post-hoc deployment under the same caps
-          ──► evaluation / scoring
-```
-
-Compared against post-hoc clipping baselines and rival dual methods (Fioretto-LDF,
-Hounie-RCL, ALM), plus a matched zero-constraint control. The shared-allocator
-correction is still in progress; see MISSION before generating a new comparison.
-
-## Layout
-
-| Path | Purpose |
-|---|---|
-| `docs/FRAMEWORK.md` | current protocol, evidence boundary and validation gates |
-| `configs/protocol.yml` | the fixed experimental protocol |
-| `configs/gen_campaign.py` | paired seven-arm campaign generation |
-| `src/losses/`, `src/methodologies/` | the constraint losses and the methods being compared |
-| `src/models/`, `src/training/`, `src/pipeline/` | models and the run pipeline |
-| `src/experiments/` | experiment drivers |
-| `scripts/` | dataset preparation, operational validation and `deployed_h2h.py` reporting |
-| `evidence/` | historical provenance/prediction tarballs; not the fresh corpus |
-| `results/` | fresh run outputs only after reset validation |
-| `docs/archive/` | **quarantined.** Superseded documents, the paper tree, audit receipts. Preserve as evidence, never as instructions -- see `docs/archive/README.md` |
-| `.github/workflows/preflight.yml` | CI preflight |
-
-## Verify before running
-
-```bash
-pip install -r requirements.txt
-python -m pytest tests -q
-python -m scripts.preflight --before-launch
-python -m scripts.audit_config
-```
-
-Campaign generation and launch must follow the framework and the
-`scripts.run_campaign` stage/verify/launch/firstrun/score gates. Explicitly scope
-the dispatcher with `EXPERIMENT_DIR` and the approved GPU with
-`CUDA_VISIBLE_DEVICES`; a bare dispatcher invocation is not a campaign definition.
-
-GPU runs use the university `dsisco01` and `dsisco02` hosts through `dsihead`.
-They share storage but have different GPU generations. VPN access and a working
-SSH key are required. The image arrays are server-side and gitignored: a fresh
-checkout is not automatically runnable, even when metadata and tests are present.
-
-## Status
-
-Cleanup and validation in progress (September 2026). Empirical superiority is an
-open question, not a guarantee. Primary quality metric: deployed cc-F1, alongside
-macro-F1, precision/recall and feasibility. A best mean is not automatically a
-statistically established win. Historical results are archived recoverably;
-fresh executions will remain distinct from genuinely untouched evaluation data.
+For work on this older checkout, [RULESET.md](RULESET.md), [MISSION.md](docs/MISSION.md), and [LEDGER.md](docs/LEDGER.md) remain its operational and historical record under [FRAMEWORK.md](docs/FRAMEWORK.md). Some commands and status text in that record describe this older pipeline; check the active branch and immutable release receipts before running anything. The branches have not been merged, so neither checkout silently replaces the other.
