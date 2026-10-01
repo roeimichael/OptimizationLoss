@@ -251,6 +251,14 @@ seed 6820 pilot and fixed seeds 6821–6824. Each new cell retains a 24 aggregat
 GPU-hour ceiling and six-hour per-job cap. The old immutable release and failed
 root are not modified.
 
+Because dsisco02 GPUs 0–1 are owned by another user while its other two cards
+run the fMoW and CelebA blocks, the fresh ISIC cells may use genuinely free
+dsisco01 cards. This requires a complete checksum-verified copy of the public
+original JPEG directory and derived runner/scorer manifests at the same
+host-local path, plus release parity, fresh physical UUID/PID inspection and
+the real-image GPU smoke on dsisco01 before any seed claim. A failed or partial
+copy is not a valid cohort. Shared seed claims prevent cross-host duplicates.
+
 1. Forensically close the timed-out knee ViT queue. Preserve seed6705/6709
    partial roots, do not reuse their IDs, and independently gate seed6708.
 2. Review the already prepared persistent fMoW runner/scorer and its negative

@@ -27,7 +27,7 @@ ROOT_CANON=$(realpath -m -- "$ROOT") || fail "bad run root"
    ! -e $ROOT_CANON && ! -L $ROOT_CANON ]] || fail "run root already exists or outside host-local study"
 ROOT=$ROOT_CANON
 HOST=$(hostname -f) || fail "host unavailable"
-[[ $HOST = dsisco02* ]] || fail "host-local study restricted to dsisco02"
+[[ $HOST = dsisco02* || ( $HOST = dsisco01* && $DATASET = isic2020 && $BASE != 6800 ) ]] || fail "host is not authorized for this fixed cell"
 UUID=$(nvidia-smi -i "$GPU" --query-gpu=uuid --format=csv,noheader 2>/dev/null | tr -d '[:space:]')
 [[ $UUID = GPU-* ]] || fail "physical UUID unavailable"
 check_free() {
