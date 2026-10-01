@@ -13,4 +13,6 @@ Read a protocol before its result. The knee and fMoW development cohorts have al
 
 The [short PDF](../output/pdf/tralo_meeting_brief_20261001_v2.pdf) is for a meeting. The [long numerical PDF](../output/pdf/tralo_research_status_20261001_v2.pdf) and [paper draft](tralo_paper_results_draft_20260930.md) retain more detail; neither promotes a development result to a sealed-test claim.
 
+For the fixed knee block, the independent scorer's `--score-mixed` mode authenticates B5/MobileNetV3 runs against their original runner release and ViT runs against its corrected release. It requires all 36 prespecified runs and completes every label-blind gate before development-label scoring. A failed or incomplete block produces no accepted score.
+
 `configs/` contains immutable inputs whose paths are part of old run provenance. `*_protocol*` and `*_prereg*` state decisions made before scores; `*_result*` records outcomes, including failures and losses. [Archived notes](archive/provenance_20261001/README.md) remain hash-verifiable. The 1,656-image Chen test and the reserved fMoW countries are not a source for another exploratory selection.

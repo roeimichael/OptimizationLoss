@@ -4,7 +4,8 @@ import pytest
 import torch
 
 from analysis.score_knee_persistent_match import (_arm, _check_dose, _check_label_firewall,
-                                                   _check_vit_replay, _events, _quality)
+                                                   _check_vit_replay, _events, _quality,
+                                                   RUNNER_RELEASES, score_mixed)
 from tralo.events import EventLog
 from tralo.knee_experiment import digest
 
@@ -80,3 +81,60 @@ def test_vit_gate_requires_documented_fixed_weight_attention_replay():
             _check_vit_replay('vit_b_16', started, [bad])
     with pytest.raises(RuntimeError, match='ViT attention replay'):
         _check_vit_replay('vit_b_16', started, [])
+
+
+def test_mixed_release_score_requires_all_fixed_runs_before_any_gate(tmp_path, monkeypatch):
+    def should_not_gate(*args, **kwargs):
+        raise AssertionError('a partial block reached a release or development-label gate')
+    monkeypatch.setattr('analysis.score_knee_persistent_match._verified_release', should_not_gate)
+    monkeypatch.setattr('analysis.score_knee_persistent_match._score_gated', should_not_gate)
+    with pytest.raises(RuntimeError, match='complete 36-run block'):
+        score_mixed(tmp_path / 'bm', tmp_path / 'vit', tmp_path / 'data', tmp_path / 'score.json')
+
+
+def test_mixed_release_score_gates_each_backbone_with_its_own_frozen_release(tmp_path, monkeypatch):
+    from tralo.knee_persistent_match import BACKBONES, SEEDS_STUDY
+    bm, vit = tmp_path / 'bm', tmp_path / 'vit'
+    for backbone in BACKBONES:
+        for seed in SEEDS_STUDY:
+            ((vit if backbone == 'vit_b_16' else bm) / backbone / f'seed{seed}').mkdir(parents=True)
+    checked = []
+    monkeypatch.setattr('analysis.score_knee_persistent_match._verified_release',
+                        lambda _, commit: commit)
+
+    def gate(release, backbone, seed, path):
+        assert release == RUNNER_RELEASES[backbone]
+        checked.append((backbone, seed, path))
+        return dict(backbone=backbone, seed=seed, manifest_sha256='same')
+
+    def after_gates(expected, receipts, data_root, output, runner_releases):
+        assert len(expected) == len(receipts) == len(checked) == 36
+        assert runner_releases == RUNNER_RELEASES
+        assert all(receipt['backbone'] == item[0] and receipt['seed'] == item[1]
+                   for receipt, item in zip(receipts, expected))
+        return 'gated'
+
+    monkeypatch.setattr('analysis.score_knee_persistent_match._gate_in_release', gate)
+    monkeypatch.setattr('analysis.score_knee_persistent_match._score_gated', after_gates)
+    assert score_mixed(bm, vit, tmp_path / 'data', tmp_path / 'score.json') == 'gated'
+
+
+def test_mixed_release_failed_gate_stops_before_development_labels(tmp_path, monkeypatch):
+    from tralo.knee_persistent_match import BACKBONES, SEEDS_STUDY
+    bm, vit = tmp_path / 'bm', tmp_path / 'vit'
+    for backbone in BACKBONES:
+        for seed in SEEDS_STUDY:
+            ((vit if backbone == 'vit_b_16' else bm) / backbone / f'seed{seed}').mkdir(parents=True)
+    monkeypatch.setattr('analysis.score_knee_persistent_match._verified_release',
+                        lambda _, commit: commit)
+
+    def failed_gate(*args):
+        raise RuntimeError('source mismatch')
+
+    def should_not_score(*args, **kwargs):
+        raise AssertionError('development labels were reached after a failed gate')
+
+    monkeypatch.setattr('analysis.score_knee_persistent_match._gate_in_release', failed_gate)
+    monkeypatch.setattr('analysis.score_knee_persistent_match._score_gated', should_not_score)
+    with pytest.raises(RuntimeError, match='source mismatch'):
+        score_mixed(bm, vit, tmp_path / 'data', tmp_path / 'score.json')

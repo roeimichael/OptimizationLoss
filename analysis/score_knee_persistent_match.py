@@ -2,9 +2,10 @@
 
 python -m analysis.score_knee_persistent_match --gate RUN_ROOT
 python -m analysis.score_knee_persistent_match --score FULL_ROOT DATA_ROOT NEW_JSON
+python -m analysis.score_knee_persistent_match --score-mixed B5_MNV3_ROOT VIT_ROOT DATA_ROOT NEW_JSON
 
-The gate does not import development labels. --score first gates all 36 study
-runs, then reads the development labels once for the fixed complete block.
+The gate does not import development labels. Both scoring modes first gate all
+36 study runs, then read development labels once for the fixed complete block.
 """
 
 import argparse
@@ -14,6 +15,8 @@ import json
 import math
 from pathlib import Path
 import statistics
+import subprocess
+import sys
 
 from tralo.global_report import evaluate_global
 from tralo.knee_experiment import digest, source
@@ -22,6 +25,11 @@ from tralo.knee_persistent_match import (BACKBONES, CAPS_STUDY, SEEDS_STUDY,
 from tralo.knee_yuval import CAPPED, carve, f_and_derivative
 
 CAPS_CURVE = (43, 54, 65, 76, 86, 97)
+RUNNER_RELEASES = {
+    'efficientnet_b5': '7a5f68b021d0f0a70185309c4a21be3a27522e5c',
+    'mobilenet_v3_large': '7a5f68b021d0f0a70185309c4a21be3a27522e5c',
+    'vit_b_16': 'b1dcd472d3f3f1641de82c52e33f4bc5c9bd80a6',
+}
 
 
 def _load(path):
@@ -333,14 +341,9 @@ def _quality(probabilities, labels, ids, cap):
 
 
 def score(full_root, data_root, output_json):
-    import torch
-    from scipy.stats import t as student_t
-    from tralo.knee_data import audit
-
+    if Path(output_json).exists():
+        raise FileExistsError(output_json)
     root = Path(full_root)
-    output = Path(output_json)
-    if output.exists():
-        raise FileExistsError(output)
     expected = [(backbone, seed, root / backbone / f'seed{seed}')
                 for backbone in BACKBONES for seed in SEEDS_STUDY]
     if any(not path.is_dir() for _, _, path in expected):
@@ -350,6 +353,65 @@ def score(full_root, data_root, output_json):
     if unexpected:
         raise RuntimeError('unexpected run directory in the full block')
     gates = [gate(path) for _, _, path in expected]
+    return _score_gated(expected, gates, data_root, output_json)
+
+
+def _verified_release(releases_root, commit):
+    release = Path(releases_root) / commit
+    if not release.is_dir():
+        raise RuntimeError('missing immutable runner release: ' + str(release))
+    def git(*args):
+        p = subprocess.run(['git', '-C', str(release), *args], capture_output=True,
+                           text=True, timeout=30, check=True)
+        return p.stdout.strip()
+    if git('rev-parse', 'HEAD') != commit or git('status', '--porcelain', '--untracked-files=no'):
+        raise RuntimeError('runner release HEAD or tracked files changed: ' + str(release))
+    return release
+
+
+def _gate_in_release(release, backbone, seed, path):
+    p = subprocess.run([sys.executable, '-m', 'analysis.score_knee_persistent_match',
+                        '--gate', str(path.resolve())], cwd=release, capture_output=True,
+                       text=True, timeout=300)
+    if p.returncode:
+        raise RuntimeError(f'{backbone} seed{seed} runner-release gate failed: {p.stderr[-3000:]}')
+    receipt = json.loads(p.stdout)
+    if receipt['backbone'] != backbone or receipt['seed'] != seed:
+        raise RuntimeError('runner-release gate identified a different run')
+    return receipt
+
+
+def score_mixed(b5_mnv3_root, vit_root, data_root, output_json,
+                releases_root='/home/dsi/michaer8/tralo-rebuild/releases'):
+    """Gate each frozen runner in its own release before reading any labels."""
+    if Path(output_json).exists():
+        raise FileExistsError(output_json)
+    roots = {'efficientnet_b5': Path(b5_mnv3_root),
+             'mobilenet_v3_large': Path(b5_mnv3_root),
+             'vit_b_16': Path(vit_root)}
+    expected = [(backbone, seed, roots[backbone] / backbone / f'seed{seed}')
+                for backbone in BACKBONES for seed in SEEDS_STUDY]
+    if any(not path.is_dir() for _, _, path in expected):
+        raise RuntimeError('complete 36-run block is required before scoring')
+    for root in set(roots.values()):
+        allowed = {path for _, _, path in expected}
+        if any(p.is_dir() and p not in allowed for p in root.glob('*/seed*')):
+            raise RuntimeError('unexpected run directory in the full block')
+    releases = {commit: _verified_release(releases_root, commit)
+                for commit in set(RUNNER_RELEASES.values())}
+    gates = [_gate_in_release(releases[RUNNER_RELEASES[backbone]], backbone, seed, path)
+             for backbone, seed, path in expected]
+    return _score_gated(expected, gates, data_root, output_json,
+                        runner_releases=RUNNER_RELEASES)
+
+
+def _score_gated(expected, gates, data_root, output_json, runner_releases=None):
+    from scipy.stats import t as student_t
+    from tralo.knee_data import audit
+
+    output = Path(output_json)
+    if output.exists():
+        raise FileExistsError(output)
     if len({g['manifest_sha256'] for g in gates}) != 1:
         raise RuntimeError('run block differs in data manifest')
     # Development labels are first read only after every run has passed gate().
@@ -415,6 +477,7 @@ def score(full_root, data_root, output_json):
     result = dict(scope='repeatedly_viewed_knee_development_only', n_seeds=12,
                   scorer_sha256=digest(__file__),
                   train_caps=list(CAPS_STUDY), backbones=list(BACKBONES),
+                  runner_releases=runner_releases,
                   run_gates=gates, per_seed=scores, grouped=grouped,
                   deployment_curve_caps=list(CAPS_CURVE), deployment_curves=deployment_curves,
                   paired_contrasts=contrasts,
@@ -429,8 +492,12 @@ if __name__ == '__main__':
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('--gate', metavar='RUN_ROOT')
     group.add_argument('--score', nargs=3, metavar=('FULL_ROOT', 'DATA_ROOT', 'OUTPUT_JSON'))
+    group.add_argument('--score-mixed', nargs=4,
+                       metavar=('B5_MNV3_ROOT', 'VIT_ROOT', 'DATA_ROOT', 'OUTPUT_JSON'))
     args = parser.parse_args()
     if args.gate:
         print(json.dumps(gate(args.gate), indent=2))
+    elif args.score_mixed:
+        score_mixed(*args.score_mixed)
     else:
         score(*args.score)
