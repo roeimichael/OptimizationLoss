@@ -179,16 +179,32 @@ def prepare(dataset, raw_root, output):
             for row in rows:
                 stream.write(json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n")
         hashes[str(path.relative_to(output))] = digest(path)
+    public_supports = {}
+    for (split, group), value in sorted(counts.items()):
+        public_supports[f"{split}/{group}"] = (
+            {"images": value["images"]} if split == "development" else dict(value))
     manifest = dict(dataset=dataset, target="malignant" if dataset == "isic2020" else "Smiling",
                     group_attribute="sex" if dataset == "isic2020" else "Male",
                     image_dir=str(images.resolve()), image_count=len(records),
                     split_rule=SPLIT_RULE, split_namespace=NAMESPACES[dataset],
-                    source_sha256=sources, files_sha256=hashes,
-                    split_unit_counts={key: len(value) for key, value in units.items()},
-                    supports={f"{split}/{group}": dict(value)
-                              for (split, group), value in sorted(counts.items())}, **extra)
+                     source_sha256=sources,
+                     files_sha256={key: value for key, value in hashes.items()
+                                   if Path(key).parts[0] == "runner"},
+                     split_unit_counts={key: len(value) for key, value in units.items()},
+                     supports=public_supports, **extra)
     with (output / "manifest.json").open("x", encoding="utf-8") as stream:
         json.dump(manifest, stream, sort_keys=True, indent=2)
+        stream.write("\n")
+    scorer_manifest = {
+        "runner_manifest_sha256": digest(output / "manifest.json"),
+        "development_labels_sha256": digest(
+            output / "scorer" / "development_labels.jsonl"),
+        "development_supports": {
+            group: dict(value) for (split, group), value in sorted(counts.items())
+            if split == "development"},
+    }
+    with (output / "scorer/manifest.json").open("x", encoding="utf-8") as stream:
+        json.dump(scorer_manifest, stream, sort_keys=True, indent=2)
         stream.write("\n")
     return manifest
 

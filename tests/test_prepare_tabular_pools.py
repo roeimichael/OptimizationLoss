@@ -45,6 +45,10 @@ def test_isic_duplicate_and_label_seal(tmp_path):
                                               "development": 1}
     pool = (output / "runner/development_pool.jsonl").read_text()
     assert "label" not in pool and "target" not in pool
+    assert manifest["supports"]["development/all"] == {"images": 1}
+    assert "scorer/development_labels.jsonl" not in manifest["files_sha256"]
+    private = json.loads((output / "scorer/manifest.json").read_text())
+    assert private["development_supports"]["all"] == {"images": 1, "positive": 1}
     assert json.loads((output / "scorer/development_labels.jsonl").read_text()) == {
         "sample_id": rows[3]["image_name"], "label": 1}
     with pytest.raises(FileExistsError):
@@ -79,6 +83,9 @@ def test_celeba_identity_join_and_label_seal(tmp_path):
     assert pool == {"file": "000003.jpg", "group": "male",
                     "sample_id": "000003.jpg"}
     assert "label" not in pool
+    assert manifest["supports"]["development/all"] == {"images": 1}
+    assert json.loads((output / "scorer/manifest.json").read_text())[
+        "development_supports"]["all"]["positive"] == 1
     (images / "extra.jpg").write_bytes(b"synthetic")
     with pytest.raises(ValueError, match="sets differ"):
         prepare("celeba", tmp_path / "celeba", tmp_path / "bad")

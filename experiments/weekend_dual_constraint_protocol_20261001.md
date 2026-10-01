@@ -60,6 +60,14 @@ MobileNetV3-Large, ViT-B/16 and ConvNeXt-Tiny where weights, preprocessing,
 first-run reproducibility and memory fit are verified. A backbone comparison
 is matched within a cell; a pilot score cannot select a favorable backbone.
 
+The initial prepared-v1 ISIC/CelebA manifests exposed aggregate development
+positive counts. They are preserved as a provenance failure and must not be
+used for a confirmatory setting choice. Prepared-v2 puts development labels
+and their support counts in the scorer subdirectory; the runner manifest and
+development pool carry only image IDs, file names, group names and unlabeled
+group sizes. The source archives themselves still contain labels, so the
+runner's code and file-access log must also be audited before a GPU run.
+
 ## Exact intervention and matched controls
 
 For unlabeled deployment images i, image model probabilities p_i(c), global
