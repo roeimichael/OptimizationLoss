@@ -134,7 +134,9 @@ def test_queue_shell_syntax_and_fixed_modes():
     assert "tralo.fmow_persistent_local" in script
     assert "--fresh-full-gate" in script and "fixed ceiling" in script
     assert "_training_input_fingerprints" in script
-    assert "pilot/full release bytes differ" in script
+    assert "pilot/full source or scorer release differs" in script
+    assert "1bacdb448210a2083b181d86aa46bb8f0b29c6db" in script
+    assert "gate.get('pilot_root') != str(pilot)" in script
     assert script.index("preflight.start.json") < script.index("smoke.start.json")
     assert script.index("smoke.start.json") < script.index("--fresh-full-gate")
     assert script.index("--fresh-full-gate") < script.index('mkdir "$CLAIM"')

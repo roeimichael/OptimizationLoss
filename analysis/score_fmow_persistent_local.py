@@ -36,6 +36,7 @@ from tralo.local_targeted_step import local_targeted_step  # noqa: E402
 from tralo.knee_experiment import source  # noqa: E402
 
 PILOT = 6700
+PILOT_RUNNER_RELEASE = "1bacdb448210a2083b181d86aa46bb8f0b29c6db"
 SEEDS = tuple(range(6701, 6713))
 EPOCHS = tuple(range(1, 8))
 SNAPSHOTS = (5, 6, 7)
@@ -311,7 +312,15 @@ def _audit_identity(directory, data_root, expected_hashes):
     split, pool = _split_and_pool(data_root)
     split_sha = hashlib.sha256(json.dumps(split, sort_keys=True,
                              separators=(",", ":")).encode()).hexdigest()
-    if (manifest.get("split") != split or manifest.get("pool_rows") != pool or
+    observed_pool = manifest.get("pool_rows")
+    if (not isinstance(observed_pool, list) or
+            any(not isinstance(row, dict) or
+                set(row) != {"split", "sample_id", "location"} or
+                row["split"] != "val" for row in observed_pool)):
+        raise RuntimeError("runner development pool fields differ from label-free contract")
+    projected_pool = [{"sample_id": row["sample_id"],
+                       "location": row["location"]} for row in observed_pool]
+    if (manifest.get("split") != split or projected_pool != pool or
             identity["split_sha256"] != split_sha or
             any(set(row) != {"sample_id", "location"} for row in pool)):
         raise RuntimeError("label-free split or pool identity differs")
@@ -1249,9 +1258,11 @@ def _recount_cost_registry(cost_root, required_run_roots=(), *, inflight_gate_ro
                  preflight.get("source_sha256") != historical_source or
                  preflight.get("passed") not in (True, False)):
             raise RuntimeError(f"persistent cost/data preflight identity differs: {directory}")
-        if run_root in required and (release != _scorer_identity()["release_commit"] or
-                                     historical_source != source() or
-                                     preflight.get("data_files") != FILES):
+        if run_root in required and (release not in
+                                    {PILOT_RUNNER_RELEASE,
+                                     _scorer_identity()["release_commit"]} or
+                                      historical_source != source() or
+                                      preflight.get("data_files") != FILES):
             raise RuntimeError(f"required current preflight release/data differs: {directory}")
         if _json(preflight_start).get("run_root") != run_root:
             raise RuntimeError(f"preflight start root differs: {directory}")
@@ -1423,8 +1434,9 @@ def _gate_core(pilot_root, reference_root, data_root, output=None, *, replay_dev
              pilot["replay"]["host"] != reference["replay"]["host"]):
         raise RuntimeError("pilot/reference must use identical release bytes and host")
     scorer_identity = _scorer_identity()
-    if pilot["launch"]["release_commit"] != scorer_identity["release_commit"]:
-        raise RuntimeError("pilot and independent scorer release bytes differ")
+    if (pilot["launch"]["release_commit"] != PILOT_RUNNER_RELEASE or
+            _source_at_release(PILOT_RUNNER_RELEASE) != source()):
+        raise RuntimeError("pilot runner release source differs from scorer source")
     _assert_equal_trajectory(pilot, reference)
     for arm in PILOT_NULLS:
         _assert_equal_trajectory(pilot, pilot, "ce_null", arm)
@@ -1557,11 +1569,12 @@ def recount_full_gate(old_gate_path, pilot_root, reference_root, data_root,
             raise RuntimeError("stale or forged cost attempt receipt")
     full_attempt = _json(Path(cost_root) / hashlib.sha256(
         full_run_root.encode()).hexdigest() / "attempt.json")
-    if (old["pilot_launch"]["release_commit"] !=
-            old["reference_launch"]["release_commit"] or
+    if (old["pilot_launch"]["release_commit"] != PILOT_RUNNER_RELEASE or
+            old["reference_launch"]["release_commit"] != PILOT_RUNNER_RELEASE or
             full_attempt.get("run_root") != full_run_root or
-            full_attempt.get("release_commit") != old["pilot_launch"]["release_commit"]):
-        raise RuntimeError("pilot/reference/full release bytes differ")
+            full_attempt.get("release_commit") != _scorer_identity()["release_commit"] or
+            _source_at_release(PILOT_RUNNER_RELEASE) != source()):
+        raise RuntimeError("pilot/full runner source or scorer release differs")
     current_gates = {row["start_path"]: row for row in cost["pilot_gate_receipts"]}
     if not old["cost_registry"]["pilot_gate_receipts"]:
         raise RuntimeError("original pilot replay was not registered in GPU cost ledger")
@@ -1575,9 +1588,14 @@ def recount_full_gate(old_gate_path, pilot_root, reference_root, data_root,
                 raise RuntimeError("original pilot replay never completed successfully")
         elif latest != prior:
             raise RuntimeError("prior pilot replay cost receipt changed")
+    historical_manual_hours = (old["prior_gpu_hours"] -
+                               old["cost_registry"]["gpu_seconds"] / 3600)
+    if historical_manual_hours < 0:
+        raise RuntimeError("negative manually preserved prior cost")
     fresh = gate(pilot_root, reference_root, data_root, replay_device=replay_device,
-                 cost_root=cost_root, required_run_roots=[full_run_root],
-                 inflight_gate_root=full_run_root, register_gate_attempt=False)
+                  prior_hours=historical_manual_hours,
+                  cost_root=cost_root, required_run_roots=[full_run_root],
+                  inflight_gate_root=full_run_root, register_gate_attempt=False)
     for key in ("source_sha256", "scorer_identity", "data_files", "split_sha256",
                 "pilot_manifest_sha256", "reference_manifest_sha256",
                 "pilot_summary_sha256", "reference_summary_sha256",
@@ -1773,9 +1791,11 @@ def main(run_root, data_root, gate_receipt, output=None, *, replay_device):
     gate_record = _verified_full_gate_receipt(gate_receipt, hashes, run_root)
     audited = [audit_seed(root / f"seed{s}", data_root, data_hashes=hashes,
                           expected_seed=s, replay_device=replay_device) for s in SEEDS]
-    if any(row["launch"]["release_commit"] !=
-           gate_record["pilot_launch"]["release_commit"] for row in audited):
-        raise RuntimeError("full seed release differs from pilot release bytes")
+    if (gate_record["pilot_launch"]["release_commit"] != PILOT_RUNNER_RELEASE or
+            _source_at_release(PILOT_RUNNER_RELEASE) != source() or
+            any(row["launch"]["release_commit"] !=
+                _scorer_identity()["release_commit"] for row in audited)):
+        raise RuntimeError("full seed runner source or release differs")
     if (len({row["manifest"]["split_sha256"] for row in audited}) != 1 or
              audited[0]["manifest"]["split_sha256"] != gate_record["split_sha256"]):
         raise RuntimeError("seeds use different development cohorts")

@@ -553,7 +553,7 @@ def test_gate_never_opens_development_labels(monkeypatch):
             "events": [{"event": "started", "device": "Fake GPU"}],
             "replay": {"seconds": 10, "host": "same", "gpu_name": "Fake GPU"},
             "launch": {"host": "same", "gpu_uuid": "GPU-fake",
-                       "release_commit": "a" * 40}}
+                       "release_commit": score.PILOT_RUNNER_RELEASE}}
     reference = copy.deepcopy(fake)
     reference["config"]["reference"] = True
     reference["launch"]["gpu_uuid"] = "GPU-another-free-card-same-host"
@@ -563,6 +563,7 @@ def test_gate_never_opens_development_labels(monkeypatch):
                         reference if kwargs.get("reference") else fake)
     monkeypatch.setattr(score, "_assert_equal_trajectory", lambda *args: None)
     monkeypatch.setattr(score, "_scorer_identity", lambda: {"release_commit": "a" * 40})
+    monkeypatch.setattr(score, "_source_at_release", lambda _: score.source())
     monkeypatch.setattr(score, "_development_labels", lambda *args:
                         (_ for _ in ()).throw(AssertionError("labels touched by gate")))
     result = score.gate("pilot", "reference", "data", replay_device="cuda:0")
@@ -570,6 +571,9 @@ def test_gate_never_opens_development_labels(monkeypatch):
     assert result["projected_gpu_hours"] == pytest.approx(1540 / 3600)
     reference["launch"]["release_commit"] = "b" * 40
     with pytest.raises(RuntimeError, match="identical release bytes"):
+        score.gate("pilot", "reference", "data", replay_device="cuda:0")
+    fake["launch"]["release_commit"] = "b" * 40
+    with pytest.raises(RuntimeError, match="pilot runner release source"):
         score.gate("pilot", "reference", "data", replay_device="cuda:0")
 
 
@@ -587,14 +591,17 @@ def test_duplicate_pto_predictions_rejected_before_development_labels(tmp_path, 
         (tmp_path / f"seed{seed}").mkdir()
     monkeypatch.setattr(score, "_data_hashes", lambda _: {})
     monkeypatch.setattr(score, "_verified_full_gate_receipt", lambda *args:
-                        {"split_sha256": "same", "pilot_launch": {"release_commit": "a" * 40}})
+                         {"split_sha256": "same", "pilot_launch": {
+                             "release_commit": score.PILOT_RUNNER_RELEASE}})
     identical = torch.full((2, 3), 1 / 3)
     monkeypatch.setattr(score, "audit_seed", lambda *args, **kwargs: {
         "launch": {"release_commit": "a" * 40},
         "manifest": {"split_sha256": "same"},
         "snapshots": {"ce_null": {e: identical for e in score.SNAPSHOTS}}})
     monkeypatch.setattr(score, "_development_labels", lambda *args:
-                        pytest.fail("labels opened before duplicate PTO check"))
+                         pytest.fail("labels opened before duplicate PTO check"))
+    monkeypatch.setattr(score, "_scorer_identity", lambda: {"release_commit": "a" * 40})
+    monkeypatch.setattr(score, "_source_at_release", lambda _: score.source())
     with pytest.raises(RuntimeError, match="duplicate CE/null"):
         score.main(tmp_path, "data", "gate", replay_device="cuda:0")
 
@@ -629,13 +636,15 @@ def test_eight_unique_holm_contrasts_and_fresh_output(tmp_path, monkeypatch):
                                        "pilot_seconds": 100, "reference_seconds": 100,
                                        "pilot_replay": {"seconds": 1},
                                        "reference_replay": {"seconds": 1},
-                                       "pilot_launch": {"release_commit": "a" * 40},
+                                        "pilot_launch": {"release_commit":
+                                                         score.PILOT_RUNNER_RELEASE},
                                        "ceiling_gpu_hours": 24})
     monkeypatch.setattr(score, "_recount_cost_registry", lambda *args, **kwargs:
                         {"gpu_seconds": 202, "entries": [], "pilot_gate_receipts": []})
     monkeypatch.setattr(score, "_development_labels", lambda *args: [1])
     monkeypatch.setattr(score, "source", lambda: {})
     monkeypatch.setattr(score, "_scorer_identity", lambda: {"release_commit": "a" * 40})
+    monkeypatch.setattr(score, "_source_at_release", lambda _: score.source())
     def fake_audit(path, *args, **kwargs):
         index = int(Path(path).name.removeprefix("seed")) - score.SEEDS[0]
         pto = torch.full((1, 2), float(index))
@@ -689,7 +698,8 @@ def test_scorer_consumes_runner_seven_epoch_fixture(tmp_path, monkeypatch):
     root, reference = tmp_path / "run", tmp_path / "reference"
     manifest = json.loads((root / "manifest.json").read_text())
     monkeypatch.setattr(score, "_split_and_pool", lambda _: (manifest["split"],
-                                                             manifest["pool_rows"]))
+        [{"sample_id": row["sample_id"], "location": row["location"]}
+         for row in manifest["pool_rows"]]))
     monkeypatch.setattr(score, "TRAIN_COUNT", 4)
     monkeypatch.setattr(score, "POOL_COUNT", 3)
     monkeypatch.setattr(score, "WEIGHT_SHA", "0" * 64)

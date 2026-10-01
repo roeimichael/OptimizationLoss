@@ -288,8 +288,8 @@ def test_seven_epoch_cpu_fixture_keeps_focal_and_persistent_branches_separate(
         roles = dict(train=[0, 1, 2, 3], stop=[4, 5], dev=[0, 1, 2],
                      stop_countries=["STOP"], dev_countries=["A", "B"],
                      reserved_countries=["SEALED"])
-        rows = [{"sample_id": f"test{i}", "location": group}
-                for i, group in enumerate(["A", "A", "B"])]
+        rows = [{"split": "val", "sample_id": f"test{i}", "location": group}
+                 for i, group in enumerate(["A", "A", "B"])]
         return {"train": None, "test": None}, np.array([0, 1, 0, 1, 0, 1]), rows, roles
 
     def fake_tralo(model, chunks, groups, capped, global_cap, local_caps, **kwargs):

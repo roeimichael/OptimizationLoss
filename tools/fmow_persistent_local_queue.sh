@@ -94,18 +94,25 @@ if [[ $MODE = full ]]; then
   REF=$(realpath -e -- "$REF") || fail "reference root unavailable"
   [[ $PILOT = "$RUNS_CANON/"* && $REF = "$RUNS_CANON/"* &&
      -d $PILOT && -d $REF && $PILOT != "$REF" ]] || fail "preserved pilot/reference roots invalid"
-  "$PY" - "$PILOT" "$REF" "$GATE" "$SHA" <<'PY' || fail "pilot/full release bytes differ"
+  "$PY" - "$PILOT" "$REF" "$GATE" "$SHA" <<'PY' || fail "pilot/full source or scorer release differs"
 import json, sys
 from pathlib import Path
+from tralo.knee_experiment import source
 pilot, reference, gate_file = map(Path, sys.argv[1:4])
 commit = sys.argv[4]
 gate = json.loads(gate_file.read_text())
+pilot_runner = '1bacdb448210a2083b181d86aa46bb8f0b29c6db'
+if (gate.get('scorer_identity', {}).get('release_commit') != commit or
+        gate.get('source_sha256') != source() or
+        gate.get('pilot_root') != str(pilot) or
+        gate.get('reference_root') != str(reference)):
+    raise RuntimeError('gate is not bound to exact pilot roots and this scorer')
 for root, role in ((pilot, 'step'), (reference, 'ref')):
     job = f'6700_{role}'
     launch = json.loads((root.parent / f'{job}.launch.json').read_text())
-    if (launch.get('release_commit') != commit or
+    if (launch.get('release_commit') != pilot_runner or
             gate.get('pilot_launch' if role == 'step' else 'reference_launch') != launch):
-        raise RuntimeError(f'{job} differs from exact full release')
+        raise RuntimeError(f'{job} differs from exact pinned pilot release')
 PY
 fi
 mkdir "$ROOT" || fail "could not claim fresh run root"
