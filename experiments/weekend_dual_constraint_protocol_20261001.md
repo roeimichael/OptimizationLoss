@@ -101,7 +101,27 @@ checkpoint rule, and deployment allocator:
 3. **PHR-ALM:** persistent inexact primal correction and per-scope nonnegative
    dual update, with the same correction opportunities and maximum dose.
 4. **Null/sham:** the same schedule and observations with zero correction;
-   a radius-matched sham is retained where the method makes a side step.
+a radius-matched sham is retained where the method makes a side step.
+
+For the newly prepared tabular cohorts, freeze these two capacity levels now,
+before a training score is available. They are calculated only from the
+unlabeled development cohort counts by `tralo/tabular_quota_policy.py`:
+
+| Cohort | Level | Pooled cap | Female cap | Male cap | Interpretation |
+|---|---:|---:|---:|---:|---|
+| ISIC 2020 | 1 | 48/4,795 (1%) | 32/2,110 (1.5%) | 41/2,668 (1.5%) | Scarce specialist referral slots. |
+| ISIC 2020 | 2 | 96/4,795 (2%) | 64/2,110 (3%) | 81/2,668 (3%) | Less scarce referral slots. |
+| CelebA | 1 | 7,617/30,467 (25%) | 6,211/17,745 (35%) | 4,453/12,722 (35%) | Synthetic positive-call allocation. |
+| CelebA | 2 | 10,664/30,467 (35%) | 7,986/17,745 (45%) | 5,725/12,722 (45%) | Less restrictive synthetic allocation. |
+
+The 17 ISIC rows with missing sex count toward the pooled cap and are
+reported separately, but have no separate 0-or-1-person local quota. Local
+caps sum above the pooled cap and each local cap is below it, so both levels
+can actually constrain a skewed allocator. This is a prospective operational
+stress test, not a clinically endorsed referral policy or a fairness
+guarantee. If the image model's probabilities make all constraints slack, we
+report that failure of experimental activation instead of changing the caps
+after looking at outcomes.
 
 The primary contrast is TraLO minus its schedule-matched null, then TraLO
 minus the deployment-only control. An ALM comparison alone cannot attribute a
