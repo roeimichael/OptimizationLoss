@@ -624,7 +624,8 @@ def test_full_cost_gate_recounts_jobs_and_smoke_before_labels(tmp_path, monkeypa
 def test_cross_release_identity_rechecks_every_pilot_and_full_input(tmp_path, monkeypatch):
     full = tmp_path / ("a" * 40)
     pilot = tmp_path / score.PILOT_RELEASE
-    monkeypatch.setattr(score, "RELEASE_ROOT", full)
+    scorer = tmp_path / ("c" * 40)
+    monkeypatch.setattr(score, "RELEASE_ROOT", scorer)
     monkeypatch.setattr(score, "PILOT_RELEASE_ROOT", pilot)
     config_root = "experiments/configs/fmow_local_boundary_vit_v2_20261001"
     names = {"tralo/model.py", "tools/fmow_local_boundary_vit_smoke.py",
@@ -634,7 +635,7 @@ def test_cross_release_identity_rechecks_every_pilot_and_full_input(tmp_path, mo
                           *(f"{seed}_step" for seed in score.SEEDS))}
     hashes = {}
     for name in names:
-        for release in (full, pilot):
+        for release in (full, pilot, scorer):
             path = release / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(name + "\n", encoding="utf-8")
@@ -649,6 +650,12 @@ def test_cross_release_identity_rechecks_every_pilot_and_full_input(tmp_path, mo
     with pytest.raises(RuntimeError, match="pilot/full bytes differ"):
         score._cross_release_identity(tmp_path, full.name)
     (pilot / "tralo/model.py").write_text("tralo/model.py\n", encoding="utf-8")
+    (scorer / "tralo/model.py").write_text("changed\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="pilot/full bytes differ"):
+        score._cross_release_identity(tmp_path, full.name)
+    (scorer / "tralo/model.py").write_text("tralo/model.py\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="identity differs"):
+        score._cross_release_identity(tmp_path, "d" * 40)
     value["pilot_release_commit"] = "b" * 40
     receipt.write_text(json.dumps(value) + "\n", encoding="utf-8")
     with pytest.raises(RuntimeError, match="identity differs"):

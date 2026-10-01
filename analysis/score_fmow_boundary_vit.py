@@ -653,7 +653,13 @@ def _cross_release_identity(root, full_release):
     path = Path(root) / "vit_cross_release_identity.json"
     saved = base._json(path)
     config_root = Path("experiments/configs/fmow_local_boundary_vit_v2_20261001")
-    modules = {item.relative_to(RELEASE_ROOT) for item in (RELEASE_ROOT / "tralo").glob("*.py")}
+    # A scorer-only correction runs from a new immutable release. Resolve the
+    # full runner by the launch receipt, then bind this scorer's training inputs
+    # to the same bytes; its directory name is not the runner commit.
+    full_root = RELEASE_ROOT.parent / full_release
+    modules = {item.relative_to(full_root) for item in (full_root / "tralo").glob("*.py")}
+    scorer_modules = {item.relative_to(RELEASE_ROOT)
+                      for item in (RELEASE_ROOT / "tralo").glob("*.py")}
     pilot_modules = {item.relative_to(PILOT_RELEASE_ROOT)
                      for item in (PILOT_RELEASE_ROOT / "tralo").glob("*.py")}
     expected = modules | {config_root / f"fmow_local_{job}.json"
@@ -661,7 +667,8 @@ def _cross_release_identity(root, full_release):
                                       *(f"{seed}_step" for seed in SEEDS))} | {
         Path("tools/fmow_local_boundary_vit_smoke.py"),
         Path("tools/fmow_local_boundary_vit_real_preflight.py")}
-    if (RELEASE_ROOT.name != full_release or modules != pilot_modules or
+    if (full_root.name != full_release or modules != pilot_modules or
+            modules != scorer_modules or
             saved.get("pilot_release_commit") != PILOT_RELEASE or
             saved.get("full_release_commit") != full_release or
             saved.get("source_config_and_preflights_equal") is not True or
@@ -671,6 +678,7 @@ def _cross_release_identity(root, full_release):
     for item in expected:
         digest = saved["files"][item.as_posix()]
         if (not isinstance(digest, str) or len(digest) != 64 or
+                base.sha256(full_root / item) != digest or
                 base.sha256(RELEASE_ROOT / item) != digest or
                 base.sha256(PILOT_RELEASE_ROOT / item) != digest):
             raise RuntimeError(f"ViT pilot/full bytes differ: {item}")
