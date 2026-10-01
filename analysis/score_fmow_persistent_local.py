@@ -365,10 +365,16 @@ def _audit_launch(directory, config, manifest, events, *, replay_host=None):
     return launch
 
 
-def _audit_training_fingerprints(directory, config, summary, launch):
+def _audit_training_fingerprints(directory, config, summary, launch, *, cost_root=None):
     """Tie actual epochs to the queue's real-image transform preflight."""
     run_root = Path(directory).resolve().parent
-    costs = run_root.parent / ".fmow-persistent-local-cost"
+    raw_costs = (Path(cost_root) if cost_root is not None else
+                 run_root.parent / ".fmow-persistent-local-cost")
+    if raw_costs.is_symlink():
+        raise RuntimeError("training cost registry missing or linked")
+    costs = raw_costs.resolve(strict=True)
+    if not costs.is_dir():
+        raise RuntimeError("training cost registry missing or linked")
     attempt = costs / hashlib.sha256(str(run_root).encode()).hexdigest()
     preflight = _json(attempt / "preflight.json")
     if (preflight.get("passed") is not True or
@@ -1143,7 +1149,7 @@ def _audit_arm(directory, arm, summary, events, groups, quotas, sample_ids=None)
 
 
 def audit_seed(directory, data_root, *, data_hashes=None, expected_seed=None,
-               reference=False, replay_device=None):
+               reference=False, replay_device=None, cost_root=None):
     """Audit one run without opening development labels; returns saved predictions."""
     hashes = _data_hashes(data_root) if data_hashes is None else data_hashes
     config, manifest, summary, events, pool = _audit_identity(directory, data_root, hashes)
@@ -1188,7 +1194,8 @@ def audit_seed(directory, data_root, *, data_hashes=None, expected_seed=None,
             raise RuntimeError("focal epoch 1 did not branch independently")
     launch = (_audit_launch(directory, config, manifest, events)
               if replay_device is not None else None)
-    fingerprints = (_audit_training_fingerprints(directory, config, summary, launch)
+    fingerprints = (_audit_training_fingerprints(directory, config, summary, launch,
+                                                 cost_root=cost_root)
                     if replay_device is not None else None)
     replay = (_replay_seed(directory, data_root, summary, snapshots,
                             manifest["split"], replay_device)
@@ -1421,9 +1428,11 @@ def _gate_core(pilot_root, reference_root, data_root, output=None, *, replay_dev
         cost["gpu_seconds"] / 3600 if cost is not None else 0.)
     hashes = _data_hashes(data_root)
     pilot = audit_seed(pilot_root, data_root, data_hashes=hashes,
-                       expected_seed=PILOT, reference=False, replay_device=replay_device)
+                       expected_seed=PILOT, reference=False, replay_device=replay_device,
+                       cost_root=cost_root)
     reference = audit_seed(reference_root, data_root, data_hashes=hashes,
-                           expected_seed=PILOT, reference=True, replay_device=replay_device)
+                           expected_seed=PILOT, reference=True, replay_device=replay_device,
+                           cost_root=cost_root)
     if (pilot["pool"] != reference["pool"] or
             pilot["manifest"]["split_sha256"] != reference["manifest"]["split_sha256"] or
             {k: v for k, v in pilot["config"].items() if k != "reference"} !=
@@ -1765,7 +1774,8 @@ def pilot_score(pilot_root, data_root, gate_receipt, output=None, *, replay_devi
     hashes = _data_hashes(data_root)
     gate_record = _verified_gate_receipt(gate_receipt, hashes)
     audited = audit_seed(pilot_root, data_root, data_hashes=hashes,
-                         expected_seed=PILOT, replay_device=replay_device)
+                         expected_seed=PILOT, replay_device=replay_device,
+                         cost_root=gate_record["cost_registry"]["root"])
     if (gate_record["pilot_manifest_sha256"] != _hash(Path(pilot_root) / "manifest.json") or
             gate_record["pilot_summary_sha256"] != _hash(Path(pilot_root) / "summary.json") or
             gate_record["split_sha256"] != audited["manifest"]["split_sha256"]):
@@ -1790,7 +1800,8 @@ def main(run_root, data_root, gate_receipt, output=None, *, replay_device):
     hashes = _data_hashes(data_root)
     gate_record = _verified_full_gate_receipt(gate_receipt, hashes, run_root)
     audited = [audit_seed(root / f"seed{s}", data_root, data_hashes=hashes,
-                          expected_seed=s, replay_device=replay_device) for s in SEEDS]
+                          expected_seed=s, replay_device=replay_device,
+                          cost_root=gate_record["cost_registry"]["root"]) for s in SEEDS]
     if (gate_record["pilot_launch"]["release_commit"] != PILOT_RUNNER_RELEASE or
             _source_at_release(PILOT_RUNNER_RELEASE) != source() or
             any(row["launch"]["release_commit"] !=

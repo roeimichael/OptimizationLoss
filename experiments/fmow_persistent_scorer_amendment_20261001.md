@@ -19,6 +19,17 @@ to have exactly those three fields and the `val` split, projects it to the two
 common fields, then compares every row in order to its independent recount.
 No data, split, quota, gradient, replay or cost tolerance has been relaxed.
 
+A third label-blind attempt under the first amended scorer then exposed a
+separate storage-layout assumption: the training queue put its signed
+preflight and cost attempt in the shared NFS registry, while the scorer looked
+for a sibling registry next to the pilot's local `/tmp` run root. The attempt
+failed before development labels and remains in the registry. The next
+scorer-only amendment passes the already verified, explicitly supplied cost
+registry root into each training-fingerprint audit, including the pilot score
+and complete-block audit. It still checks the exact run-root hash, release,
+host, physical GPU UUID, source, preprocessing and seven epoch fingerprints;
+it does not accept a missing registry or relax any numerical threshold.
+
 The amended release changes only the scorer, fixed queue and tests. Its
 `tralo/*.py` runner source bytes are identical to the seed-6700 runner release.
 The scorer pins that exact pilot release, authenticates the common complete

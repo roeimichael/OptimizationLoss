@@ -591,7 +591,8 @@ def test_duplicate_pto_predictions_rejected_before_development_labels(tmp_path, 
         (tmp_path / f"seed{seed}").mkdir()
     monkeypatch.setattr(score, "_data_hashes", lambda _: {})
     monkeypatch.setattr(score, "_verified_full_gate_receipt", lambda *args:
-                         {"split_sha256": "same", "pilot_launch": {
+                             {"split_sha256": "same", "cost_registry": {"root": str(tmp_path)},
+                              "pilot_launch": {
                              "release_commit": score.PILOT_RUNNER_RELEASE}})
     identical = torch.full((2, 3), 1 / 3)
     monkeypatch.setattr(score, "audit_seed", lambda *args, **kwargs: {
@@ -621,6 +622,39 @@ def test_actual_cost_includes_completed_full_gate_lease_and_replay(tmp_path, mon
                         {"gpu_seconds": completed_seconds})
     actual, _ = score._actual_study_hours(gate, audited, tmp_path / "full")
     assert actual == pytest.approx((completed_seconds + 100 + 110 + 120 + 2) / 3600)
+
+
+def test_training_fingerprints_recount_external_shared_cost_root(tmp_path):
+    run_root = tmp_path / "local_tmp_runs" / "pilot"
+    seed = run_root / "seed6700"
+    seed.mkdir(parents=True)
+    shared_cost = tmp_path / "shared_nfs_cost"
+    attempt = shared_cost / hashlib.sha256(str(run_root.resolve()).encode()).hexdigest()
+    attempt.mkdir(parents=True)
+    first = {str(epoch): {"first_batch_sha256": "a" * 64,
+                          "sample_order_sha256": "b" * 64}
+             for epoch in score.EPOCHS}
+    (attempt / "preflight.json").write_text(json.dumps({
+        "passed": True, "run_root": str(run_root.resolve()),
+        "source_sha256": score.source(), "preprocessing": score.PREPROCESSING,
+        "train_transform_probe_sha256": "c" * 64,
+        "evaluation_transform_probe_sha256": "d" * 64,
+        "first_batches": {"6700": first}}))
+    release = "e" * 40
+    launch = {"release_commit": release, "host": "dsisco02",
+              "gpu_uuid": "GPU-test", "run_root": str(run_root.resolve())}
+    (attempt / "attempt.json").write_text(json.dumps({
+        **launch, "mode": "pilot-step"}))
+    summary = {"arms": {"ce_null": {"epochs": [
+        {"epoch": epoch, **first[str(epoch)]} for epoch in score.EPOCHS]}}}
+    result = score._audit_training_fingerprints(
+        seed, {"seed": 6700, "pilot": True, "reference": False},
+        summary, launch, cost_root=shared_cost)
+    assert result["preflight_sha256"] == score._hash(attempt / "preflight.json")
+    with pytest.raises(FileNotFoundError):
+        score._audit_training_fingerprints(
+            seed, {"seed": 6700, "pilot": True, "reference": False},
+            summary, launch, cost_root=tmp_path / "wrong_cost")
 
 
 def test_eight_unique_holm_contrasts_and_fresh_output(tmp_path, monkeypatch):
