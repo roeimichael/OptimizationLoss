@@ -72,8 +72,11 @@ The hard deployment allocator chooses at most K class-c calls overall and at
 most K_g from each group, with fixed sample-ID tie breaking. Quotas are
 upper bounds, not forced referral targets. Fix K and K_g from a disclosed
 operational percentage and unlabeled group sizes before opening development
-labels. Include an explicit missing-metadata group if support permits; never
-silently drop rows. A 70/30 referral share is only one possible policy, not a
+labels. Retain every missing-metadata row in the pooled constraint and report
+it separately. If its support is too small for a meaningful local estimate,
+give it no separate local cap rather than manufacturing a tiny bucket; apply
+that same rule to every arm and the deployment allocator. A 70/30 referral
+share is only one possible policy, not a
 fact inferred from outcomes; any such policy needs a dated protocol choice.
 
 For a future test of TraLO's **actual saturating loss**, use one term per

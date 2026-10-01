@@ -25,9 +25,9 @@ def _checked(probabilities, groups, capped_class, global_cap, local_caps,
     if type(capped_class) is not int or not 0 <= capped_class < probabilities.shape[1]:
         raise ValueError("invalid capped class")
     if (type(global_cap) is not int or global_cap < 0 or
-            not isinstance(local_caps, dict) or set(local_caps) != set(groups) or
+            not isinstance(local_caps, dict) or not set(local_caps).issubset(set(groups)) or
             any(type(cap) is not int or cap < 0 for cap in local_caps.values())):
-        raise ValueError("integer global and exactly observed local caps required")
+        raise ValueError("integer global and observed local caps required")
     if (not isinstance(multipliers, dict) or
             set(multipliers) != {"global", *local_caps} or
             any(type(value) not in (int, float) or not math.isfinite(value) or
@@ -80,7 +80,8 @@ def bounded_local_logit_gradient(probabilities, groups, capped_class,
                  2.0 * rho * e / (1.0 + e.square()).square()))
         else:
             coefficients[scope] = soft.new_zeros(())
-    weights = torch.stack([coefficients["global"] + coefficients[group]
+    zero = q.new_zeros(())
+    weights = torch.stack([coefficients["global"] + coefficients.get(group, zero)
                            for group in groups])
     result = -weights[:, None] * q[:, None] * probabilities
     result[:, capped_class] += weights * q

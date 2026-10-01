@@ -70,9 +70,25 @@ def test_all_slack_has_zero_gradient_and_metadata_is_required():
                        torch.zeros_like(logits))
     with pytest.raises(ValueError, match="one nonempty metadata group"):
         bounded_local_count_penalty(logits.detach(), ["female"], *args[1:])
-    with pytest.raises(ValueError, match="exactly observed local caps"):
+    with pytest.raises(ValueError, match="observed local caps"):
         bounded_local_count_penalty(logits.detach(), args[0], 0, 2,
-                                    {"female": 1}, multipliers, 0.5)
+                                    {"ghost": 1},
+                                    {"global": 1., "ghost": 1.}, 0.5)
+
+
+def test_missing_metadata_group_stays_in_global_pool_without_tiny_local_quota():
+    logits = torch.tensor([[1.5, 0.0], [1.3, 0.1], [1.0, 0.2]],
+                          dtype=torch.double, requires_grad=True)
+    groups = ["female", "female", "missing"]
+    caps = {"female": 1}
+    multipliers = {"global": 1.4, "female": 0.7}
+    loss = bounded_local_count_penalty(logits, groups, 0, 1, caps,
+                                       multipliers, 0.5)
+    actual = torch.autograd.grad(loss, logits)[0]
+    analytic = bounded_local_logit_gradient(logits.detach().softmax(1), groups,
+                                            0, 1, caps, multipliers, 0.5)
+    assert torch.allclose(actual, analytic, atol=1e-10, rtol=1e-10)
+    assert analytic[-1].abs().sum() > 0  # Missing metadata remains pooled.
 
 
 def test_global_component_is_exact_original_tralo_penalty():
