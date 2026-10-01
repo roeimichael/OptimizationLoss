@@ -19,6 +19,7 @@ def test_config_fixes_seed_cap_backbone_and_comparable_recipe():
     match.validate(CONFIG)
     match.validate(dict(CONFIG, seed=6701, caps=[54, 86], backbone='vit_b_16'))
     match.validate(dict(CONFIG, seed=6712, caps=[54, 86], backbone='efficientnet_b5'))
+    match.validate(dict(CONFIG, seed=6713, backbone='vit_b_16'))
     for changed in (dict(seed=6713), dict(seed=6701), dict(caps=[54, 86]),
                     dict(backbone='resnet18'), dict(weight_decay=1e-4),
                     dict(max_retrains=9), dict(batch_size=16), dict(extra=1)):
@@ -29,15 +30,73 @@ def test_config_fixes_seed_cap_backbone_and_comparable_recipe():
 def test_all_fixed_pilot_and_full_configs_exist_and_validate():
     root = Path(__file__).resolve().parents[1] / 'experiments' / 'configs'
     files = sorted(root.glob('knee_persistent_*.json'))
-    assert len(files) == 39
+    assert len(files) == 40
     observed = set()
     for path in files:
         config = json.loads(path.read_text())
         match.validate(config)
         assert path.name == f"knee_persistent_{config['backbone']}_{config['seed']}.json"
         observed.add((config['backbone'], config['seed']))
-    assert observed == {(backbone, seed) for backbone in match.BACKBONES
-                        for seed in (6700,) + match.SEEDS_STUDY}
+    assert observed == ({(backbone, seed) for backbone in match.BACKBONES
+                         for seed in (6700,) + match.SEEDS_STUDY}
+                        | {('vit_b_16', 6713)})
+
+
+def test_vit_attention_replay_uses_same_path_with_and_without_grad(monkeypatch):
+    if not hasattr(torch, '_native_multi_head_attention'):
+        pytest.skip('native MHA unavailable')
+    previous = torch.backends.mha.get_fastpath_enabled()
+    attention = torch.nn.MultiheadAttention(8, 2, batch_first=True).eval()
+    calls = []
+    original = torch._native_multi_head_attention
+
+    def counted(*args, **kwargs):
+        calls.append('native')
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(torch, '_native_multi_head_attention', counted)
+    try:
+        torch.backends.mha.set_fastpath_enabled(True)
+        assert match.disable_vit_mha_fastpath() is False
+
+        class SmallAttention(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.attention = attention
+                self.head = torch.nn.Linear(8, 5)
+
+            def forward(self, values):
+                encoded = self.attention(values, values, values,
+                                         need_weights=False)[0]
+                return self.head(encoded[:, 0])
+
+        result = match.vit_attention_replay(SmallAttention().eval(),
+                                            torch.randn(2, 4, 8))
+        assert result['passed'] and result['max_tolerance_ratio'] <= 1
+        assert calls == []
+    finally:
+        torch.backends.mha.set_fastpath_enabled(previous)
+
+
+def test_vit_attention_replay_rejects_a_grad_only_prediction_change():
+    class Shift(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.weight = torch.nn.Parameter(torch.ones(4, 5) * 0.01)
+
+        def forward(self, values):
+            logits = values @ self.weight
+            if torch.is_grad_enabled():
+                logits = logits + torch.tensor([0.0, 0.001, 0.0, 0.0, 0.0])
+            return logits
+
+    previous = torch.backends.mha.get_fastpath_enabled()
+    try:
+        match.disable_vit_mha_fastpath()
+        result = match.vit_attention_replay(Shift().eval(), torch.ones(2, 4))
+        assert not result['passed'] and result['max_tolerance_ratio'] > 1
+    finally:
+        torch.backends.mha.set_fastpath_enabled(previous)
 
 
 def test_target_and_sham_hooks_match_each_tensor_dose_without_sharing_direction(monkeypatch):
