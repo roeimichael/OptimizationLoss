@@ -6,7 +6,8 @@ import json
 import pytest
 from PIL import Image
 
-from tralo.tabular_image_data import PreparedImageRows, load_runner_cohort
+from tralo.tabular_image_data import (ISIC_DRAFT_POLICY, PreparedImageRows,
+                                      load_runner_cohort)
 
 
 def _fixture(tmp_path):
@@ -66,4 +67,28 @@ def test_public_support_leak_and_private_development_row_rejected(tmp_path):
         path.read_bytes()).hexdigest()
     (root / "manifest.json").write_text(json.dumps(manifest))
     with pytest.raises(RuntimeError, match="development label boundary"):
+        load_runner_cohort(root, "celeba")
+
+
+def test_isic_decoder_draft_is_explicit_and_rejects_wrong_data(tmp_path):
+    path = tmp_path / "image.jpg"
+    Image.new("RGB", (1600, 1000), (51, 91, 131)).save(path)
+    row = [{"sample_id": "one", "file": path.name, "group": "female", "label": 1}]
+    full = PreparedImageRows(tmp_path, row, lambda image: image.size)
+    draft = PreparedImageRows(tmp_path, row, lambda image: image.size,
+                              ISIC_DRAFT_POLICY)
+    assert full[0][0] == (1600, 1000)
+    assert draft[0][0][0] < 1600 and draft[0][0][1] >= 224
+    with pytest.raises(ValueError, match="unfrozen"):
+        PreparedImageRows(tmp_path, row, lambda image: image.size, "unknown")
+    Image.new("RGB", (1600, 1000)).save(path, format="PNG")
+    with pytest.raises(RuntimeError, match="requires JPEG"):
+        draft[0]
+
+
+def test_decoder_policy_cannot_be_applied_to_other_dataset(tmp_path):
+    root, manifest = _fixture(tmp_path)
+    manifest["decode_policy"] = ISIC_DRAFT_POLICY
+    (root / "manifest.json").write_text(json.dumps(manifest))
+    with pytest.raises(RuntimeError, match="decoder policy"):
         load_runner_cohort(root, "celeba")

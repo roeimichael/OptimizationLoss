@@ -15,6 +15,7 @@ from torch.utils.data import Dataset
 
 
 RUNNER_FILES = ("train", "stop", "development_pool")
+ISIC_DRAFT_POLICY = "isic2020_jpeg_decoder_draft_256_v1"
 
 
 def _digest(path):
@@ -34,6 +35,10 @@ def load_runner_cohort(prepared_root, expected_dataset):
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if manifest.get("dataset") != expected_dataset:
         raise RuntimeError("wrong prepared dataset")
+    policy = manifest.get("decode_policy")
+    if policy not in (None, ISIC_DRAFT_POLICY) or (
+            policy == ISIC_DRAFT_POLICY and expected_dataset != "isic2020"):
+        raise RuntimeError("unknown or mismatched image decoder policy")
     expected_files = {f"runner/{name}.jsonl" for name in RUNNER_FILES}
     if set(manifest.get("files_sha256", {})) != expected_files:
         raise RuntimeError("runner manifest includes missing or private files")
@@ -102,10 +107,13 @@ def load_runner_cohort(prepared_root, expected_dataset):
 class PreparedImageRows(Dataset):
     """Use a frozen row list; development rows have no target field."""
 
-    def __init__(self, image_dir, rows, transform):
+    def __init__(self, image_dir, rows, transform, decode_policy=None):
+        if decode_policy not in (None, ISIC_DRAFT_POLICY):
+            raise ValueError("unfrozen image decoder policy")
         self.image_dir = Path(image_dir)
         self.rows = rows
         self.transform = transform
+        self.decode_policy = decode_policy
 
     def __len__(self):
         return len(self.rows)
@@ -113,5 +121,9 @@ class PreparedImageRows(Dataset):
     def __getitem__(self, index):
         row = self.rows[index]
         with Image.open(self.image_dir / row["file"]) as image:
+            if self.decode_policy == ISIC_DRAFT_POLICY:
+                if image.format != "JPEG":
+                    raise RuntimeError("ISIC decoder draft requires JPEG input")
+                image.draft("RGB", (256, 256))
             pixels = self.transform(image.convert("RGB"))
         return pixels, row.get("label", -1), row["group"], row["sample_id"]

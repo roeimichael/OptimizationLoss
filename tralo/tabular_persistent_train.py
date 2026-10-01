@@ -164,13 +164,14 @@ def _observations(probabilities, groups, quota):
 
 
 def _run_arm(name, initial, rows, image_dir, orders, train_tf, eval_tf,
-             quotas, config, output, log, device):
+             quotas, config, output, log, device, decode_policy=None):
     model = copy.deepcopy(initial).to(device)
     batch_size, lr = BACKBONES[config["backbone"]]
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=0.0)
-    train = PreparedImageRows(image_dir, rows["train"], train_tf)
-    stop = PreparedImageRows(image_dir, rows["stop"], eval_tf)
-    pool = PreparedImageRows(image_dir, rows["development_pool"], eval_tf)
+    train = PreparedImageRows(image_dir, rows["train"], train_tf, decode_policy)
+    stop = PreparedImageRows(image_dir, rows["stop"], eval_tf, decode_policy)
+    pool = PreparedImageRows(image_dir, rows["development_pool"], eval_tf,
+                             decode_policy)
     pool_groups = [row["group"] for row in rows["development_pool"]]
     expected_ids = [row["sample_id"] for row in rows["development_pool"]]
     pool_batches = _pool_batches(pool, batch_size, device)
@@ -302,7 +303,8 @@ def run(prepared_root, config_path, output_root):
                     "runner_files_sha256": manifest["files_sha256"],
                     "weight": weight, "initial_model_sha256": initial_sha,
                     "precision": "fp32_tf32_off", "development_labels_loaded": False,
-                    "preprocessing": {"train": repr(train_tf), "eval": repr(eval_tf)},
+                    "preprocessing": {"train": repr(train_tf), "eval": repr(eval_tf),
+                                      "decode_policy": manifest.get("decode_policy")},
                     "device": torch.cuda.get_device_name()}
         (output / "config.json").write_bytes(config_path.read_bytes())
         save(output / "manifest.json", {"identity": identity, "quotas": quotas,
@@ -317,7 +319,7 @@ def run(prepared_root, config_path, output_root):
         for name in ARMS:
             results[name] = _run_arm(name, initial, rows, image_dir, orders,
                                      train_tf, eval_tf, quotas, config, output,
-                                     log, device)
+                                     log, device, manifest.get("decode_policy"))
         baseline = results["pto"]["epochs"]
         null = results["sham"]["epochs"]
         if (results["pto"]["final_model_sha256"] !=

@@ -20,7 +20,8 @@ from tralo.knee_experiment import digest, save, source
 from tralo.metrics import classification_metrics
 from tralo.tabular_backbones import (configure_fp32, image_transforms,
                                       make_binary_model)
-from tralo.tabular_image_data import PreparedImageRows, load_runner_cohort
+from tralo.tabular_image_data import (ISIC_DRAFT_POLICY, PreparedImageRows,
+                                      load_runner_cohort)
 from tralo.tabular_persistent_train import (ARMS, CORRECTION_STEP_SIZE,
                                              EPOCHS, MAX_DISPLACEMENT,
                                              _pool_batches, _predict,
@@ -102,6 +103,8 @@ def audit_seed(run_root, prepared_root, *, replay=True):
     manifest, rows = load_runner_cohort(prepared_root, config["dataset"])
     if manifest["files_sha256"] != identity["runner_files_sha256"]:
         raise RuntimeError("prepared runner rows changed")
+    if identity["preprocessing"].get("decode_policy") != manifest.get("decode_policy"):
+        raise RuntimeError("image decoder policy changed")
     expected_ids = [row["sample_id"] for row in rows["development_pool"]]
     groups = [row["group"] for row in rows["development_pool"]]
     expected_pool_hash = hashlib.sha256(json.dumps(
@@ -130,7 +133,8 @@ def audit_seed(run_root, prepared_root, *, replay=True):
         configure_fp32()
         torch.use_deterministic_algorithms(True)
         _training_tf, eval_tf = image_transforms(config["backbone"])
-        data = PreparedImageRows(manifest["image_dir"], rows["development_pool"], eval_tf)
+        data = PreparedImageRows(manifest["image_dir"], rows["development_pool"],
+                                 eval_tf, manifest.get("decode_policy"))
         batch_size = 8 if config["backbone"] == "vit_b_16" else 16
         batches = _pool_batches(data, batch_size, torch.device("cuda"))
     for name in ARMS:
@@ -285,16 +289,21 @@ def _metrics(labels, predictions, groups):
     return metrics
 
 
-def _completed_cell_cost(full_root, audited):
+def _completed_cell_cost(full_root, audited, pilot_seed):
     """Authenticate all guarded queue receipts before opening private labels."""
     cell = Path(full_root).parent
-    pilot_launch = _json(cell / "pilot_6800.launch.json")
-    pilot_complete = _json(cell / "pilot_6800.complete.json")
+    pilot_launch = _json(cell / f"pilot_{pilot_seed}.launch.json")
+    pilot_complete = _json(cell / f"pilot_{pilot_seed}.complete.json")
     gate = _json(cell / "pilot_gate.json")
-    if (pilot_launch["seed"] != 6800 or pilot_complete["exit_code"] != 0 or
+    if (pilot_launch["seed"] != pilot_seed or pilot_complete["exit_code"] != 0 or
             pilot_launch["release_commit"] != pilot_complete["release_commit"] or
             gate["status"] != "label_blind_integrity_pass" or
-            gate["summary_sha256"] != digest(cell / "pilot/seed6800/summary.json")):
+            gate["seed"] != pilot_seed or
+            pilot_launch["prepared_manifest_sha256"] !=
+            audited[0]["identity"]["prepared_manifest_sha256"] or
+            pilot_launch["source_sha256"] != audited[0]["identity"]["source_sha256"] or
+            gate["summary_sha256"] != digest(
+                cell / f"pilot/seed{pilot_seed}/summary.json")):
         raise RuntimeError("pilot launch, completion or gate receipt changed")
     beginning = datetime.fromisoformat(pilot_launch["started_utc"])
     elapsed_full = 0
@@ -332,11 +341,17 @@ def _completed_cell_cost(full_root, audited):
 
 def score(full_root, prepared_root, output):
     root = Path(full_root)
-    expected = [root / f"seed{seed}" for seed in FULL_SEEDS]
-    if (not all(path.is_dir() for path in expected) or
-            {path.name for path in root.iterdir() if path.is_dir()} !=
-            {path.name for path in expected}):
+    prepared_manifest = _json(Path(prepared_root) / "manifest.json")
+    policy = prepared_manifest.get("decode_policy")
+    allowed = ((tuple(range(6811, 6815)), tuple(range(6821, 6825)))
+               if policy == ISIC_DRAFT_POLICY else (FULL_SEEDS,))
+    found = {path.name for path in root.iterdir() if path.is_dir()}
+    blocks = [block for block in allowed if found ==
+              {f"seed{seed}" for seed in block}]
+    if len(blocks) != 1:
         raise RuntimeError("complete fixed four-seed block required before labels")
+    seeds = blocks[0]
+    expected = [root / f"seed{seed}" for seed in seeds]
     audited = [audit_seed(path, prepared_root) for path in expected]
     first = audited[0]
     if (any(row["config"]["seed"] != seed or row["config"]["pilot"] or
@@ -346,11 +361,15 @@ def score(full_root, prepared_root, output):
             first["identity"]["prepared_manifest_sha256"] or
             row["quotas"] != first["quotas"] or
             row["sample_ids"] != first["sample_ids"]
-            for seed, row in zip(FULL_SEEDS, audited))):
+            for seed, row in zip(seeds, audited)) or
+            (policy == ISIC_DRAFT_POLICY and
+             (first["config"]["dataset"] != "isic2020" or
+              first["config"]["backbone"] !=
+              ("mobilenet_v3_large" if seeds[0] == 6811 else "vit_b_16")))):
         raise RuntimeError("fixed seed/data/backbone parity failed before labels")
     if sum(row["elapsed_seconds"] for row in audited) / 3600 > 96:
         raise RuntimeError("complete block exceeds aggregate weekend ceiling")
-    cost = _completed_cell_cost(full_root, audited)
+    cost = _completed_cell_cost(full_root, audited, seeds[0] - 1)
     labels, private_identity = _private_labels(
         prepared_root, first["sample_ids"],
         first["identity"]["prepared_manifest_sha256"])

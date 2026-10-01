@@ -5,16 +5,34 @@ import json
 import pytest
 
 from analysis import score_tabular_persistent as scorer
+from tralo.tabular_image_data import ISIC_DRAFT_POLICY
 
 
 def test_partial_fixed_block_stops_before_private_development_labels(
         tmp_path, monkeypatch):
     (tmp_path / "seed6801").mkdir()
+    prepared = tmp_path / "prepared"
+    prepared.mkdir()
+    (prepared / "manifest.json").write_text("{}", encoding="utf-8")
     def forbidden(*_args, **_kwargs):
         raise AssertionError("private development label path was opened")
     monkeypatch.setattr(scorer, "_private_labels", forbidden)
     with pytest.raises(RuntimeError, match="complete fixed four-seed block"):
-        scorer.score(tmp_path, tmp_path / "prepared", tmp_path / "score.json")
+        scorer.score(tmp_path, prepared, tmp_path / "score.json")
+
+
+def test_partial_draft_seed_block_stops_before_private_labels(tmp_path, monkeypatch):
+    full = tmp_path / "full"
+    full.mkdir()
+    (full / "seed6811").mkdir()
+    prepared = tmp_path / "prepared"
+    prepared.mkdir()
+    (prepared / "manifest.json").write_text(
+        json.dumps({"decode_policy": ISIC_DRAFT_POLICY}), encoding="utf-8")
+    monkeypatch.setattr(scorer, "_private_labels", lambda *_a, **_kw:
+                        pytest.fail("private labels opened for partial block"))
+    with pytest.raises(RuntimeError, match="complete fixed four-seed block"):
+        scorer.score(full, prepared, tmp_path / "score.json")
 
 
 def test_weighted_and_group_metrics_include_zero_support_class():
@@ -38,9 +56,12 @@ def test_completed_cell_cost_includes_pilot_gate_wall_and_checks_ownership(tmp_p
         (cell / name).write_text(json.dumps(row), encoding="utf-8")
     write("pilot_6800.launch.json", {
         "seed": 6800, "started_utc": "2026-10-01T20:00:00+00:00",
-        "release_commit": "a" * 40, "gpu_uuid": "GPU-test"})
+        "release_commit": "a" * 40, "gpu_uuid": "GPU-test",
+        "source_sha256": {"module.py": "b" * 64},
+        "prepared_manifest_sha256": "d" * 64})
     write("pilot_6800.complete.json", {"exit_code": 0, "release_commit": "a" * 40})
     write("pilot_gate.json", {"status": "label_blind_integrity_pass",
+                              "seed": 6800,
                               "summary_sha256": digest(pilot / "summary.json")})
     audited = []
     for seed in range(6801, 6805):
@@ -59,10 +80,10 @@ def test_completed_cell_cost_includes_pilot_gate_wall_and_checks_ownership(tmp_p
                         "identity": {"source_sha256": {"module.py": "b" * 64},
                                      "config_sha256": "c" * 64,
                                      "prepared_manifest_sha256": "d" * 64}})
-    report = scorer._completed_cell_cost(full, audited)
+    report = scorer._completed_cell_cost(full, audited, 6800)
     assert report["full_queue_gpu_hours"] == pytest.approx(4 / 60)
     assert report["cell_lease_gpu_hours_including_pilot_gate"] == pytest.approx(5 / 60)
     original = json.loads((cell / "full_6804.complete.json").read_text())
     write("full_6804.complete.json", {**original, "gpu_uuid": "GPU-foreign"})
     with pytest.raises(RuntimeError, match="ownership"):
-        scorer._completed_cell_cost(full, audited)
+        scorer._completed_cell_cost(full, audited, 6800)

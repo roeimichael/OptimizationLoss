@@ -1,0 +1,7 @@
+{
+  "backbone": "mobilenet_v3_large",
+  "dataset": "isic2020",
+  "pilot": false,
+  "seed": 6812,
+  "study": "tabular_persistent_v1"
+}

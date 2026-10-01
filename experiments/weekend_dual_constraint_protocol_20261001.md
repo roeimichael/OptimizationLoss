@@ -223,6 +223,34 @@ dsisco02. Local `/tmp` is not durable after a host reset.
 
 ## Tonight's order
 
+### ISIC decoder amendment, before any replacement run
+
+The first original-JPEG ISIC/MobileNetV3 pilot, seed 6800, was claimed once on
+2026-10-01 and stopped after 766 seconds without completing one epoch. Its
+24-megapixel JPEG decode made even the lower-bound task-only projection exceed
+the frozen six-hour per-seed cap. The EXIT143 receipt, queue failure and cost
+decision are preserved. This is a preprocessing/cost failure, not a model
+quality score. Seeds 6801–6804 were never claimed; none of these IDs will be
+reused or resumed.
+
+A distinct, prospective ISIC decoder study uses the *same original JPEG bytes*,
+patient/lesion splits, private labels, groups, caps, backbone weights, task
+optimizer, epochs, arms and allocator, but asks Pillow's JPEG decoder for its
+fixed 256-pixel draft before the 224-pixel image transform. The derived
+`prepared_v3_jpegdraft256` manifest hashes the original prepared-v2 manifest,
+copies all runner/scorer rows byte-for-byte and records the decoder policy.
+Both runner and independent scorer apply that same policy. A source-backed
+six-image benchmark observed median decode+resize time falling from 43.6 to
+9.0 ms; at the evaluation-resize stage its mean absolute RGB difference was
+0.3–1.6 on a 0–255 scale. This benchmark is a *cost rationale*, not a quality
+claim or a guarantee that the full experiment fits. Actual-image gradient,
+logit parity, source/data/weight, first-epoch and measured pilot-cost gates
+remain mandatory. The fresh MobileNetV3 block is seed 6810 pilot and fixed
+seeds 6811–6814; a separate ViT block, if the former and cost permit, is
+seed 6820 pilot and fixed seeds 6821–6824. Each new cell retains a 24 aggregate
+GPU-hour ceiling and six-hour per-job cap. The old immutable release and failed
+root are not modified.
+
 1. Forensically close the timed-out knee ViT queue. Preserve seed6705/6709
    partial roots, do not reuse their IDs, and independently gate seed6708.
 2. Review the already prepared persistent fMoW runner/scorer and its negative

@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # One guarded pilot, independent label-blind gate, then four fixed seeds.
-# Usage: bash tools/tabular_persistent_queue.sh RELEASE NEW_ROOT GPU_INDEX DATASET BACKBONE
+# Usage: bash tools/tabular_persistent_queue.sh RELEASE NEW_ROOT GPU_INDEX DATASET BACKBONE [BASE_SEED]
 set -u
 fail() { echo "$*" >&2; exit 2; }
-[[ $# -eq 5 ]] || fail "expected RELEASE NEW_ROOT GPU_INDEX DATASET BACKBONE"
-SHA=$1 ROOT=$2 GPU=$3 DATASET=$4 BACKBONE=$5
+[[ $# -eq 5 || $# -eq 6 ]] || fail "expected RELEASE NEW_ROOT GPU_INDEX DATASET BACKBONE [BASE_SEED]"
+SHA=$1 ROOT=$2 GPU=$3 DATASET=$4 BACKBONE=$5 BASE=${6:-6800}
 [[ $SHA =~ ^[0-9a-f]{40}$ && $ROOT = /* && $ROOT != / && $GPU =~ ^[0-9]+$ ]] || fail "invalid identity"
 [[ $DATASET = isic2020 || $DATASET = celeba ]] || fail "unfrozen dataset"
 [[ $BACKBONE = mobilenet_v3_large || $BACKBONE = vit_b_16 || $BACKBONE = convnext_tiny ]] || fail "unfrozen backbone"
+[[ $BASE = 6800 || ( $DATASET = isic2020 && ( $BASE = 6810 || $BASE = 6820 ) ) ]] || fail "unfrozen seed block"
 
 REL=/home/dsi/michaer8/tralo-rebuild/releases/$SHA
 RUNS=/tmp/tralo-weekend-michaer8-20261001/runs
@@ -15,7 +16,8 @@ REGISTRY=/home/dsi/michaer8/tralo-rebuild/runs
 PY=/home/dsi/michaer8/anaconda3/envs/optloss/bin/python
 CONFIGS=$REL/experiments/configs/tabular_persistent_20261002
 case $DATASET in
-  isic2020) DATA=/tmp/tralo-isic2020-michaer8-20261001/prepared_v2 ;;
+  isic2020) DATA=/tmp/tralo-isic2020-michaer8-20261001/prepared_v2
+            [[ $BASE = 6800 ]] || DATA=/tmp/tralo-isic2020-michaer8-20261001/prepared_v3_jpegdraft256 ;;
   celeba) DATA=/tmp/tralo-celeba-michaer8-20261001/prepared_v2 ;;
 esac
 [[ -d $REL && -d $DATA && -x $PY && -d $CONFIGS ]] || fail "release/data/Python missing"
@@ -42,22 +44,22 @@ check_release() {
 check_release
 cd "$REL" || fail "release unavailable"
 export PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=8 MKL_NUM_THREADS=8
-"$PY" - "$DATA" "$DATASET" "$BACKBONE" "$CONFIGS" <<'PY' || fail "data/weights/config preflight failed"
+"$PY" - "$DATA" "$DATASET" "$BACKBONE" "$CONFIGS" "$BASE" <<'PY' || fail "data/weights/config preflight failed"
 import json, sys
 from pathlib import Path
 from tralo.tabular_image_data import load_runner_cohort
 from tralo.tabular_backbones import verified_pretrained_weight
 from tralo.tabular_persistent_train import validate_config
 from tralo.tabular_quota_policy import caps_for_unlabeled_pool
-root, dataset, backbone, configs = sys.argv[1:]
+root, dataset, backbone, configs, base = sys.argv[1:]
 manifest, rows = load_runner_cohort(root, dataset)
 quota = caps_for_unlabeled_pool(dataset, [r['group'] for r in rows['development_pool']])
 verified_pretrained_weight(backbone)
-for seed in range(6800, 6805):
+for seed in range(int(base), int(base) + 5):
     config = json.loads((Path(configs) / f'{dataset}_{backbone}_{seed}.json').read_text())
     validate_config(config)
     if (config['dataset'], config['backbone'], config['seed'], config['pilot']) != (
-            dataset, backbone, seed, seed == 6800):
+             dataset, backbone, seed, seed == int(base)):
         raise RuntimeError('frozen job/config mismatch')
 assert len(quota) == 2 and manifest['dataset'] == dataset
 PY
@@ -127,23 +129,23 @@ PY
   [[ $RC -eq 0 ]] || fail "seed failed; inspect evidence before any new job"
 }
 
-run_seed 6800 pilot "$ROOT/pilot/seed6800"
+run_seed "$BASE" pilot "$ROOT/pilot/seed$BASE"
 check_free
 GATE=$ROOT/pilot_gate.json
 GATE_LOG=$ROOT/pilot_gate.log
-echo "$(date -u +%FT%TZ) GATE 6800 START"
+echo "$(date -u +%FT%TZ) GATE $BASE START"
 CUDA_VISIBLE_DEVICES="$UUID" "$PY" -u -m analysis.score_tabular_persistent \
-  --gate "$ROOT/pilot/seed6800" "$DATA" "$GATE" > "$GATE_LOG" 2>&1 < /dev/null
+  --gate "$ROOT/pilot/seed$BASE" "$DATA" "$GATE" > "$GATE_LOG" 2>&1 < /dev/null
 GATE_RC=$?
 [[ $GATE_RC -eq 0 && -f $GATE ]] || fail "pilot gate failed; preserve raw run and gate log"
-"$PY" - "$GATE" "$SHA" "$ROOT/pilot/seed6800" <<'PY' || fail "pilot gate/cost/source mismatch"
+"$PY" - "$GATE" "$SHA" "$ROOT/pilot/seed$BASE" "$BASE" <<'PY' || fail "pilot gate/cost/source mismatch"
 import json, sys
 from pathlib import Path
 from tralo.knee_experiment import digest
 gate = json.loads(Path(sys.argv[1]).read_text())
 root = Path(sys.argv[3]); summary = json.loads((root/'summary.json').read_text())
 if (gate['status'] != 'label_blind_integrity_pass' or
-        gate['seed'] != 6800 or gate['summary_sha256'] != digest(root/'summary.json') or
+        gate['seed'] != int(sys.argv[4]) or gate['summary_sha256'] != digest(root/'summary.json') or
         gate['dataset'] != summary['config']['dataset'] or
         gate['backbone'] != summary['config']['backbone'] or
         gate['projected_four_seed_gpu_hours'] * 1.5 > 24):
@@ -151,7 +153,7 @@ if (gate['status'] != 'label_blind_integrity_pass' or
 PY
 check_free
 PILOT_SECONDS=$(( $(date +%s) - QUEUE_START ))
-for SEED in 6801 6802 6803 6804; do
+for SEED in $(seq "$((BASE + 1))" "$((BASE + 4))"); do
   REMAINING=$((MAX_QUEUE_SECONDS - $(date +%s) + QUEUE_START))
   (( REMAINING > PILOT_SECONDS * 6 / 5 )) || fail "insufficient budget to claim next fixed seed"
   run_seed "$SEED" full "$ROOT/full/seed$SEED"
