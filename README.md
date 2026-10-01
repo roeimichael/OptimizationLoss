@@ -1,63 +1,15 @@
-# TraLO rebuild
+# TraLO research workspace
 
-A new implementation for auditing classification under global and group-level
-prediction quotas. No legacy code is imported. This branch is a development
-workspace, not a validated replacement for historical experiments.
+This repository tests whether a **training-time, label-free prediction-capacity constraint** improves who receives a limited allocation. A cap being met is necessary but is not evidence that the predictions are better. Negative runs, failed integrity gates and old protocols remain available for audit.
 
-Start with [DESIGN.md](DESIGN.md). It defines the first small deliverable and the
-order for adding training and methods. Nothing here establishes a research win.
-No primary research metric or training recipe has been chosen. Existing metric
-functions are diagnostics with explicit, revisable definitions. Tests check
-those definitions, not whether F1, Adam, or a historical recipe should be used.
+Start with the [experiment guide](experiments/README.md) for the current results and the [experiment map](experiments/INDEX.md) for the reading order. The [short meeting PDF](output/pdf/tralo_meeting_brief_20261001_v2.pdf) explains the present conclusion. The [longer numerical PDF](output/pdf/tralo_research_status_20261001_v2.pdf) has full context. [DESIGN.md](DESIGN.md) and [NEXT_STEPS.md](NEXT_STEPS.md) record the rebuilt system and operational history; the main checkout's `docs/FRAMEWORK.md`, `RULESET.md`, `docs/MISSION.md` and `docs/LEDGER.md` govern new studies.
 
-## Read and run
+## Current knee comparison
 
-Requires Python 3.10 or later; this first slice has no third-party dependencies.
+The [prospective knee protocol](experiments/knee_persistent_kassif_match_protocol_draft_20261001.md) fixes a matched comparison of sustained TraLO, Kassif's PAO retraining, plain training plus the same Clipper, a dose-matched random direction, and a no-op control. It uses the Chen knee images and EfficientNet-B5, MobileNetV3-Large and ViT-B/16. The runner, independent scorer and configurations are frozen at release `7a5f68b021d0f0a70185309c4a21be3a27522e5c`. Both-host source/tests and label-free data/weight preflights passed. **No knee training run in this new block has started.** The proposed pilot GPU-hour ceiling is awaiting approval; the sealed Chen test is untouched.
 
-```powershell
-python -m unittest discover -s tests -v
-python -m tralo.inspect_predictions examples/hand_predictions.json runs/hand-example
-```
+This is a new scientific test because previous encouraging knee results changed side copies of a trained model, leaving the actual training path unchanged. The new runner changes the model after each supervised epoch and continues training. Historical wins and losses are described in the experiment guide and are not pooled with this new study.
 
-The second command **inspects predictions supplied in the example**. It does not
-train a model or run an allocator. A second invocation with the same output
-directory is refused. The hand example has raw accuracy 2/3, raw class-0 F1 2/3,
-and supplied corrected accuracy/class-0 F1 of 1. These are illustrative values,
-not experimental results.
+## Reading and preservation
 
-Read these four modules in order:
-
-1. `tralo/metrics.py`: definitions and hand-checkable confusion counts.
-2. `tralo/quotas.py`: count predictions and check global/local upper bounds.
-3. `tralo/events.py`: plain-value JSON logging with no training access.
-4. `tralo/inspect_predictions.py`: validation, identities, artifacts and CLI.
-
-Outputs are `input.json` (exact input bytes), `report.json` (raw and allocated
-metrics, counts and sample predictions), and `events.jsonl` (start/completion
-with source/input/report hashes). Success means the supplied predictions were
-audited, not that their named allocation policy has been verified.
-
-The new [global-only pilot](experiments/global_clipper_pilot.md) adds two explicitly
-named greedy allocation diagnostics and a CIFAR-100 frozen-feature baseline.
-The image command requires CUDA, PyTorch and torchvision; core tests remain
-standard-library only. Neither allocator is yet selected as the research baseline.
-See [NEXT_STEPS.md](NEXT_STEPS.md)
-for the task queue and commit/push/deploy/check workflow. The CUDA smoke checks
-Torch RNG, parameter, gradient and optimizer-state neutrality for a single event;
-full training with different logging frequencies is a separate pending test.
-
-## Evidence preservation
-
-The predecessor is Git commit `7a5b55b555b8ccaa946349e4e77da733ef5b0715`.
-The original checkout and research outputs remain untouched. Inherited files were
-moved outside this worktree to
-`C:/Users/roeym/.codex/rebuild-audit-20260922/legacy-worktree`.
-All 411 files were checked against SHA-256 hashes in the adjacent
-`legacy_inventory.json`. This is preservation, not a runtime dependency.
-
-SSH to both hosts was restored on 2026-09-22. The rebuild is independently
-deployed under `/home/dsi/michaer8/tralo-rebuild/releases/<commit>` through a
-dedicated bare Git mirror. Source hashes and CPU regressions were verified on
-both hosts, with a CUDA smoke on a free dsisco01 GPU. Old remote research trees
-were not changed. Remote archive cleanup still needs an explicit path/symlink
-inventory; deployment does not constitute that cleanup.
+`tralo/` contains methods; `analysis/` contains independent scorers; `tests/` holds checks; `experiments/configs/` contains immutable run inputs; `tools/` holds bounded queues. Never run a historical result file as if its title implied a winner. The [recoverable provenance archive](experiments/archive/provenance_20261001/README.md) holds older notes and the original rebuild README by original-path and SHA-256 manifest. Data, predictions, checkpoints and Git objects were not deleted during cleanup.

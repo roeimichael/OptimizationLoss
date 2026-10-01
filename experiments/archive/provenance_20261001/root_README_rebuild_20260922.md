@@ -1,0 +1,63 @@
+# TraLO rebuild
+
+A new implementation for auditing classification under global and group-level
+prediction quotas. No legacy code is imported. This branch is a development
+workspace, not a validated replacement for historical experiments.
+
+Start with [DESIGN.md](DESIGN.md). It defines the first small deliverable and the
+order for adding training and methods. Nothing here establishes a research win.
+No primary research metric or training recipe has been chosen. Existing metric
+functions are diagnostics with explicit, revisable definitions. Tests check
+those definitions, not whether F1, Adam, or a historical recipe should be used.
+
+## Read and run
+
+Requires Python 3.10 or later; this first slice has no third-party dependencies.
+
+```powershell
+python -m unittest discover -s tests -v
+python -m tralo.inspect_predictions examples/hand_predictions.json runs/hand-example
+```
+
+The second command **inspects predictions supplied in the example**. It does not
+train a model or run an allocator. A second invocation with the same output
+directory is refused. The hand example has raw accuracy 2/3, raw class-0 F1 2/3,
+and supplied corrected accuracy/class-0 F1 of 1. These are illustrative values,
+not experimental results.
+
+Read these four modules in order:
+
+1. `tralo/metrics.py`: definitions and hand-checkable confusion counts.
+2. `tralo/quotas.py`: count predictions and check global/local upper bounds.
+3. `tralo/events.py`: plain-value JSON logging with no training access.
+4. `tralo/inspect_predictions.py`: validation, identities, artifacts and CLI.
+
+Outputs are `input.json` (exact input bytes), `report.json` (raw and allocated
+metrics, counts and sample predictions), and `events.jsonl` (start/completion
+with source/input/report hashes). Success means the supplied predictions were
+audited, not that their named allocation policy has been verified.
+
+The new [global-only pilot](experiments/global_clipper_pilot.md) adds two explicitly
+named greedy allocation diagnostics and a CIFAR-100 frozen-feature baseline.
+The image command requires CUDA, PyTorch and torchvision; core tests remain
+standard-library only. Neither allocator is yet selected as the research baseline.
+See [NEXT_STEPS.md](NEXT_STEPS.md)
+for the task queue and commit/push/deploy/check workflow. The CUDA smoke checks
+Torch RNG, parameter, gradient and optimizer-state neutrality for a single event;
+full training with different logging frequencies is a separate pending test.
+
+## Evidence preservation
+
+The predecessor is Git commit `7a5b55b555b8ccaa946349e4e77da733ef5b0715`.
+The original checkout and research outputs remain untouched. Inherited files were
+moved outside this worktree to
+`C:/Users/roeym/.codex/rebuild-audit-20260922/legacy-worktree`.
+All 411 files were checked against SHA-256 hashes in the adjacent
+`legacy_inventory.json`. This is preservation, not a runtime dependency.
+
+SSH to both hosts was restored on 2026-09-22. The rebuild is independently
+deployed under `/home/dsi/michaer8/tralo-rebuild/releases/<commit>` through a
+dedicated bare Git mirror. Source hashes and CPU regressions were verified on
+both hosts, with a CUDA smoke on a free dsisco01 GPU. Old remote research trees
+were not changed. Remote archive cleanup still needs an explicit path/symlink
+inventory; deployment does not constitute that cleanup.

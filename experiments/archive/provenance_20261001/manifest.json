@@ -1,6 +1,6 @@
 {
-  "purpose": "Recoverable archive of unreferenced research notes; original bytes preserved",
-  "count": 21,
+  "purpose": "Recoverable archive of superseded notes and the original rebuild guide; original bytes preserved",
+  "count": 24,
   "files": [
     {
       "original": "experiments/achieved_counts_protocol.md",
@@ -106,6 +106,21 @@
       "original": "experiments/larger_cap_result_20260924.md",
       "archived": "experiments/archive/provenance_20261001/larger_cap_result_20260924.md",
       "sha256": "be52ec4d093100e3890198dabe106c661af44f7c682f9fd0fe194afc5d0ad7d7"
+    },
+    {
+      "original": "README.md",
+      "archived": "experiments/archive/provenance_20261001/root_README_rebuild_20260922.md",
+      "sha256": "2acc500054c71b93e4a54c2617d77da2fa2e3008a87678ea72677985b0d8cfba"
+    },
+    {
+      "original": "NIGHT_PLAN_20260925.md",
+      "archived": "experiments/archive/provenance_20261001/NIGHT_PLAN_20260925.md",
+      "sha256": "43d5c94082c6e73b4db4271f391e6042d19d5adc843a4f04b06e1e4c2985c244"
+    },
+    {
+      "original": "MORNING_REPORT_20260926.md",
+      "archived": "experiments/archive/provenance_20261001/MORNING_REPORT_20260926.md",
+      "sha256": "3984b21508800eeed3b11b07ac6aa2d06c66e638426d8db1ea453486b7dcfbc9"
     }
   ]
 }
