@@ -43,6 +43,12 @@ def _hard(model, chunks, c):
     return int((infer(model, chunks).argmax(1) == c).sum())
 
 
+def _counts(model, chunks, c):
+    probabilities = infer(model, chunks)
+    return (int((probabilities.argmax(1) == c).sum()),
+            float(probabilities[:, c].sum()))
+
+
 @torch.no_grad()
 def _place(params, origin, direction, r):
     for p, o, d in zip(params, origin, direction):
@@ -56,8 +62,10 @@ def targeted_step(model, chunks, caps, sham_generator=None, r0=1e-3, max_doublin
         raise ValueError('targeted_step is defined for exactly one capped class')
     c = constrained[0]
     cap = caps[c]
-    before = _hard(model, chunks, c)
-    out = dict(hard_before=before, applied=False, displacement=0.0, evaluations=1)
+    before, soft_before = _counts(model, chunks, c)
+    out = dict(hard_before=before, hard_after=before,
+               soft_before=soft_before, soft_after=soft_before,
+               gradient_norm=0.0, applied=False, displacement=0.0, evaluations=1)
     if before <= cap:
         return out
     params = [p for p in model.parameters() if p.requires_grad]
@@ -74,6 +82,7 @@ def targeted_step(model, chunks, caps, sham_generator=None, r0=1e-3, max_doublin
     norm = math.sqrt(sum(float(g.double().square().sum()) for g in grads if g is not None))
     if not norm > 0.0:
         raise RuntimeError('capped class has no soft-count gradient')
+    out['gradient_norm'] = norm
     unit = [None if g is None else -g / norm for g in grads]
     origin = [p.detach().clone() for p in params]
     evaluations = 1
@@ -111,6 +120,7 @@ def targeted_step(model, chunks, caps, sham_generator=None, r0=1e-3, max_doublin
     if any(not bool(torch.isfinite(p).all()) for p in params):
         raise RuntimeError('nonfinite parameter after the targeted step')
     moved = math.sqrt(sum(float((p.detach() - o).double().square().sum()) for p, o in zip(params, origin)))
+    hard_after, soft_after = _counts(model, chunks, c)
     out.update(applied=True, displacement=moved, radius=hi, radius_violating=lo, evaluations=evaluations + 1,
-               hard_after=_hard(model, chunks, c))
+               hard_after=hard_after, soft_after=soft_after)
     return out

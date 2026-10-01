@@ -215,6 +215,30 @@ def test_train_run_uses_the_transforms_and_the_capped_class_it_is_given():
         assert len(row['hard_counts']) == 5
 
 
+def test_fixed_task_horizon_runs_every_epoch_and_restores_best_post_step(monkeypatch):
+    import tralo.knee_yuval as module
+
+    model, data, stop, pool = _setup()
+    held_losses = iter((3.0, 2.0, 4.0, 5.0))
+    monkeypatch.setattr(module, 'stop_loss', lambda *args, **kwargs: next(held_losses))
+    rows, snapshots, hook_epochs = [], {}, []
+
+    def after_epoch(epoch, current):
+        hook_epochs.append(epoch)
+        with torch.no_grad():
+            current[-1].bias[0] += 0.01 * epoch
+        return {'hook_epoch': epoch}
+
+    result = train_run(model, data, stop, pool, dict(CONFIG, max_epochs=4, patience=1),
+                       torch.ones(5), rows.append, lambda e, p: snapshots.__setitem__(e, p),
+                       after_epoch=after_epoch, fixed_horizon=True)
+    from tralo.knee_end_to_end import infer
+    assert result['epochs_run'] == 4 and result['best_epoch'] == 2
+    assert hook_epochs == [1, 2, 3, 4]
+    assert [r['hook_epoch'] for r in rows] == hook_epochs
+    assert torch.equal(infer(model, pool), snapshots[2])
+
+
 def test_balanced_weights_equalise_expected_class_mass():
     data = _Fake(200, 3)
     w = data.weights()

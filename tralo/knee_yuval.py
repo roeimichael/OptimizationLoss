@@ -238,7 +238,8 @@ def snapshot_steps(model, pool, caps, seed, epoch, directory):
     return steps
 
 
-def train_run(model, data, stop, pool, config, C, emit, snapshot, capped=CAPPED, transforms=None):
+def train_run(model, data, stop, pool, config, C, emit, snapshot, capped=CAPPED, transforms=None,
+              after_epoch=None, fixed_horizon=False):
     """train.train_model on one retrain, with common random numbers across retrains. capped and transforms
     default to the knee's grade 3 and Yuval's knee transforms (tralo.fmow_yuval passes its own)."""
     import torch
@@ -261,14 +262,19 @@ def train_run(model, data, stop, pool, config, C, emit, snapshot, capped=CAPPED,
         base = config['lr'] * config['decay_factor'] ** (epoch // config['decay_epoch'])
         order = (torch.multinomial(weights, len(weights), replacement=True, generator=sampler)
                  if config.get('balanced', True) else torch.randperm(len(weights), generator=sampler))
+        epoch_order_sha256 = hashlib.sha256(order.numpy().tobytes()).hexdigest()
+        epoch_first_batch_sha256 = None
         if first_order is None:
-            first_order = hashlib.sha256(order.numpy().tobytes()).hexdigest()
+            first_order = epoch_order_sha256
         model.train()
         total = gates = live = 0.
+        first_task_gradient_norm = first_task_displacement_norm = None
         for start in range(0, len(order), config['batch_size']):
             images, labels = data.batch(order[start:start + config['batch_size']].tolist(), train_tf)
+            if epoch_first_batch_sha256 is None:
+                epoch_first_batch_sha256 = hashlib.sha256(images.numpy().tobytes()).hexdigest()
             if first_batch is None:
-                first_batch = hashlib.sha256(images.numpy().tobytes()).hexdigest()
+                first_batch = epoch_first_batch_sha256
             images, labels = images.to(device), labels.to(device)
             optimizer.zero_grad(set_to_none=True)
             logits = model(images)
@@ -279,13 +285,30 @@ def train_run(model, data, stop, pool, config, C, emit, snapshot, capped=CAPPED,
             for group in optimizer.param_groups:
                 group['lr'] = lr
             loss.backward()
+            if start == 0:
+                params = [p for p in model.parameters() if p.requires_grad]
+                first_task_gradient_norm = math.sqrt(sum(
+                    float(p.grad.detach().double().square().sum()) for p in params if p.grad is not None))
+                before_update = [p.detach().clone() for p in params]
+                if not math.isfinite(first_task_gradient_norm):
+                    raise RuntimeError('nonfinite task gradient')
             optimizer.step()
+            if start == 0:
+                first_task_displacement_norm = math.sqrt(sum(
+                    float((p.detach() - old).double().square().sum())
+                    for p, old in zip(params, before_update)))
+                del before_update
+                if not math.isfinite(first_task_displacement_norm):
+                    raise RuntimeError('nonfinite task displacement')
             updates += 1
             total += float(loss.detach()) * len(labels)
             gates += t * len(labels)
             live += float(((logits.detach().argmax(1) == capped) & (labels != capped)).sum())
         if any(not bool(torch.isfinite(p).all()) for p in model.parameters()):
             raise RuntimeError('nonfinite parameters')
+        intervention = after_epoch(epoch + 1, model) if after_epoch is not None else {}
+        if not isinstance(intervention, dict) or any(k in ('event', 'epoch') for k in intervention):
+            raise ValueError('after_epoch must return a dictionary without event or epoch')
         held = stop_loss(model, stop, C, capped)
         probabilities = infer(model, pool)
         snapshot(epoch + 1, probabilities)
@@ -297,10 +320,15 @@ def train_run(model, data, stop, pool, config, C, emit, snapshot, capped=CAPPED,
             waited += 1
         emit(dict(event='epoch', epoch=epoch + 1, training_loss=total / len(order), stop_loss=held,
                   base_lr=base, last_lr=lr, mean_gate=gates / len(order), live_false_positives=live,
-                  hard_counts=hard, soft_count_capped=float(probabilities[:, capped].sum()), improved=improved))
-        if early_stop and waited >= config['patience']:
+                  hard_counts=hard, soft_count_capped=float(probabilities[:, capped].sum()),
+                  task_updates=updates, epoch_order_sha256=epoch_order_sha256,
+                  epoch_first_batch_sha256=epoch_first_batch_sha256,
+                  first_task_gradient_norm=first_task_gradient_norm,
+                  first_task_displacement_norm=first_task_displacement_norm,
+                  improved=improved, **intervention))
+        if early_stop and not fixed_horizon and waited >= config['patience']:
             break
-    if early_stop:
+    if early_stop or fixed_horizon:
         model.load_state_dict(best_state)
     else:                                         # a fixed schedule keeps the last epoch
         best, best_epoch = held, epoch + 1

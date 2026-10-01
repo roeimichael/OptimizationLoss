@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 
 
-def audit(root):
+def audit(root, include_val_labels=True):
     from PIL import Image
     root = Path(root).resolve()
     rows, subjects, pixels, counts = [], {}, {}, {}
@@ -34,7 +34,9 @@ def audit(root):
             # path is itself a label: recording either would put test-label information into
             # every manifest (audit finding D7). Overlap checks above need only the hashes.
             if split != 'test':
-                row.update(path=relative.as_posix(), label=int(relative.parts[1]))
+                row['path'] = relative.as_posix()
+                if split == 'train' or include_val_labels:
+                    row['label'] = int(relative.parts[1])
             rows.append(row)
         counts[split] = len(paths)
     for a,b in [('train','val'),('train','test'),('val','test')]:

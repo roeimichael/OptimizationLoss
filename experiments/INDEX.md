@@ -10,6 +10,7 @@ question; a result reports what happened. A pilot or draft is not a result.
 | --- | --- |
 | [Kassif repository audit](claude_yuval_repo_audit_20260927.md) | What the author's code actually trains, changes, and evaluates. |
 | [Matched pipeline protocol](claude_yuval_pipeline_prereg_20260927.md) and [result](claude_yuval_pipeline_result_20260927.md) | PAO, PTO, TraLO's one-step direction, and a sham on ResNet18 and EfficientNet-B5. |
+| [Prospective persistent knee comparison](knee_persistent_kassif_match_protocol_draft_20261001.md) | New fixed, three-backbone TraLO-versus-PAO/PTO/sham/null design; no training result yet. |
 | [Recipe factorial](claude_recipe_factorial_result_20260927.md) | Which parts of the Kassif recipe improve plain training. |
 | [Snapshot-step results](claude_stepens_result_20260928.md) and [modern-backbone extension](claude_stepens_additional_result_20260928.md) | A small, backbone-dependent TraLO effect on the unchanged PTO trajectory; this is not persistent constraint training. |
 | [Six-cap diagnostic](kassif_single_cap_result_20260924.md) | Frozen-head structural test, not a full-backbone paper comparison. |

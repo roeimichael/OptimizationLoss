@@ -45,3 +45,10 @@ class KneeDataTests(unittest.TestCase):
             for r in result['rows']:
                 if r['split'] != 'test':
                     self.assertEqual(r['label'], int(r['path'].split('/')[1]))
+
+    def test_training_audit_omits_development_label_field(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d); self.fixture(root)
+            result = audit(root, include_val_labels=False)
+            self.assertTrue(all('label' in r for r in result['rows'] if r['split'] == 'train'))
+            self.assertTrue(all('label' not in r for r in result['rows'] if r['split'] == 'val'))

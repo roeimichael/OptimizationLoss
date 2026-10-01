@@ -51,6 +51,7 @@ def test_targeted_step_lands_on_the_cap_with_the_smallest_radius_along_the_soft_
     start = copy.deepcopy(model)
     out = targeted_step(model, chunks, CAPS)
     assert out['applied'] and out['hard_after'] <= CAPS[3] and hard(model, chunks) == out['hard_after']
+    assert out['gradient_norm'] > 0 and out['soft_after'] < out['soft_before']
     assert abs(out['displacement'] - out['radius']) / out['radius'] < 1e-4
     unit = soft_count_unit_descent(start, chunks)
     # the applied step IS radius x the independent reference direction
@@ -67,6 +68,8 @@ def test_no_step_when_the_hard_count_already_meets_the_cap():
     start = copy.deepcopy(model)
     out = targeted_step(model, chunks, CAPS)
     assert not out['applied'] and out['displacement'] == 0.0
+    assert out['hard_after'] == out['hard_before'] and out['soft_after'] == out['soft_before']
+    assert out['gradient_norm'] == 0.0
     assert all(torch.equal(a, b) for a, b in zip(model.parameters(), start.parameters()))
 
 
