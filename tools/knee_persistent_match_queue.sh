@@ -26,7 +26,7 @@ export OMP_NUM_THREADS=8 MKL_NUM_THREADS=8
 QUEUE_STARTED=$(date +%s)
 
 for JOB in "$@"; do
-  [[ $JOB =~ ^(efficientnet_b5|mobilenet_v3_large|vit_b_16):(6700|67(0[1-9]|1[0-2]))$ ]] ||
+  [[ $JOB =~ ^(efficientnet_b5|mobilenet_v3_large|vit_b_16):(6700|67(0[1-9]|1[0-2]))$ || $JOB = vit_b_16:6713 ]] ||
     { echo "job outside fixed design: $JOB"; exit 2; }
   BACKBONE=${JOB%:*}; SEED=${JOB#*:}
   CONFIG=$REL/experiments/configs/knee_persistent_${BACKBONE}_${SEED}.json

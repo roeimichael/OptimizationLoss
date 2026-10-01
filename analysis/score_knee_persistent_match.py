@@ -17,7 +17,8 @@ import statistics
 
 from tralo.global_report import evaluate_global
 from tralo.knee_experiment import digest, source
-from tralo.knee_persistent_match import BACKBONES, CAPS_STUDY, SEEDS_STUDY, WEIGHT_SHA256, validate
+from tralo.knee_persistent_match import (BACKBONES, CAPS_STUDY, SEEDS_STUDY,
+                                         VIT_RECOVERY_PILOT, WEIGHT_SHA256, validate)
 from tralo.knee_yuval import CAPPED, carve, f_and_derivative
 
 CAPS_CURVE = (43, 54, 65, 76, 86, 97)
@@ -135,6 +136,24 @@ def _check_label_firewall(manifest):
         raise RuntimeError('development or sealed-test label entered the run manifest')
 
 
+def _check_vit_replay(backbone, started, rows):
+    replay = [row for row in rows if row['event'] == 'vit_attention_replay']
+    if backbone != 'vit_b_16':
+        if replay:
+            raise RuntimeError('unexpected ViT attention replay in a non-ViT run')
+        return
+    if (started.get('mha_fastpath_enabled') is not False or len(replay) != 1):
+        raise RuntimeError('ViT attention replay receipt missing or fastpath enabled')
+    row = replay[0]
+    if (row.get('passed') is not True or row.get('mha_fastpath_enabled') is not False or
+            type(row.get('images_count')) is not int or row['images_count'] <= 0 or
+            any(type(row.get(key)) not in (int, float) or
+                not math.isfinite(row[key]) or row[key] < 0
+                for key in ('max_absolute_difference', 'max_tolerance_ratio')) or
+            row['max_tolerance_ratio'] > 1):
+        raise RuntimeError('ViT attention replay failed or diagnostics differ')
+
+
 def gate(run_root):
     """Verify a completed run without reading its development labels or scoring."""
     import torch
@@ -150,6 +169,7 @@ def gate(run_root):
     if rows[0]['event'] != 'started' or rows[-1]['event'] != 'completed':
         raise RuntimeError('run has not completed successfully')
     started, completed = rows[0], rows[-1]
+    _check_vit_replay(backbone, started, rows)
     if (started['config_sha256'] != digest(expected_input) or
             started['source_sha256'] != source() or
             started['manifest_sha256'] != digest(root / 'manifest.json') or
@@ -196,7 +216,8 @@ def gate(run_root):
             summary['weights_sha256'] != started['weight_sha256'] or
             summary['initial_sha256'] != started['initial_sha256']):
         raise RuntimeError('summary provenance mismatch')
-    expected_arms = {'pto'} | ({'null'} if seed == 6700 else set()) | {f'cap{cap}' for cap in config['caps']}
+    pilot = seed in (6700, VIT_RECOVERY_PILOT)
+    expected_arms = {'pto'} | ({'null'} if pilot else set()) | {f'cap{cap}' for cap in config['caps']}
     if set(summary['arms']) != expected_arms:
         raise RuntimeError('arm set differs from fixed protocol')
     pto = summary['arms']['pto']
@@ -204,7 +225,7 @@ def gate(run_root):
     horizon = pto['epochs_run']
     if not 1 <= horizon <= config['max_epochs']:
         raise RuntimeError('invalid PTO stopping horizon')
-    if seed == 6700:
+    if pilot:
         null = summary['arms']['null']
         null_probs, null_epochs = _arm(root, 'null', null, started['train_carve'], config['batch_size'])
         if not torch.equal(pto_probs, null_probs) or pto['model_sha256'] != null['model_sha256']:
@@ -217,7 +238,7 @@ def gate(run_root):
                     not math.isclose(row['pre_hook_soft_count_capped'], row['soft_count_capped'],
                                      rel_tol=0, abs_tol=1e-6)):
                 raise RuntimeError('null hook changed the predictions')
-    cost_seconds = pto['seconds'] + (summary['arms']['null']['seconds'] if seed == 6700 else 0)
+    cost_seconds = pto['seconds'] + (summary['arms']['null']['seconds'] if pilot else 0)
     for cap in config['caps']:
         item = summary['arms'][f'cap{cap}']
         if len(item['target_tensor_doses']) != horizon:

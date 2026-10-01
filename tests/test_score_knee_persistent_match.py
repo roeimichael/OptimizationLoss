@@ -3,7 +3,8 @@ import json
 import pytest
 import torch
 
-from analysis.score_knee_persistent_match import _arm, _check_dose, _check_label_firewall, _events, _quality
+from analysis.score_knee_persistent_match import (_arm, _check_dose, _check_label_firewall,
+                                                   _check_vit_replay, _events, _quality)
 from tralo.events import EventLog
 from tralo.knee_experiment import digest
 
@@ -64,3 +65,18 @@ def test_gate_helpers_reject_development_label_and_sham_radius_mutations():
     _check_dose('cap54_sham', dict(tensor_displacement_norms=[0.1, 0.2]), [0.1, 0.2], 54)
     with pytest.raises(RuntimeError, match='sham tensor dose'):
         _check_dose('cap54_sham', dict(tensor_displacement_norms=[0.1, 0.25]), [0.1, 0.2], 54)
+
+
+def test_vit_gate_requires_documented_fixed_weight_attention_replay():
+    started = dict(mha_fastpath_enabled=False)
+    replay = dict(event='vit_attention_replay', passed=True, images_count=2,
+                  max_absolute_difference=0.0, max_tolerance_ratio=0.0,
+                  mha_fastpath_enabled=False)
+    _check_vit_replay('vit_b_16', started, [replay])
+    for bad in (dict(replay, passed=False),
+                dict(replay, mha_fastpath_enabled=True),
+                dict(replay, max_tolerance_ratio=1.01)):
+        with pytest.raises(RuntimeError, match='ViT attention replay'):
+            _check_vit_replay('vit_b_16', started, [bad])
+    with pytest.raises(RuntimeError, match='ViT attention replay'):
+        _check_vit_replay('vit_b_16', started, [])

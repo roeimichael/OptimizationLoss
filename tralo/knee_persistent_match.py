@@ -27,6 +27,7 @@ from .targeted_step import targeted_step
 CAPS_PILOT = (76,)
 CAPS_STUDY = (54, 86)
 SEEDS_STUDY = tuple(range(6701, 6713))
+VIT_RECOVERY_PILOT = 6713
 BACKBONES = ('efficientnet_b5', 'mobilenet_v3_large', 'vit_b_16')
 WEIGHT_SHA256 = {
     'efficientnet_b5': B5_SHA256,
@@ -46,11 +47,13 @@ CONFIG_KEYS = {'seed', 'backbone', 'caps', 'max_epochs', 'patience', 'batch_size
 def validate(config):
     if not isinstance(config, dict) or set(config) != CONFIG_KEYS:
         raise ValueError('configuration keys differ from the fixed knee protocol')
-    if type(config['seed']) is not int or config['seed'] not in (6700,) + SEEDS_STUDY:
+    if type(config['seed']) is not int or config['seed'] not in (6700, VIT_RECOVERY_PILOT) + SEEDS_STUDY:
         raise ValueError('seed is outside the declared pilot and study blocks')
     if config['backbone'] not in BACKBONES:
         raise ValueError('backbone is outside the declared study')
-    expected = CAPS_PILOT if config['seed'] == 6700 else CAPS_STUDY
+    if config['seed'] == VIT_RECOVERY_PILOT and config['backbone'] != 'vit_b_16':
+        raise ValueError('the recovery pilot is ViT only')
+    expected = CAPS_PILOT if config['seed'] in (6700, VIT_RECOVERY_PILOT) else CAPS_STUDY
     if type(config['caps']) is not list or tuple(config['caps']) != expected:
         raise ValueError('training caps differ from the declared block')
     for key in ('max_epochs', 'patience', 'batch_size', 'decay_epoch',
@@ -89,6 +92,41 @@ def make_model(backbone, pretrained=True):
     model = vit_b_16(weights=ViT_B_16_Weights.IMAGENET1K_V1 if pretrained else None)
     model.heads.head = torch.nn.Linear(model.heads.head.in_features, 5)
     return model
+
+
+def disable_vit_mha_fastpath():
+    """Keep ViT attention on one path for no-grad inference and grad replay."""
+    import torch
+
+    torch.backends.mha.set_fastpath_enabled(False)
+    if torch.backends.mha.get_fastpath_enabled():
+        raise RuntimeError('ViT MHA fastpath remained enabled')
+    return False
+
+
+def vit_attention_replay(model, images):
+    """Check fixed-weight probability identity before the first ViT training arm."""
+    import torch
+
+    if torch.backends.mha.get_fastpath_enabled():
+        raise RuntimeError('ViT MHA fastpath enabled during replay')
+    no_grad = infer(model, [images])
+    was_training = model.training
+    model.eval()
+    try:
+        with torch.enable_grad():
+            grad = model(images.to(next(model.parameters()).device)).softmax(1).detach().cpu()
+    finally:
+        model.train(was_training)
+    if grad.shape != no_grad.shape or not bool(torch.isfinite(grad).all()):
+        return dict(passed=False, images_count=len(images),
+                    max_absolute_difference=None, max_tolerance_ratio=None)
+    difference = (grad - no_grad).abs()
+    tolerance = 1e-7 + 1e-6 * no_grad.abs()
+    return dict(passed=bool(torch.all(difference <= tolerance)),
+                images_count=len(images),
+                max_absolute_difference=float(difference.max()),
+                max_tolerance_ratio=float((difference / tolerance).max()))
 
 
 def _train_arm(root, name, base, data, stop, pool, config, C, after_epoch=None,
@@ -232,16 +270,26 @@ def run(data_root, config_path, output):
                                   config['development_batch_size'])
         val_ids = [r['sample_id'] for r in public['rows'] if r['split'] == 'val']
         backbone = config['backbone']
+        mha_fastpath_enabled = (disable_vit_mha_fastpath()
+                                if backbone == 'vit_b_16' else None)
         weight_path, weight_sha = _weights(backbone)
         torch.manual_seed(config['seed'])
         base = make_model(backbone)
+        if backbone == 'vit_b_16':
+            replay = vit_attention_replay(base, pool[0][:2])
         initial_sha = _state_hash(base)
         log.emit('started', source_sha256=source(), config_sha256=digest(config_path),
                  manifest_sha256=digest(output / 'manifest.json'),
                  counts=manifest['counts'], train_carve=len(train_rows), stop_carve=len(stop_rows),
                  dev_ids_sha256=__import__('hashlib').sha256('\n'.join(val_ids).encode()).hexdigest(),
                  architecture=backbone, weight_path=weight_path, weight_sha256=weight_sha,
-                 initial_sha256=initial_sha, device=torch.cuda.get_device_name(), precision='fp32')
+                 initial_sha256=initial_sha, device=torch.cuda.get_device_name(), precision='fp32',
+                 mha_fastpath_enabled=mha_fastpath_enabled)
+        if backbone == 'vit_b_16':
+            log.emit('vit_attention_replay', **replay,
+                     mha_fastpath_enabled=mha_fastpath_enabled)
+            if not replay['passed']:
+                raise RuntimeError('ViT attention differs between no-grad and grad replay')
         started = time.monotonic()
         ones = torch.ones(5)
         summary = dict(seed=config['seed'], backbone=backbone, caps=config['caps'],
@@ -252,7 +300,7 @@ def run(data_root, config_path, output):
         summary['arms']['pto'] = pto
         horizon = pto['epochs_run']
         fixed_config = dict(config, max_epochs=horizon)
-        if config['seed'] == 6700:
+        if config['seed'] in (6700, VIT_RECOVERY_PILOT):
             null, null_prob = _train_arm(output, 'null', base, data, stop, pool,
                                          fixed_config, ones, after_epoch=_null_hook(pool),
                                          fixed_horizon=True)
@@ -320,6 +368,8 @@ def preflight(data_root, config_path, output_json):
     if not train_rows or not stop_rows:
         raise RuntimeError('empty subject-stable stopping carve')
     weight_path, weight_sha = _weights(config['backbone'])
+    mha_fastpath_enabled = (disable_vit_mha_fastpath()
+                            if config['backbone'] == 'vit_b_16' else None)
     torch.manual_seed(config['seed'])
     model = make_model(config['backbone'])
     initial_sha = _state_hash(model)
@@ -336,7 +386,7 @@ def preflight(data_root, config_path, output_json):
                    pretrained_weight_path=weight_path, pretrained_weight_sha256=weight_sha,
                    initialized_model_sha256=initial_sha,
                    torch_version=torch.__version__, torchvision_version=torchvision.__version__,
-                   precision='fp32')
+                   precision='fp32', mha_fastpath_enabled=mha_fastpath_enabled)
     with Path(output_json).open('x', encoding='utf-8') as stream:
         json.dump(receipt, stream, indent=2, allow_nan=False)
         stream.write('\n')
