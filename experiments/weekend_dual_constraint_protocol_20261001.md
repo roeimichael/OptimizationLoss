@@ -205,6 +205,16 @@ must not claim a seed with insufficient remaining time. Record actual card
 seconds and halt new dispatch at the ceiling. Use dsisco02 local `/tmp` for
 large new artifacts: shared `/home` had only 4.4 GB free at 20:32 UTC. Keep
 hashes and an off-host recovery copy before relying on `/tmp` alone.
+The new tabular queue claims one dataset/backbone/seed identity at a time on
+shared storage, holds an exclusive physical-GPU lease, and caps each cell at
+24 wall-clock GPU hours. It trains seed 6800 once, runs an independent
+label-blind replay gate, and only then starts fixed seeds 6801-6804 when the
+measured pilot projection and remaining cell budget fit. An inactive treated
+arm, foreign compute PID, failed source/data gate, nonzero exit, or insufficient
+remaining time stops the queue and preserves its claimed evidence. A second
+cell may start only through a new root and a fresh GPU recheck; no interrupted
+seed is resumed or overwritten. Three such cells plus the existing fMoW block
+remain within the 96 aggregate GPU-hour planning ceiling.
 The persistent fMoW runner uses an exclusive root beneath
 `/tmp/tralo-weekend-michaer8-20261001/runs`; its small seed claims, cost
 receipts and physical GPU leases remain on shared `/home` so a second host
