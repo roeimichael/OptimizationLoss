@@ -67,6 +67,10 @@ and their support counts in the scorer subdirectory; the runner manifest and
 development pool carry only image IDs, file names, group names and unlabeled
 group sizes. The source archives themselves still contain labels, so the
 runner's code and file-access log must also be audited before a GPU run.
+The training reader `tralo/tabular_image_data.py` accepts only the three
+hashed runner JSONL files, refuses any development target field or public
+development-positive count, and checks every image name and group support;
+the scorer's private manifest is never an input to that reader.
 
 ## Exact intervention and matched controls
 
