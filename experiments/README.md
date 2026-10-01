@@ -2,9 +2,12 @@
 
 The top level is a **preserved research record**, not a list of recommended models. Older protocols, failed gates, negative results, and superseded hypotheses remain in place because other reports and immutable releases cite their paths. This index supplies a short reading route; do not infer a winner from a filename or a pilot.
 
+The [experiment map](INDEX.md) groups the active evidence by question, so the
+historical filenames do not have to be read as a flat directory listing.
+
 ## Current answer (1 October 2026)
 
-Read the [illustrated PDF research report](../output/pdf/tralo_research_status_20261001.pdf) first. It explains the method, Kassif comparison, backbone results, limitations, and open questions. The [numerical paper draft](tralo_paper_results_draft_20260930.md) is a source document, not the final presentation.
+For a quick explanation, read the [three-page meeting brief](../output/pdf/tralo_meeting_brief_20261001_v2.pdf). For the full numerical record, read the [longer report](../output/pdf/tralo_research_status_20261001_v2.pdf). The [paper draft](tralo_paper_results_draft_20260930.md) is a working source document, not a final claim.
 
 | Question | Best entry point | Evidence status |
 | --- | --- | --- |
@@ -16,7 +19,7 @@ Read the [illustrated PDF research report](../output/pdf/tralo_research_status_2
 
 ## How to read this folder
 
-`*_protocol*` and `*_prereg*` fix the question and analysis before scoring. `*_result*` holds outcomes, including negative ones. `*_amendment*` records a correction without rewriting an immutable runner. JSON/CSV files are machine-readable evidence; the matching prose report explains the scope. `configs/` holds fixed run configurations and must retain its paths. Study names beginning `claude_` or `kassif_` are historical experiment identifiers, not evidence grades.
+`*_protocol*` and `*_prereg*` fix the question and analysis before scoring. `*_result*` holds outcomes, including negative ones. `*_amendment*` records a correction without rewriting an immutable runner. JSON/CSV files are machine-readable evidence; the matching prose report explains the scope. `configs/` holds fixed run configurations and must retain its paths. Study names beginning `claude_` or `kassif_` are historical experiment identifiers, not evidence grades. A first set of 21 unreferenced notes was moved unchanged into the [recoverable archive](archive/provenance_20261001/README.md), with original paths and SHA-256 digests in its manifest. The archive is for provenance, not current recommendations.
 
 The research progression is: [initial allocation/metric checks](global_clipper_result_20260922.md) -> [knee end-to-end feasibility](knee_end_to_end_result_20260924.md) -> [Kassif pipeline audit and factorial](claude_yuval_repo_audit_20260927.md) -> [global snapshot/backbone study](claude_stepens_result_20260928.md) -> [fmow2 pooled-plus-country local study](fmow_local_fixed_dose_result_20260930.md) -> [smaller boundary-calibrated and ViT work](fmow_boundary_mnv3_protocol_20260930.md). The early phase is retained for provenance, not promoted as the current model.
 

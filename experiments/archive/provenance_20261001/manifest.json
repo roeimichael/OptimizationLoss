@@ -1,0 +1,111 @@
+{
+  "purpose": "Recoverable archive of unreferenced research notes; original bytes preserved",
+  "count": 21,
+  "files": [
+    {
+      "original": "experiments/achieved_counts_protocol.md",
+      "archived": "experiments/archive/provenance_20261001/achieved_counts_protocol.md",
+      "sha256": "929466d627da8222ab3bd1cf2f3293e6faa1c31835bc36e1909afa42ef137b60"
+    },
+    {
+      "original": "experiments/anchor_protocol_20260924.md",
+      "archived": "experiments/archive/provenance_20261001/anchor_protocol_20260924.md",
+      "sha256": "4af9862f0841fd886200d9704bf1e94e2428d3a50124f4471a644a229061bbb0"
+    },
+    {
+      "original": "experiments/claude_bandcons_amendment1_20260926.md",
+      "archived": "experiments/archive/provenance_20261001/claude_bandcons_amendment1_20260926.md",
+      "sha256": "f957bfb1f1110fb562ec1e8fe0c93996702394aec8ebcb09181c735e6b57e243"
+    },
+    {
+      "original": "experiments/claude_bandcons_cap50_result_20260926.md",
+      "archived": "experiments/archive/provenance_20261001/claude_bandcons_cap50_result_20260926.md",
+      "sha256": "868e283c8c322e687f6a243666cb3552fbd036f86fb24d8cfdde50d054b0e715"
+    },
+    {
+      "original": "experiments/claude_cutpair_amendment1_20260926.md",
+      "archived": "experiments/archive/provenance_20261001/claude_cutpair_amendment1_20260926.md",
+      "sha256": "1c83d7881cc4702e1182ca4b6e00d65051bafda5edc0062862b81c750b0e21fc"
+    },
+    {
+      "original": "experiments/claude_cutpair_amendment2_20260926.md",
+      "archived": "experiments/archive/provenance_20261001/claude_cutpair_amendment2_20260926.md",
+      "sha256": "01d3bd445590c5465099cb1c98a5318dde37b05e76f6e0c798bf0a5c7d25be52"
+    },
+    {
+      "original": "experiments/claude_cutpair_cap76_result_20260926.md",
+      "archived": "experiments/archive/provenance_20261001/claude_cutpair_cap76_result_20260926.md",
+      "sha256": "8209ca4b15d686d6f84c59e87823dd2d8d5e3db1fb36683b73c6f17bf037ab41"
+    },
+    {
+      "original": "experiments/claude_cutpair_pilot_result_20260926.md",
+      "archived": "experiments/archive/provenance_20261001/claude_cutpair_pilot_result_20260926.md",
+      "sha256": "692b992d6ec8d242bd5e1e7a094dbac4492015b50154e8f10d0941b895387a3c"
+    },
+    {
+      "original": "experiments/claude_step_probe_20260926_result.md",
+      "archived": "experiments/archive/provenance_20261001/claude_step_probe_20260926_result.md",
+      "sha256": "91245d51144101fd6eb0883e64d64b194a2a09b6e3d090150e8be41db258d237"
+    },
+    {
+      "original": "experiments/claude_step_probe_amendment1_20260926.md",
+      "archived": "experiments/archive/provenance_20261001/claude_step_probe_amendment1_20260926.md",
+      "sha256": "69dd047953fb52d46c243307abd5943ae78dfa9e14752ba7f14893057f41ba76"
+    },
+    {
+      "original": "experiments/fmow_boundary_pilot_gate_amendment_20260930.md",
+      "archived": "experiments/archive/provenance_20261001/fmow_boundary_pilot_gate_amendment_20260930.md",
+      "sha256": "f0b6ec6c820fdf18c5f0de58a2744d10e2fba1740447c6d45cd9cf2ecca3a555"
+    },
+    {
+      "original": "experiments/fmow_boundary_preflight_amendment_20260930.md",
+      "archived": "experiments/archive/provenance_20261001/fmow_boundary_preflight_amendment_20260930.md",
+      "sha256": "8a8ee96fac2bea86bb864ee0ba749aabd82b5242a9bb2d80eb15fa68010477f7"
+    },
+    {
+      "original": "experiments/fmow_boundary_vit_full_release_amendment_20261001.md",
+      "archived": "experiments/archive/provenance_20261001/fmow_boundary_vit_full_release_amendment_20261001.md",
+      "sha256": "261e65c79863e4326fa87f0cd7206f5bb45ac999b56da46144de62d0685a2051"
+    },
+    {
+      "original": "experiments/fmow_boundary_vit_gate_stream_amendment_20261001.md",
+      "archived": "experiments/archive/provenance_20261001/fmow_boundary_vit_gate_stream_amendment_20261001.md",
+      "sha256": "31c363714f84b8d955a27426960b2e9e448a1ebf926c0fd1682724d5cf2a5cef"
+    },
+    {
+      "original": "experiments/fmow_fixed_training_log_audit_20260930.md",
+      "archived": "experiments/archive/provenance_20261001/fmow_fixed_training_log_audit_20260930.md",
+      "sha256": "2d7eb6224f2aa0c7bbb79832db273aa5971c3a0986977905c60208a4a54d0d5b"
+    },
+    {
+      "original": "experiments/fmow_local_alm_direction_draft_20260930.md",
+      "archived": "experiments/archive/provenance_20261001/fmow_local_alm_direction_draft_20260930.md",
+      "sha256": "dbc26f3008c5a584caa4a7aa3403a92712a995386813a6dcf52405555c73adcc"
+    },
+    {
+      "original": "experiments/fmow_local_alm_pilot_result_20260930.md",
+      "archived": "experiments/archive/provenance_20261001/fmow_local_alm_pilot_result_20260930.md",
+      "sha256": "402135e14498bba830bd61354fc3d9b948fb0d2ed8fdad96c4da386d7885b782"
+    },
+    {
+      "original": "experiments/fmow_local_alm_release_amendment_20260930.md",
+      "archived": "experiments/archive/provenance_20261001/fmow_local_alm_release_amendment_20260930.md",
+      "sha256": "a5fd69ac6485f112bad89303a93e4074bf3eb827d61c1be666cb8d5dd1c59d57"
+    },
+    {
+      "original": "experiments/knee_consolidated_20260923.md",
+      "archived": "experiments/archive/provenance_20261001/knee_consolidated_20260923.md",
+      "sha256": "221eb2ecd3ca72dee103343364ee46199b6dcd6bf5cfdce3b36c455d477ce79a"
+    },
+    {
+      "original": "experiments/knee_trace_result_20260924.md",
+      "archived": "experiments/archive/provenance_20261001/knee_trace_result_20260924.md",
+      "sha256": "7399811d2b5bac906731e3b8d7eeecabf22b94e9987f06c6bec09f3a2ffe8da4"
+    },
+    {
+      "original": "experiments/larger_cap_result_20260924.md",
+      "archived": "experiments/archive/provenance_20261001/larger_cap_result_20260924.md",
+      "sha256": "be52ec4d093100e3890198dabe106c661af44f7c682f9fd0fe194afc5d0ad7d7"
+    }
+  ]
+}
