@@ -86,3 +86,16 @@ def test_fixed_correction_preserves_loss_magnitude_and_dose_limit():
                           atol=1e-12, rtol=1e-12)
     assert applied["actual_displacement_norm"] == pytest.approx(
         float((model.weight - initial).double().norm()))
+
+
+def test_slack_pool_reports_no_correction_without_failing_training():
+    model, _, groups, _, batches = _setup()
+    quota = {"global_cap": 4, "local_caps": {"female": 2, "male": 2}}
+    report = streaming_parameter_gradient(model, batches, groups, quota, "tralo",
+        multipliers={"global": 1., "female": 1., "male": 1.})
+    assert not report["active"] and report["parameter_gradient_norm"] == 0
+    before = model.weight.detach().clone()
+    correction = apply_fixed_correction(model, step_size=0.01,
+                                        max_displacement=0.1)
+    assert correction["reason"] == "slack" and not correction["applied"]
+    assert torch.equal(model.weight, before)
