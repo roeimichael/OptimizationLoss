@@ -15,7 +15,7 @@ from reportlab.platypus import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "output" / "pdf" / "tralo_research_status_20261001.pdf"
+OUT = ROOT / "output" / "pdf" / "tralo_research_status_20261001_v2.pdf"
 OUT.parent.mkdir(parents=True, exist_ok=True)
 
 FONT_ROOT = Path("C:/Windows/Fonts")
@@ -143,15 +143,15 @@ def knee_effect_plot():
 add("RESEARCH BRIEFING  /  1 OCTOBER 2026", "CoverKicker")
 add("TraLO after Kassif:<br/>what changed, what worked,<br/>and what still fails", "CoverTitle")
 add("A numerical and methodological account of the knee and fmow2 studies, with MobileNetV3, EfficientNet-B5, and ViT-B/16 placed ahead of the small diagnostic backbones.", "CoverSub")
-note("Current verdict: a reproducible, small <b>global</b> knee development signal exists on some backbones. A useful <b>country-local</b> advantage has not been established. The newest MobileNetV3 local block is inconclusive and loses overall accuracy; the completed ViT block is still behind an independent numerical score gate.")
-add("Evidence cutoff: 1 October 2026, approximately 06:45 UTC. This is a progress report, not a submission-ready paper or held-out validation. The 1,656-image Chen knee test and five reserved fmow2 countries remain sealed.", "Smallx")
+note("Current verdict: a reproducible, small <b>global</b> knee development signal exists on some backbones. A useful <b>country-local</b> advantage has not been established. The calibrated MobileNetV3 and ViT-B/16 local blocks are now both independently audited; neither shows a reliable primary gain, and both lose overall accuracy.")
+add("Evidence cutoff: 1 October 2026, approximately 08:00 UTC. This is a progress report, not a submission-ready paper or held-out validation. The 1,656-image Chen knee test and five reserved fmow2 countries remain sealed. This v2 PDF preserves the earlier report and adds the completed ViT score.", "Smallx")
 add("How to read the numbers: all reported intervals are seed-paired on already inspected development cohorts. A confidence interval crossing zero does not demonstrate a benefit. A positive development effect alone does not establish generalization or a deployable clinical/satellite system.", "Smallx")
 story.append(Spacer(1, 16))
 table(["The question", "Answer today"], [
     ("Did adopting Kassif's recipe help?", "Yes, for the plain knee baseline; the factorial attributes most of the gain to augmentation, not to the constraint loss."),
     ("Does TraLO improve modern backbones?", "Global knee step: +1.18 pp on MobileNetV3-Large; -0.87 pp on EfficientNet-B5. The effect is not architecture-invariant."),
     ("Does the local method work on fmow2?", "The original 0.1 step clearly harmed class-1 F1. A calibrated smaller step gained only +0.39/+0.28 pp at two caps, with intervals crossing zero and accuracy losses."),
-    ("Is ViT a win?", "All 12 fixed ViT seeds completed, but independent scoring has not passed a numerical replay gate. One pilot is not a result."),
+    ("Is ViT a win?", "The audited 12-seed ViT block is -0.09/+0.06 cc-F1 percentage points at the two caps, both intervals spanning zero; accuracy also falls."),
 ], [53,122])
 add("Terminology: the user has called the project 'Trello'. The method and repository call it <b>TraLO</b>. Kassif's loss is <b>PAO</b>; <b>PTO</b> means train normally, then allocate predictions under a capacity constraint.", "Smallx")
 newpage()
@@ -268,11 +268,16 @@ sub("What the logs add")
 add("All 72/72 joint snapshot opportunities applied a step at each cap, with mean radius about 0.01305 at cap 167 and 0.00733 at cap 83. Mean raw calls fell from about 231.4 to 180.4 and 202.6, far less violently than under the old 0.1 dose. The smaller step exchanged 181 total 167-slot selections across seeds (81 correct entries, 72 correct exits) and 63 total 83-slot selections (44 correct entries, 39 exits). Yet all twelve seeds chose stop epoch 1; mean training loss fell 0.9296 to 0.0995 while mean stop loss rose 1.2222 to 2.0836. That divergence is a plausible generalization bottleneck, not proof of a causal explanation for this block's F1 tradeoff.")
 newpage()
 
-title(9, "ViT-B/16: transformer backbone, result still gated")
+title(9, "ViT-B/16: complete audited transformer result")
 add("A separately pinned pretrained ViT-B/16 study tested the same local boundary question with fresh seeds. The first smoke fixture failed before seed claim, and a subsequent seed-6500 run failed a no-grad versus gradient replay check. Both remain recorded. The v2 release corrected the attention execution path, passed a real-image FP32 memory and gradient preflight, then completed matched seed-6600 step/ref pilots with exact PTO trajectory parity.")
-add("The pilot, scored only after its label-blind gate, had allocated class-1 cc-F1 0.469974 PTO versus 0.475196 joint at cap 167, and 0.381271 versus 0.381271 at cap 83. Pooled-only and PHR tied the joint cc-F1 in that one seed and joint accuracy declined at both caps. That is an exploratory indication, not a multi-seed benefit or a unique local effect.")
-add("The fixed full block of seeds 6601-6612 completed once with exit code 0 by 1 October 04:12:47 UTC on dsisco02. No TraLO GPU process remains. However, the original independent scorer stopped <b>before development-label scoring</b> on a PHR dual-continuity gap around 1.04e-6 against a 1e-6 tolerance. A later separately released scorer reproduced the FP32 dual arithmetic but stopped on a different pooled-soft-floor replay difference around 1.72e-5. Neither attempt wrote a valid full score JSON. The actual source-backed cause of the second mismatch remains to be resolved and tested; it cannot be waived simply to publish a favorable ViT figure.")
-note("As of this report, the ViT-B/16 <b>training</b> block is complete; the <b>efficacy</b> result is unverified. Any table claiming a 12-seed ViT win today would be false. The next action is a scorer-only provenance-preserving numerical investigation on the same immutable runs, then an independent complete-block score if all gates pass.", colors.HexColor("#FFF5E8"))
+add("The single seed-6600 pilot had suggested +0.005222 cc-F1 at cap 167 and a tie at cap 83. As predeclared, that pilot did not select settings or stop the full block. All twelve fixed seeds 6601-6612 completed once by 1 October 04:12:47 UTC on dsisco02. A corrected, separately released scorer then passed the complete-block gates on those <b>same</b> saved runs. The following are absolute allocated class-1 cc-F1 means and paired joint-minus-PTO intervals; the development countries had previously been viewed.")
+table(["Pooled cap", "PTO cc-F1", "Joint cc-F1", "PHR cc-F1", "Joint - PTO, 95% CI"], [
+    ("167", "0.479112", "0.478242", "0.481288", "-0.000870 [-0.003640, +0.001900]"),
+    ("83", "0.390190", "0.390747", "0.389632", "+0.000557 [-0.005303, +0.006418]"),
+], [28,29,31,30,57])
+add("Both primary intervals cross zero; the Holm-adjusted joint-versus-PTO p value is 1.0 at each cap. The sham has the same mean cc-F1 as PTO. At cap 167, joint accuracy fell from 0.514595 to 0.511556, macro-F1 from 0.465558 to 0.462468 and weighted-F1 from 0.530650 to 0.527267. At cap 83 the corresponding accuracy pair is 0.511656 to 0.510062. PHR's slightly higher cap-167 cc-F1 (0.481288) comes with worse secondary metrics; its contrast does not pass the six-test Holm family. The registered exploratory-lead condition is false at both caps.")
+add("Training logs show 78/78 joint and 78/78 PHR opportunities applied at each cap: inactivity is not the cause. Mean training loss fell from 0.8347 at epoch 1 to 0.1253 at the final epoch, while stopping loss rose from 1.5321 to 2.3975; eight of twelve seeds selected epoch 1. The cap-167 joint allocator replaced an average 11 of 167 slots per seed, adding 4.58 correct items and removing 4.75. At cap 83, 7.33 slots changed, with 5.50 correct entries and 5.42 correct exits. The direction moved the ranking, but useful entries and exits nearly cancelled.")
+note("The original scorer failures remain preserved: FP32 PHR dual continuity, then a direct-versus-country pooled reduction, then a scorer/runner release-path assumption. Source-backed scorer-only fixes were tested on both hosts without weakening tolerances, changing the ViT runner or repeating any seed. The final JSON passed all gates; it supports <b>no ViT local-method win</b> on this inspected development cohort.", colors.HexColor("#FFF5E8"))
 newpage()
 
 title(10, "Clipper, null, and ALM: what comparison is fair?")
@@ -291,10 +296,10 @@ table(["Claim", "Present evidence", "Decision"], [
     ("Global TraLO improves constrained selection.", "MobileNetV3 +1.18 pp and small-backbone replications positive; EfficientNet-B5 -0.87 pp.", "Backbone-dependent lead on knee development, not universal or held-out."),
     ("Local TraLO beats a country-aware post-hoc allocator.", "Fixed 0.1 loses 6.97-8.66 pp; smaller boundary policy +0.28-0.39 pp with intervals crossing zero and accuracy losses.", "Not established on fmow2. The inspected development countries cannot validate another tuned policy."),
     ("TraLO beats full ALM on a modern backbone.", "Only frozen-feature historical results and an active PHR snapshot-direction comparison exist.", "Unmeasured. Finish matched full-training panel before this claim."),
-    ("ViT proves the newer method.", "12 seeds trained; independent complete-block score gate has not passed.", "Unverified; do not choose a setting from the pilot."),
+    ("ViT proves the newer method.", "Audited 12-seed joint-PTO cc-F1 is -0.00087/+0.00056 at the two caps; both intervals cross zero, accuracy falls.", "No ViT local-method lead on this inspected development cohort."),
 ], [54,78,43])
 sub("Recommended scientific path")
-bullet("Resolve the ViT scorer's numerical replay discrepancy without changing or rerunning any training seed. Preserve both failed attempts, verify exact runner/scorer bytes and arithmetic, then score the complete fixed block once.")
+bullet("Preserve the audited negative and null ViT result alongside MobileNetV3 and the old fixed-dose failure. Do not optimize the boundary policy on these repeatedly viewed fmow2 development countries.")
 bullet("Treat MobileNetV3's calibrated local result as a tradeoff, not a winner. The direction may be worth studying mechanistically because dose calibration prevented collapse, but repeatedly viewed fmow2 development labels cannot provide independent confirmation.")
 bullet("Complete the matched persistent TraLO-versus-full-ALM/Clipper/null implementation and cost gates before GPU dispatch. Lock the question, data boundary, seven-epoch budget, metrics and interpretation in an immutable protocol.")
 bullet("For a paper claim, require a prospective independent cohort or truly untouched domain/backbone under a fixed policy. Keep Chen and reserved fmow2 cohorts sealed until an explicit final evaluation decision; do not recycle them for tuning.")
@@ -302,7 +307,7 @@ note("The strongest current practical result may be the <b>training and snapshot
 newpage()
 
 title(12, "Evidence map, provenance and limits")
-add("The following paths are the preserved local research record in this workspace. The `experiments/README.md` index groups them without moving or deleting referenced artifacts. Every completed fixed block retains per-seed outputs, runner and scorer release hashes, completion receipts and failures. The recent MobileNetV3 boundary full-score JSON was independently recomputed after a scorer-only FP32/provenance correction; its original failed gate remains on disk. The ViT block has complete training receipts but no accepted full-score JSON.")
+add("The following paths are the preserved local research record in this workspace. The `experiments/README.md` index groups them without moving or deleting referenced artifacts. Every completed fixed block retains per-seed outputs, runner and scorer release hashes, completion receipts and failures. Both modern-backbone boundary blocks were independently recomputed after scorer-only numerical/provenance corrections; the original failed gates remain on disk.")
 for s in [
     "Kassif and Singer, <i>Adaptive resource-constrained neural networks for multi-class medical image classification</i>, Engineering Applications of Artificial Intelligence 182, article 115989 (2026), DOI 10.1016/j.engappai.2026.115989. Public abstract: https://cris.iucc.ac.il/en/publications/adaptive-resource-constrained-neural-networks-for-multi-class-med/",
     "Audited Kassif code repository: https://github.com/YuvalKassif/ConstrainedClassification ; local audit `experiments/claude_yuval_repo_audit_20260927.md`, repository commit 413d96c.",
@@ -310,7 +315,7 @@ for s in [
     "Global knee step-ensemble: `experiments/claude_stepens_result_20260928.md` and `experiments/claude_stepens_additional_result_20260928.md`.",
     "fmow2 local fixed dose, PHR direction and allocator feasibility: `experiments/fmow_local_fixed_dose_result_20260930.md`, `experiments/fmow_local_alm_direction_result_20260930.md`, `experiments/fmow_global_vs_local_clipper_diagnostic_20260930.md`.",
     "Calibrated MobileNetV3 protocol and result: `experiments/fmow_boundary_mnv3_protocol_20260930.md`, `experiments/fmow_boundary_mnv3_result_20261001.md`. Audited per-seed score: `C:/Users/roeym/.codex/rebuild-audit-20260922/fmow_boundary_full_score_31d50d05_20261001.json` (SHA256 a2211d6e974a7075938ba49a3a80fcbd4bd19a01cc0129943c6d90ce7986c32e). Runner 4334855f; scorer 31d50d05. First failed scorer receipt: `fmow_boundary_full_score_gate_failure_20260930T2226Z.json`.",
-    "ViT preflight and v2 replay protocol: `experiments/fmow_boundary_vit_preflight_20260930.md`, `experiments/fmow_boundary_vit_v2_replay_protocol_20261001.md`, full runner release e7acc6d9. Full queue root `fmow-local-boundary-vit-v2-20261001-0f12bde2/full6601_6612` on dsisco02, 12/12 exit 0; independent full score pending.",
+    "ViT protocol and audited result: `experiments/fmow_boundary_vit_preflight_20260930.md`, `experiments/fmow_boundary_vit_v2_replay_protocol_20261001.md`, `experiments/fmow_boundary_vit_v2_result_20261001.md`. Runner e7acc6d9; scorer 24a78b8e. Full per-seed JSON `C:/Users/roeym/.codex/rebuild-audit-20260922/fmow_vit_full_score_24a78b8e_20261001.json` (SHA256 b26bb18c112f8ed26a817a0bd159c9b57b75b14339f546396181c7d52ce263d5).",
     "Historical ALM and prospective design: `experiments/alm_two_dataset_result_20260924.md`, `experiments/fmow_full_alm_matched_protocol_draft_20261001.md`.",
 ]:
     add("<font color='#176A9C'><b>•</b></font> " + s, "Sourcex")
