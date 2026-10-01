@@ -1,0 +1,7 @@
+{
+  "backbone": "vit_b_16",
+  "dataset": "celeba",
+  "pilot": true,
+  "seed": 6800,
+  "study": "tabular_persistent_v1"
+}

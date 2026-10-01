@@ -1,0 +1,7 @@
+{
+  "backbone": "convnext_tiny",
+  "dataset": "celeba",
+  "pilot": false,
+  "seed": 6804,
+  "study": "tabular_persistent_v1"
+}

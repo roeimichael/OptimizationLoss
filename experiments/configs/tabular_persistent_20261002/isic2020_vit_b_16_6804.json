@@ -1,0 +1,7 @@
+{
+  "backbone": "vit_b_16",
+  "dataset": "isic2020",
+  "pilot": false,
+  "seed": 6804,
+  "study": "tabular_persistent_v1"
+}

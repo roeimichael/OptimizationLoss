@@ -82,7 +82,14 @@ capacity K, and metadata group g_i, the soft violations are
 
 The hard deployment allocator chooses at most K class-c calls overall and at
 most K_g from each group, with fixed sample-ID tie breaking. Quotas are
-upper bounds, not forced referral targets. Fix K and K_g from a disclosed
+upper bounds, not forced referral targets. The new panel uses
+`allocate_local_upper_bound`: it keeps only raw positive calls, first retaining
+the highest-scoring calls within each capped group, then the highest-scoring
+survivors under the pooled cap. Missing-group calls face only the pooled cap.
+It never turns a raw negative into a referral to fill an empty slot. This is
+different from the repository's older `allocate_local_capped_first`, which
+fills capacity and remains an explicitly named diagnostic rather than the
+primary policy here. Fix K and K_g from a disclosed
 operational percentage and unlabeled group sizes before opening development
 labels. Retain every missing-metadata row in the pooled constraint and report
 it separately. If its support is too small for a meaningful local estimate,
@@ -120,6 +127,27 @@ checkpoint rule, and deployment allocator:
    dual update, with the same correction opportunities and maximum dose.
 4. **Null/sham:** the same schedule and observations with zero correction;
 a radius-matched sham is retained where the method makes a side step.
+
+The registered first implementation uses six full-image training epochs,
+Adam at learning rates 1e-4 (MobileNetV3-Large), 2e-5 (ViT-B/16), and 5e-5
+(ConvNeXt-Tiny), no weight decay, and batch sizes 32/8/16 respectively. Every
+arm receives exactly the same deterministic training-example order and image
+augmentation stream. ISIC uses a training-label-only balanced replacement
+sampler because 584/33,126 source images are positive; CelebA uses a shuffled
+epoch. The first correction opportunity is after epoch 2. The TraLO scope
+multipliers are all 1, rho is 0.5, the fixed unnormalized correction scale is
+0.01, and the displacement veto is 0.1 per opportunity. PHR uses rho 0.5 and
+the same scale/veto. A correction refused by the veto is a recorded negative
+mechanism result, never an invitation to change the scale after seeing quality.
+All arms select their best checkpoint by labeled *stop* loss only. The runner
+opens training/stop labels and development images/groups but never development
+targets. This makes the training comparison **transductive**: it may observe
+the unlabeled evaluation images to compute soft quota residuals. The baseline
+and sham observe those same images on the same schedule, and the final report
+must disclose the transductive setting rather than implying ordinary
+inductive generalization. `analysis/score_tabular_persistent.py` authenticates
+all complete arms, replays selected checkpoints from actual images, and opens
+the private development targets only after the label-blind checks pass.
 
 For the newly prepared tabular cohorts, freeze these two capacity levels now,
 before a training score is available. They are calculated only from the

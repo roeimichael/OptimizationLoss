@@ -136,3 +136,34 @@ def allocate_local_capped_first(probabilities, caps, sample_ids, groups, local_c
     uncapped = [j for j in range(n_classes) if j != c]
     return [c if i in selected else max(uncapped, key=probabilities[i].__getitem__)
             for i in range(len(probabilities))]
+
+
+def allocate_local_upper_bound(probabilities, caps, sample_ids, groups, local_caps):
+    """Keep only raw capped-class calls that fit both upper-bound quotas.
+
+    This policy never creates a capped-class call merely to fill an unused
+    slot. Groups omitted from ``local_caps`` have only the pooled ceiling.
+    Scores and stable sample IDs decide which overflowing calls remain.
+    """
+    n_classes = _validate(probabilities, caps, sample_ids, "upper_bound_correction")
+    capped = [c for c, cap in enumerate(caps) if cap is not None]
+    if len(capped) != 1 or n_classes < 2:
+        raise ValueError("local upper-bound correction requires one capped class")
+    if (not isinstance(groups, list) or len(groups) != len(probabilities) or
+            any(type(group) is not str or not group for group in groups)):
+        raise ValueError("groups must align with probabilities")
+    if (not isinstance(local_caps, dict) or not set(local_caps).issubset(set(groups)) or
+            any(type(cap) is not int or cap < 0 for cap in local_caps.values())):
+        raise ValueError("invalid local upper bounds")
+    c = capped[0]
+    raw = _raw(probabilities)
+    eligible = [i for i, predicted in enumerate(raw) if predicted == c]
+    order = lambda i: (-probabilities[i][c], sample_ids[i])
+    retained = []
+    for group in set(groups):
+        members = sorted((i for i in eligible if groups[i] == group), key=order)
+        retained.extend(members[:local_caps[group]] if group in local_caps else members)
+    selected = set(sorted(retained, key=order)[:caps[c]])
+    uncapped = [j for j in range(n_classes) if j != c]
+    return [c if i in selected else max(uncapped, key=probabilities[i].__getitem__)
+            for i in range(len(probabilities))]
