@@ -34,20 +34,25 @@ matched experiment, never an unmarked advantage for TraLO.
 |---|---|---|---|
 | fMoW country slice | Byte-audited 15,841 supervised images plus country-disjoint stop and development pools; the development countries have been scored repeatedly. | Class-1 facility category; country from image metadata. | Treat new scores as exploratory mechanism evidence. The prepared persistent MobileNetV3 comparison still needs immutable release, real-data/gradient preflight, pilot and cost gate. Reserved countries remain sealed. |
 | SIIM-ISIC 2020 | Official 33,126 JPEGs, metadata and duplicate list downloaded; byte/CRC and image-name join pass. 584 training positives, 2,056 patients. | Melanoma; sex or broad anatomical site. | Patient/lesion-disjoint split; duplicate-family separation; positive support and missing-group policy; first-run regime audit. |
-| SLICE-3D / ISIC 2024 | Official 401,059 JPEGs, metadata and labels downloaded; exact three-way ID join passes. 393 positives, 1,042 patients. | Malignancy; sex or broad anatomical site. | Patient-disjoint split; distinguish pathology-backed from clinically assumed benign labels; group support and feasible capacity. Extremely low prevalence makes accuracy a poor primary metric. |
+| CelebA | Official 202,599 aligned images, 40 attributes, identity and partition files downloaded; every official MD5 and image count passed. A frozen identity-disjoint 70/15/15 split has 140,166/31,966/30,467 images and 7,034/1,586/1,557 identities. | Smiling target; recorded Male attribute defines two local groups. | Verify filename/attribute/identity bijection, patient-like identity isolation and image decode; use only as a synthetic allocation benchmark, never as a clinical or fairness claim. |
+| SLICE-3D / ISIC 2024 | Official 401,059 JPEGs, metadata and labels downloaded; exact three-way ID join passes. 393 positives, 1,042 patients. | Malignancy; sex or broad anatomical site. | Exploratory reserve only: patient-disjoint split has just 53 development positives, including 15 in the female group. Review label provenance and group support before any GPU work. Extremely low prevalence makes accuracy a poor primary metric. |
 | HAM10000 | 10,015 official images are available publicly; not yet downloaded or audited. | Seven diagnoses, with melanoma as a prospectively declared capped class; sex/site group. | Verify license/access, image/metadata identity, lesion-level split, source overlap with ISIC, class/group support. It does not count as validated until these gates pass. |
 | iWildCam oodslice | 20,000 train and 2,943 internal test images; labels match official train annotations, but all internal test filenames come from the official training list. Seven held-out camera locations have zero support for several of the eight species. | Camera ID. | Exclude this slice from the three-dataset local-constraint claim; its camera/species coupling leaves many class-by-group cells unevaluable. A different, independently audited wildlife protocol would be needed. |
 
-ISIC 2020 and 2024 are related dermatology domains; they are separate dataset
-tables, not proof of cross-modality generalization. Their patient identifiers
-are distinct within each archive, but cross-archive duplicate/source leakage
-must be checked before pooling or comparing them as independent evidence.
+The prospective primary dataset panel is fMoW, ISIC 2020 and CelebA. They
+cover satellite, dermoscopy and face imagery, but neither the fMoW development
+countries nor any viewed pilot pool can support a confirmatory paper claim.
+CelebA's attribute annotations describe images, not an external operational
+resource; a sex-group quota is a controlled synthetic task. ISIC 2020 and
+2024 are related dermatology domains, not proof of cross-modality
+generalization. Their patient identifiers are distinct within each archive,
+but cross-archive duplicate/source leakage must be checked before pooling.
 
 The official SLICE-3D descriptor states that most benign cases lack a biopsy
 and are clinically assumed benign; do not describe every negative as
 pathology-confirmed. Source: https://doi.org/10.1038/s41597-024-03743-w .
 
-Together with fMoW, ISIC 2020 and 2024 form three prospective tables above
+Together with fMoW, ISIC 2020 and CelebA form three prospective tables above
 10,000 images, but no three-dataset result exists until each independently
 passes its release, split, group-support and complete-block gates. Counting
 downloaded images as a trained result would be wrong. The backbone panel is
@@ -70,6 +75,18 @@ operational percentage and unlabeled group sizes before opening development
 labels. Include an explicit missing-metadata group if support permits; never
 silently drop rows. A 70/30 referral share is only one possible policy, not a
 fact inferred from outcomes; any such policy needs a dated protocol choice.
+
+For a future test of TraLO's **actual saturating loss**, use one term per
+pooled or metadata-group scope. With
+`e_s = relu(sum_{i in s} p_i(c)-K_s)/max(K_s,1)`, define
+`L_local = sum_s lambda_s [e_s/(1+e_s) + rho*e_s^2/(1+e_s^2)]`.
+The image classifier receives no sex/site input in the primary comparison;
+those fields index the constraints and common deployment allocator. The new
+`tralo/local_bounded_penalty.py` implements this scalar and its independently
+finite-difference-checked logit derivative. It is a mathematical prototype,
+**not yet a trained result**. Its scope coefficients must remain meaningful
+through the parameter update; normalizing away the whole gradient would again
+erase the saturating loss shape and fail to isolate the novelty.
 
 The planned arms use the same backbone, initial weights, training images,
 order, augmentation, task optimizer, nominal task updates, precision,
@@ -133,12 +150,11 @@ dsisco02. Local `/tmp` is not durable after a host reset.
    controls, complete focused tests and data/gradient checks, freeze a new
    immutable release, and run one gated pilot if still cost-feasible. This is
    exploratory because its development countries have been viewed.
-3. Freeze ISIC 2020 and 2024 patient-level train/stop/development boundaries
-   and broad group policy without looking at development quality. Validate
-   actual image decode, duplicates, labels, class/group support and costs.
-4. Download and audit a third qualifying dataset (HAM10000 is the current
-   candidate). If it fails access, overlap, size or group-support checks, keep
-   the failure record and do not manufacture a third cell.
+3. Freeze ISIC 2020 patient-level and CelebA identity-level boundaries and
+   broad group policies without looking at development quality. Validate
+   image decode, joins, duplicates, labels, class/group support and costs.
+4. Keep ISIC 2024 as a weak-label, low-positive-support reserve. Do not count
+   it as a successful third trained dataset or use it merely to fill GPU time.
 5. Only after first-run integrity and measured cost pass, launch bounded
    independent queues that can finish during a VPN outage. A missed weekend
    capacity target is preferable to invalid or duplicate evidence.
