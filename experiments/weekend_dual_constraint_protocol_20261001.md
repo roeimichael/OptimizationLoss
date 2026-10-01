@@ -102,6 +102,12 @@ finite-difference-checked logit derivative. It is a mathematical prototype,
 **not yet a trained result**. Its scope coefficients must remain meaningful
 through the parameter update; normalizing away the whole gradient would again
 erase the saturating loss shape and fail to isolate the novelty.
+`tralo/tabular_constraint_gradient.py` now accumulates the same full-pool
+parameter gradient in two image batches/passes, checks fixed-weight forward
+parity and row order, and applies a fixed unnormalized scale subject to an
+explicit dose veto. Direct full-pool autograd tests match the streaming TraLO
+and PHR derivatives. This is a tested correction primitive; no persistent
+tabular training run or independent quality score exists yet.
 
 The planned arms use the same backbone, initial weights, training images,
 order, augmentation, task optimizer, nominal task updates, precision,
