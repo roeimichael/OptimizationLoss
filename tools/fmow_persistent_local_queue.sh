@@ -135,7 +135,8 @@ PY
 "$PY" - "$ATTEMPT/preflight.json" "$ROOT" "$DATA" "${CONFIG_ARGS[@]}" <<'PY' || fail "real-data/source/preprocessing preflight failed; seed unclaimed"
 import json, sys, time
 from pathlib import Path
-from tralo.fmow_persistent_local import (PREPROCESSING, load_label_free_training_data,
+from tralo.fmow_persistent_local import (PREPROCESSING, label_free_pool_identity,
+                                         load_label_free_training_data,
                                          pretrained_weight_provenance)
 from tralo.knee_experiment import source
 from analysis.score_fmow_persistent_local import (_data_hashes, _split_and_pool,
@@ -150,7 +151,7 @@ try:
     record['data_files'] = _data_hashes(data)
     images, train_labels, pool, roles = load_label_free_training_data(data)
     split, independent_pool = _split_and_pool(data)
-    if (pool != independent_pool or
+    if (label_free_pool_identity(pool) != independent_pool or
             {key: roles[key] for key in split} != split or
             len(train_labels) != 17670 or len(pool) != 1673 or
             PREPROCESSING != dict(size=[224, 224], color='RGB',

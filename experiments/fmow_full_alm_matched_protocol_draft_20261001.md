@@ -1,6 +1,16 @@
 # Draft protocol: persistent local TraLO versus inexact PHR-ALM on fmow2
 
 **Status: implementation and independent gate review in progress; no GPU run.**
+The first immutable queue preflight under `54f01582` refused before claiming
+seed 6700: its runner pool rows contain an explicit `split=val` field while
+the independent scorer's label-free reconstruction intentionally contains
+only sample ID and country. The original equality compared whole records and
+therefore false-failed all 1,673 rows. The failure receipt and queue log are
+preserved under `.codex/rebuild-audit-20260922/`; no training started. The
+source-backed amendment checks that every runner row is `val`, rejects any
+extra field, then compares the common ID/country projection. It does not
+relax a data count, identity or label-access rule. A new immutable release and
+fresh exclusive pilot roots are required before GPU use.
 Draft runner, scorer, queue and fixed configs now exist, but independent review
 identified gate and replay checks that must be completed before release. It
 does not supersede any frozen campaign. In particular, the completed 12-seed

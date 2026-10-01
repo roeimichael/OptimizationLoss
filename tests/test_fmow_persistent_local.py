@@ -11,7 +11,8 @@ import pytest
 torch = pytest.importorskip("torch")
 
 from tralo.fmow_persistent_local import (
-    clone_warm_branch, correction, focal_loss, load_label_free_training_data,
+    clone_warm_branch, correction, focal_loss, label_free_pool_identity,
+    load_label_free_training_data,
     observations, sample_orders, stable_state_hash, train_epoch,
     validate_config, write_snapshot, write_pre_correction_snapshot, run,
 )
@@ -174,6 +175,16 @@ def test_dataset_entry_never_requests_development_labels(monkeypatch):
     monkeypatch.setattr("tralo.fmow_persistent_local.load", bad_load)
     with pytest.raises(RuntimeError, match="development labels"):
         load_label_free_training_data("unused")
+
+
+def test_label_free_pool_identity_requires_dev_role_and_exact_fields():
+    pool = [{"split": "val", "sample_id": "test10", "location": "IRQ"}]
+    assert label_free_pool_identity(pool) == [
+        {"sample_id": "test10", "location": "IRQ"}]
+    with pytest.raises(RuntimeError, match="non-development"):
+        label_free_pool_identity([{**pool[0], "split": "test"}])
+    with pytest.raises(RuntimeError, match="fields differ"):
+        label_free_pool_identity([{**pool[0], "label": 1}])
 
 
 def test_signed_and_positive_residual_and_hard_calls():

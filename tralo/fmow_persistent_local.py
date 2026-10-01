@@ -263,6 +263,16 @@ def load_label_free_training_data(data_root):
     return images, train_labels, pool_rows, roles
 
 
+def label_free_pool_identity(pool_rows):
+    """Compare only shared identity fields while requiring the runner's dev role."""
+    if any(row.get("split") != "val" for row in pool_rows):
+        raise RuntimeError("runner pool contains a non-development row")
+    if any(set(row) != {"split", "sample_id", "location"} for row in pool_rows):
+        raise RuntimeError("runner pool fields differ from the label-free contract")
+    return [{"sample_id": row["sample_id"], "location": row["location"]}
+            for row in pool_rows]
+
+
 def _buffer_hash(model):
     return stable_state_hash({name: value for name, value in model.named_buffers()})
 
