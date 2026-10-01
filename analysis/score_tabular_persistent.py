@@ -8,18 +8,21 @@ Only --score opens scorer/development_labels.jsonl, after every seed is gated.
 import hashlib
 import json
 import math
+from datetime import datetime
 from pathlib import Path
 import sys
 
 import torch
 
 from tralo.global_clipper import allocate_local_upper_bound
+from tralo.fmow_persistent_local import stable_state_hash
 from tralo.knee_experiment import digest, save, source
 from tralo.metrics import classification_metrics
 from tralo.tabular_backbones import (configure_fp32, image_transforms,
                                       make_binary_model)
 from tralo.tabular_image_data import PreparedImageRows, load_runner_cohort
-from tralo.tabular_persistent_train import (ARMS, EPOCHS, MAX_DISPLACEMENT,
+from tralo.tabular_persistent_train import (ARMS, CORRECTION_STEP_SIZE,
+                                             EPOCHS, MAX_DISPLACEMENT,
                                              _pool_batches, _predict,
                                              validate_config)
 from tralo.tabular_quota_policy import caps_for_unlabeled_pool
@@ -101,6 +104,10 @@ def audit_seed(run_root, prepared_root, *, replay=True):
         raise RuntimeError("prepared runner rows changed")
     expected_ids = [row["sample_id"] for row in rows["development_pool"]]
     groups = [row["group"] for row in rows["development_pool"]]
+    expected_pool_hash = hashlib.sha256(json.dumps(
+        expected_ids, separators=(",", ":")).encode()).hexdigest()
+    if run_manifest["pool_ids_sha256"] != expected_pool_hash:
+        raise RuntimeError("development pool ID/order hash changed")
     quotas = caps_for_unlabeled_pool(config["dataset"], groups)
     if (run_manifest["quotas"] != quotas or
             run_manifest["split_sizes"] != {key: len(value) for key, value in rows.items()}):
@@ -150,6 +157,13 @@ def audit_seed(run_root, prepared_root, *, replay=True):
                         "correction gradient", minimum=0)
                 if dose["actual_displacement_norm"] > MAX_DISPLACEMENT * (1 + 1e-5):
                     raise RuntimeError("constraint correction exceeded frozen dose")
+                expected_proposed = (CORRECTION_STEP_SIZE *
+                    correction["gradient"]["parameter_gradient_norm"])
+                if (abs(dose["proposed_displacement_norm"] - expected_proposed) >
+                        1e-7 * max(1.0, expected_proposed) or
+                        (dose["applied"] and abs(dose["actual_displacement_norm"] -
+                         expected_proposed) > 1e-5 * max(1.0, expected_proposed))):
+                    raise RuntimeError("correction magnitude lost frozen loss scale")
                 if name in ("pto", "sham") and (dose["applied"] or
                     correction["before"] != correction["after"]):
                     raise RuntimeError("zero-correction control changed pool")
@@ -177,10 +191,32 @@ def audit_seed(run_root, prepared_root, *, replay=True):
                 not bool(torch.allclose(p.sum(1), torch.ones(len(p)), atol=1e-6))):
             raise RuntimeError("selected probabilities are misaligned or invalid")
         probabilities[name] = p
+        selected_events = [event for event in events if
+                           event["event"] == "selected_checkpoint" and
+                           event.get("arm") == name]
+        if (not selected_events or selected_events[-1]["epoch"] != selected or
+                selected_events[-1]["checkpoint_sha256"] != arm["checkpoint_sha256"] or
+                selected_events[-1]["probability_sha256"] !=
+                arm["probability_sha256"]):
+            raise RuntimeError("selected checkpoint event/artifact mismatch")
+        if selected >= 2:
+            selected_row = epochs[selected - 1]
+            from tralo.tabular_persistent_train import _observations
+            for correction in selected_row["corrections"]:
+                level = correction["level"]
+                independent = _observations(p, groups, quotas[level])
+                for scope, observed in independent.items():
+                    recorded = correction["after"][scope]
+                    if (recorded["hard"] != observed["hard"] or
+                            abs(recorded["soft"] - observed["soft"]) > 1e-4):
+                        raise RuntimeError("selected snapshot quota log differs")
         if replay:
+            torch.manual_seed(config["seed"])
             model, verified_weight = make_binary_model(config["backbone"])
             if verified_weight != identity["weight"]:
                 raise RuntimeError("pretrained bytes changed during replay")
+            if stable_state_hash(model.state_dict()) != identity["initial_model_sha256"]:
+                raise RuntimeError("seeded initial model differs from recorded initialization")
             model.load_state_dict(torch.load(checkpoint, weights_only=True,
                                              map_location="cpu"), strict=True)
             model.cuda().eval()
@@ -249,6 +285,51 @@ def _metrics(labels, predictions, groups):
     return metrics
 
 
+def _completed_cell_cost(full_root, audited):
+    """Authenticate all guarded queue receipts before opening private labels."""
+    cell = Path(full_root).parent
+    pilot_launch = _json(cell / "pilot_6800.launch.json")
+    pilot_complete = _json(cell / "pilot_6800.complete.json")
+    gate = _json(cell / "pilot_gate.json")
+    if (pilot_launch["seed"] != 6800 or pilot_complete["exit_code"] != 0 or
+            pilot_launch["release_commit"] != pilot_complete["release_commit"] or
+            gate["status"] != "label_blind_integrity_pass" or
+            gate["summary_sha256"] != digest(cell / "pilot/seed6800/summary.json")):
+        raise RuntimeError("pilot launch, completion or gate receipt changed")
+    beginning = datetime.fromisoformat(pilot_launch["started_utc"])
+    elapsed_full = 0
+    last_end = None
+    for row in audited:
+        seed = row["config"]["seed"]
+        launch = _json(cell / f"full_{seed}.launch.json")
+        complete = _json(cell / f"full_{seed}.complete.json")
+        if (launch["seed"] != seed or complete["seed"] != seed or
+                complete["exit_code"] != 0 or
+                launch["release_commit"] != pilot_launch["release_commit"] or
+                complete["release_commit"] != pilot_launch["release_commit"] or
+                launch["source_sha256"] != row["identity"]["source_sha256"] or
+                launch["config_sha256"] != row["identity"]["config_sha256"] or
+                launch["prepared_manifest_sha256"] !=
+                row["identity"]["prepared_manifest_sha256"] or
+                launch["output_dir"] != str(Path(full_root) / f"seed{seed}") or
+                launch["gpu_uuid"] != complete["gpu_uuid"] or
+                launch["gpu_uuid"] != pilot_launch["gpu_uuid"]):
+            raise RuntimeError("full queue cost/ownership provenance changed")
+        _finite(complete["elapsed_seconds"], "queue elapsed", minimum=0)
+        if complete["elapsed_seconds"] + 2 < row["elapsed_seconds"]:
+            raise RuntimeError("runner duration exceeds guarded queue receipt")
+        elapsed_full += complete["elapsed_seconds"]
+        last_end = datetime.fromisoformat(complete["ended_utc"])
+    cell_wall = (last_end - beginning).total_seconds()
+    if cell_wall < elapsed_full or cell_wall > 86400 + 60:
+        raise RuntimeError("completed cell wall exceeds fixed 24-hour ceiling")
+    return {"full_queue_gpu_hours": elapsed_full / 3600,
+            "cell_lease_gpu_hours_including_pilot_gate": cell_wall / 3600,
+            "pilot_gate_sha256": digest(cell / "pilot_gate.json"),
+            "gpu_uuid": pilot_launch["gpu_uuid"],
+            "release_commit": pilot_launch["release_commit"]}
+
+
 def score(full_root, prepared_root, output):
     root = Path(full_root)
     expected = [root / f"seed{seed}" for seed in FULL_SEEDS]
@@ -269,6 +350,7 @@ def score(full_root, prepared_root, output):
         raise RuntimeError("fixed seed/data/backbone parity failed before labels")
     if sum(row["elapsed_seconds"] for row in audited) / 3600 > 96:
         raise RuntimeError("complete block exceeds aggregate weekend ceiling")
+    cost = _completed_cell_cost(full_root, audited)
     labels, private_identity = _private_labels(
         prepared_root, first["sample_ids"],
         first["identity"]["prepared_manifest_sha256"])
@@ -312,9 +394,10 @@ def score(full_root, prepared_root, output):
               "backbone": first["config"]["backbone"],
               "pretrained_weight": first["identity"]["weight"],
               "runner_source_sha256": first["identity"]["source_sha256"],
+              "queue_cost_and_ownership": cost,
               "private_labels": private_identity, "seeds": per_seed,
               "paired_contrasts": contrasts,
-              "actual_gpu_hours": sum(row["elapsed_seconds"] for row in audited) / 3600,
+              "training_only_gpu_hours": sum(row["elapsed_seconds"] for row in audited) / 3600,
               "interpretation": "development comparison; requires independent held-out replication"}
     with Path(output).open("x", encoding="utf-8") as stream:
         json.dump(result, stream, indent=2, allow_nan=False)
