@@ -253,7 +253,7 @@ table(["Pooled cap, 12 seeds", "PTO", "Joint", "PHR snapshot", "PHR - PTO, 95% C
     ("167", "0.49260", "0.42167", "0.41471", "-0.07789 [-0.09604, -0.05975]"),
     ("83", "0.39967", "0.33445", "0.33445", "-0.06522 [-0.08113, -0.04930]"),
 ], [44,23,25,33,50])
-add("The PHR direction was active at every snapshot and lost too. It was a one-snapshot side-copy direction with dual updates, <b>not</b> a persistent full augmented-Lagrangian training run. It does not settle TraLO versus a properly matched full ALM. The historical four-seed ALM study used frozen features and a different update schedule; it is shown later as context only.")
+add("The PHR direction was active at every saved snapshot and lost too. It was a side-copy direction with dual updates across snapshots, <b>not</b> a persistent full augmented-Lagrangian training run. It does not settle TraLO versus a properly matched full ALM. The historical four-seed ALM study used frozen features and a different update schedule; it is shown later as context only.")
 newpage()
 
 title(8, "Calibrated MobileNetV3: latest complete local block")
@@ -268,7 +268,7 @@ sub("What the logs add")
 add("All 72/72 joint snapshot opportunities applied a step at each cap, with mean radius about 0.01305 at cap 167 and 0.00733 at cap 83. Mean raw calls fell from about 231.4 to 180.4 and 202.6, far less violently than under the old 0.1 dose. The smaller step exchanged 181 total 167-slot selections across seeds (81 correct entries, 72 correct exits) and 63 total 83-slot selections (44 correct entries, 39 exits). Yet all twelve seeds chose stop epoch 1; mean training loss fell 0.9296 to 0.0995 while mean stop loss rose 1.2222 to 2.0836. That divergence is a plausible generalization bottleneck, not proof of a causal explanation for this block's F1 tradeoff.")
 newpage()
 
-title(9, "ViT-B/16: stronger backbone, result still gated")
+title(9, "ViT-B/16: transformer backbone, result still gated")
 add("A separately pinned pretrained ViT-B/16 study tested the same local boundary question with fresh seeds. The first smoke fixture failed before seed claim, and a subsequent seed-6500 run failed a no-grad versus gradient replay check. Both remain recorded. The v2 release corrected the attention execution path, passed a real-image FP32 memory and gradient preflight, then completed matched seed-6600 step/ref pilots with exact PTO trajectory parity.")
 add("The pilot, scored only after its label-blind gate, had allocated class-1 cc-F1 0.469974 PTO versus 0.475196 joint at cap 167, and 0.381271 versus 0.381271 at cap 83. Pooled-only and PHR tied the joint cc-F1 in that one seed and joint accuracy declined at both caps. That is an exploratory indication, not a multi-seed benefit or a unique local effect.")
 add("The fixed full block of seeds 6601-6612 completed once with exit code 0 by 1 October 04:12:47 UTC on dsisco02. No TraLO GPU process remains. However, the original independent scorer stopped <b>before development-label scoring</b> on a PHR dual-continuity gap around 1.04e-6 against a 1e-6 tolerance. A later separately released scorer reproduced the FP32 dual arithmetic but stopped on a different pooled-soft-floor replay difference around 1.72e-5. Neither attempt wrote a valid full score JSON. The actual source-backed cause of the second mismatch remains to be resolved and tested; it cannot be waived simply to publish a favorable ViT figure.")
