@@ -36,6 +36,21 @@ def test_gate_reconstructs_accepted_probe_and_selected_radius():
     score._policy(record, before, after, quota, require_local_hard=True)
 
 
+def test_phr_boundary_replays_country_sum_without_weakening_joint_recount():
+    record, before, after, quota = _accepted()
+    # Direct FP32 pooled sum and the runner's math.fsum(country FP32 sums)
+    # can differ by more than the strict 1e-6 decision tolerance.
+    direct = (before[0], before[1], before[2] + 2e-5, before[3])
+    score._policy(record, direct, after, quota, require_local_hard=False,
+                  pooled_from_local=True)
+    with pytest.raises(RuntimeError, match="initial violation"):
+        score._policy(record, direct, after, quota, require_local_hard=True)
+    record["boundary_policy"]["initial_positive_violations"]["pooled"] += 2e-5
+    with pytest.raises(RuntimeError, match="initial violation"):
+        score._policy(record, direct, after, quota, require_local_hard=False,
+                      pooled_from_local=True)
+
+
 def test_radius_recount_allows_float32_soft_count_roundoff():
     record, _before, _after, quota = _accepted()
     before = (2, {"A": 1, "B": 1}, 1.040000003,

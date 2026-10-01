@@ -150,7 +150,8 @@ def _record_counts(record, prefix, actual):
               f"{prefix} local soft {group}", 1e-3)
 
 
-def _policy(record, before, after, quota, *, require_local_hard):
+def _policy(record, before, after, quota, *, require_local_hard,
+            pooled_from_local=False):
     """Independently reconstruct the bounded decision from saved probe evidence."""
     policy = record["boundary_policy"]
     if (not isinstance(policy, dict) or type(policy.get("applied")) is not bool or
@@ -166,7 +167,11 @@ def _policy(record, before, after, quota, *, require_local_hard):
         raise RuntimeError("rejected boundary direction moved parameters")
     caps = {"pooled": quota["global_cap"], **{
         f"local:{g}": cap for g, cap in quota["local_caps"].items()}}
-    soft0 = {"pooled": before[2], **{f"local:{g}": value for g, value in before[3].items()}}
+    # The PHR boundary chooser forms its pooled count from the saved country
+    # reductions. The joint chooser instead uses the direct FP32 pooled sum.
+    # Those two reductions can differ by one ULP without changing the data.
+    pooled0 = math.fsum(before[3].values()) if pooled_from_local else before[2]
+    soft0 = {"pooled": pooled0, **{f"local:{g}": value for g, value in before[3].items()}}
     violation0 = {name: max(0.0, (value - caps[name]) / max(caps[name], 1))
                   for name, value in soft0.items()}
     total0 = math.fsum(violation0.values())
@@ -185,7 +190,7 @@ def _policy(record, before, after, quota, *, require_local_hard):
     _near(policy["initial_total_positive_violation"], total0, "initial violation total")
     _near(policy["pooled_hard_floor"], max(0, min(before[0], caps["pooled"]) - 1),
           "pooled hard floor")
-    _near(policy["pooled_soft_floor"], max(0.0, min(before[2], caps["pooled"]) - 1),
+    _near(policy["pooled_soft_floor"], max(0.0, min(pooled0, caps["pooled"]) - 1),
           "pooled soft floor")
     derivatives = record["scope_directional_derivatives"]
     if set(derivatives) != set(caps) or any(type(value) not in (int, float) or
@@ -244,7 +249,7 @@ def _policy(record, before, after, quota, *, require_local_hard):
         reasons = []
         if probe["pooled_hard"] < max(0, min(before[0], caps["pooled"]) - 1):
             reasons.append("pooled_hard_floor")
-        if observed_soft["pooled"] < max(0.0, min(before[2], caps["pooled"]) - 1):
+        if observed_soft["pooled"] < max(0.0, min(pooled0, caps["pooled"]) - 1):
             reasons.append("pooled_soft_floor")
         for name in sorted(caps):
             if observed_v[name] > violation0[name] + 1e-6:
@@ -287,7 +292,7 @@ def _policy(record, before, after, quota, *, require_local_hard):
         # FP32 replay drift could reverse a narrow logged improvement.
         if after[0] < max(0, min(before[0], quota["global_cap"]) - 1):
             raise RuntimeError("saved boundary side crossed pooled hard floor")
-        if after[2] < max(0.0, min(before[2], quota["global_cap"]) - 1.0):
+        if after[2] < max(0.0, min(pooled0, quota["global_cap"]) - 1.0):
             raise RuntimeError("saved boundary side crossed pooled soft floor")
         final_soft = {"pooled": after[2], **{
             f"local:{group}": value for group, value in after[3].items()}}
@@ -397,7 +402,8 @@ def _audit_side(record, pto, side, groups, quota, arm, dual=None):
                 policy_record = {**record, "scope_directional_derivatives": {
                     "pooled": derivatives["global"],
                     **{f"local:{g}": derivatives[g] for g in quota["local_caps"]}}}
-                _policy(policy_record, before, after, quota, require_local_hard=False)
+                _policy(policy_record, before, after, quota,
+                        require_local_hard=False, pooled_from_local=True)
             elif (record["applied"] or record["boundary_policy"].get("applied") is not False or
                   record["boundary_policy"]["reason"] != "zero_phr_gradient" or
                   record["scope_directional_derivatives"] != {} or
