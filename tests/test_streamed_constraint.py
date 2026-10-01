@@ -30,6 +30,17 @@ class StreamedConstraintTests(unittest.TestCase):
         actual = self.gradient(z.softmax(1).detach(), self.caps, self.multipliers, .4)
         self.assertTrue(torch.allclose(actual, expected, atol=1e-12, rtol=1e-12))
 
+    def test_one_active_cap_has_the_same_normalized_direction_for_different_penalties(self):
+        probabilities = self.model.eval()(self.x).detach().softmax(1)
+        first = self.gradient(probabilities, self.caps, self.multipliers, .4)
+        second = self.gradient(probabilities, self.caps,
+                               torch.tensor([0., 7., 0.], dtype=torch.float64), 2.0)
+        self.assertGreater(float(first.norm()), 0.0)
+        self.assertGreater(float(second.norm()), 0.0)
+        self.assertFalse(torch.allclose(first, second))
+        self.assertTrue(torch.allclose(first / first.norm(), second / second.norm(),
+                                       atol=1e-12, rtol=1e-12))
+
     def test_streamed_parameter_gradient_and_step_match_unchunked(self):
         reference = copy.deepcopy(self.model).eval()
         reference_optim = torch.optim.Adam(reference.parameters(), lr=1e-3)

@@ -3,7 +3,9 @@
 The first 21 documents were moved out of the top-level `experiments/` directory
 after a repository-wide reference scan found no other file naming them. Three
 superseded root documents were then added: the original rebuild README, the
-night plan and the morning report. They are retained as historical evidence,
+night plan and the morning report. The redundant experiment map was archived
+after its reading route was consolidated into the active experiment README.
+All 25 files are retained as historical evidence,
 including failures; their original text was not edited during archival.
 
 [`manifest.json`](manifest.json) records each original path, archived path, and

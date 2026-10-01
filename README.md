@@ -1,15 +1,18 @@
-# TraLO research workspace
+# TraLO: capacity-aware image classification
 
-This repository tests whether a **training-time, label-free prediction-capacity constraint** improves who receives a limited allocation. A cap being met is necessary but is not evidence that the predictions are better. Negative runs, failed integrity gates and old protocols remain available for audit.
+TraLO asks whether changing a classifier **during training** can improve which people or items receive a limited number of positive decisions. Meeting a capacity limit is not itself a win: the trained model must make better decisions than an equally constrained ordinary classifier.
 
-Start with the [experiment guide](experiments/README.md) for the current results and the [experiment map](experiments/INDEX.md) for the reading order. The [short meeting PDF](output/pdf/tralo_meeting_brief_20261001_v2.pdf) explains the present conclusion. The [longer numerical PDF](output/pdf/tralo_research_status_20261001_v2.pdf) has full context. [DESIGN.md](DESIGN.md) and [NEXT_STEPS.md](NEXT_STEPS.md) record the rebuilt system and operational history; the main checkout's `docs/FRAMEWORK.md`, `RULESET.md`, `docs/MISSION.md` and `docs/LEDGER.md` govern new studies.
+The current knee comparison uses the same images, ImageNet backbones, augmentation, sampler, optimizer, stopping data, and deployment allocator for TraLO and Yuval Kassif and Gonen Singer's PAO/PTO baselines. Kassif's PAO changes a supervised cost matrix and retrains. The tested TraLO variant instead takes a gradient of the predicted count on **unlabeled development images** after each supervised epoch, moves just far enough to meet the hard cap, and continues training. A random direction with the same displacement and a no-change control help isolate what that direction contributes. TraLO is a training method, **not a new image backbone**. The exact mathematics and the limits of the novelty claim are in [the method guide](docs/THESIS_METHOD.md).
 
-## Current knee comparison
+The Chen knee development cohort has been inspected repeatedly. New seeds on it are useful for a matched comparison, but they are **not held-out confirmation**. Its sealed test cohort remains untouched. The current fixed knee protocol is [here](experiments/knee_persistent_kassif_match_protocol_draft_20261001.md); the [experiment guide](experiments/README.md) separates completed evidence from pilots and work still running. Live run state belongs in immutable run receipts, not in this README.
 
-The [prospective knee protocol](experiments/knee_persistent_kassif_match_protocol_draft_20261001.md) fixes a matched comparison of sustained TraLO, Kassif's PAO retraining, plain training plus the same Clipper, a dose-matched random direction, and a no-op control. It uses the Chen knee images and EfficientNet-B5, MobileNetV3-Large and ViT-B/16. The runner, independent scorer and configurations are frozen at release `7a5f68b021d0f0a70185309c4a21be3a27522e5c`. Both-host source/tests and label-free data/weight preflights passed. **No knee training run in this new block has started.** The proposed pilot GPU-hour ceiling is awaiting approval; the sealed Chen test is untouched.
+| Directory | Purpose |
+| --- | --- |
+| `tralo/` | Methods, shared data/metric primitives, and preserved earlier study runners. The current knee runner is `knee_persistent_match.py`. |
+| `analysis/` | Independent scorers and preserved diagnostics. The current knee scorer is `score_knee_persistent_match.py`; historical unreferenced outputs are under `analysis/archive/`. |
+| `tests/` | Executable checks of methods, data boundaries, runners, and scorers. |
+| `experiments/` | Fixed protocols, immutable run configs, result reports, and recoverable provenance. Start with its README. |
+| `tools/` | Bounded, exclusive server queues and preflight tools. |
+| `output/pdf/` | Presentation copies, including the [short brief](output/pdf/tralo_meeting_brief_20261001_v2.pdf) and [numerical report](output/pdf/tralo_research_status_20261001_v2.pdf). |
 
-This is a new scientific test because previous encouraging knee results changed side copies of a trained model, leaving the actual training path unchanged. The new runner changes the model after each supervised epoch and continues training. Historical wins and losses are described in the experiment guide and are not pooled with this new study.
-
-## Reading and preservation
-
-`tralo/` contains methods; `analysis/` contains independent scorers; `tests/` holds checks; `experiments/configs/` contains immutable run inputs; `tools/` holds bounded queues. Never run a historical result file as if its title implied a winner. The [recoverable provenance archive](experiments/archive/provenance_20261001/README.md) holds older notes and the original rebuild README by original-path and SHA-256 manifest. Data, predictions, checkpoints and Git objects were not deleted during cleanup.
+Older scripts and negative results remain recoverable. A historical filename is not a recommendation. The main checkout's `docs/FRAMEWORK.md`, `RULESET.md`, `docs/MISSION.md`, and `docs/LEDGER.md` govern new research. Do not use development labels to tune a constraint, evaluate the sealed test by accident, or change a live release.

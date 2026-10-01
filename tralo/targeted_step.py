@@ -70,8 +70,10 @@ def targeted_step(model, chunks, caps, sham_generator=None, r0=1e-3, max_doublin
         return out
     params = [p for p in model.parameters() if p.requires_grad]
     capture = _Capture(params)
-    # cap 0 on the capped class: the penalty gradient is then a positive multiple of the
-    # gradient of that class's soft count, whatever lambda and rho are.
+    # With one active class, the penalty gradient is a positive scalar times the
+    # gradient of its soft count. Normalizing below discards lambda, rho, and the
+    # penalty curve's magnitude; this step tests the count direction and the
+    # hard-cap radius search, not the original penalty shape.
     direction_caps = [None] * len(caps)
     direction_caps[c] = 0
     device = params[0].device
