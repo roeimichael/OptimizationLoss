@@ -50,7 +50,7 @@ def _image_names(directory, suffix):
 def _isic2020(root):
     meta = root / "ISIC_2020_Training_GroundTruth_v2.csv"
     duplicates = root / "ISIC_2020_Training_Duplicates.csv"
-    images = root / "images"
+    images = root / "images" / "train"
     records = []
     seen = set()
     lesion_splits = {}

@@ -20,7 +20,7 @@ def _units(dataset):
 
 def test_isic_duplicate_and_label_seal(tmp_path):
     raw = tmp_path / "isic"
-    images = raw / "images"
+    images = raw / "images" / "train"
     images.mkdir(parents=True)
     split_units = _units("isic2020")
     rows = []
