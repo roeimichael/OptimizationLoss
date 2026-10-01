@@ -1,0 +1,148 @@
+# Weekend dual-constraint preparation, 1 October 2026
+
+**Status:** prospective design. Only the already frozen knee/fMoW runs described
+below may be inspected. A new dataset/backbone cell is not a GPU job until its
+data, gradient, source, release, first-run, and cost gates pass. This document
+does not convert an exploratory development score into a held-out result.
+
+## Question and honest scope
+
+Does a *training-time* pooled-plus-metadata-group constraint improve the
+ranking of correct cases admitted under a fixed global capacity and explicit
+group upper bounds, compared with the same trained model clipped only at
+deployment, an inexact PHR-ALM training correction, and a schedule-matched
+zero-correction control? A good result requires a paired gain in deployed
+constrained-class F1 without being dominated in macro/weighted F1, plus valid
+source/data/compute evidence. No favorable pilot score may select a cap,
+backbone, group, seed, or dataset.
+
+The current knee targeted step is a normalized soft-count gradient followed by
+a hard-cap line search. It does **not** isolate the original saturating TraLO
+loss. The prospective persistent fMoW runner tests a genuine training-time
+pooled/country correction, but its country development labels have been viewed
+repeatedly; it can diagnose mechanism, not confirm a paper claim.
+
+## Data shortlist and local attribute
+
+Every candidate has at least 10,000 images before splitting. The classifier
+receives the image only in the primary comparison; the tabular group field
+is supplied to the quota calculation and identical deployment allocator for
+every arm. Feeding tabular covariates to the classifier would be a separate,
+matched experiment, never an unmarked advantage for TraLO.
+
+| Candidate | Current verified state | Target and group | Decision before GPU |
+|---|---|---|---|
+| fMoW country slice | Byte-audited 15,841 supervised images plus country-disjoint stop and development pools; the development countries have been scored repeatedly. | Class-1 facility category; country from image metadata. | Treat new scores as exploratory mechanism evidence. The prepared persistent MobileNetV3 comparison still needs immutable release, real-data/gradient preflight, pilot and cost gate. Reserved countries remain sealed. |
+| SIIM-ISIC 2020 | Official 33,126 JPEGs, metadata and duplicate list downloaded; byte/CRC and image-name join pass. 584 training positives, 2,056 patients. | Melanoma; sex or broad anatomical site. | Patient/lesion-disjoint split; duplicate-family separation; positive support and missing-group policy; first-run regime audit. |
+| SLICE-3D / ISIC 2024 | Official 401,059 JPEGs, metadata and labels downloaded; exact three-way ID join passes. 393 positives, 1,042 patients. | Malignancy; sex or broad anatomical site. | Patient-disjoint split; distinguish pathology-backed from clinically assumed benign labels; group support and feasible capacity. Extremely low prevalence makes accuracy a poor primary metric. |
+| HAM10000 | 10,015 official images are available publicly; not yet downloaded or audited. | Seven diagnoses, with melanoma as a prospectively declared capped class; sex/site group. | Verify license/access, image/metadata identity, lesion-level split, source overlap with ISIC, class/group support. It does not count as validated until these gates pass. |
+| iWildCam oodslice | 20,000 train and 2,943 internal test images; labels match official train annotations, but all internal test filenames come from the official training list. Seven held-out camera locations have zero support for several of the eight species. | Camera ID. | Exclude this slice from the three-dataset local-constraint claim; its camera/species coupling leaves many class-by-group cells unevaluable. A different, independently audited wildlife protocol would be needed. |
+
+ISIC 2020 and 2024 are related dermatology domains; they are separate dataset
+tables, not proof of cross-modality generalization. Their patient identifiers
+are distinct within each archive, but cross-archive duplicate/source leakage
+must be checked before pooling or comparing them as independent evidence.
+
+The official SLICE-3D descriptor states that most benign cases lack a biopsy
+and are clinically assumed benign; do not describe every negative as
+pathology-confirmed. Source: https://doi.org/10.1038/s41597-024-03743-w .
+
+Together with fMoW, ISIC 2020 and 2024 form three prospective tables above
+10,000 images, but no three-dataset result exists until each independently
+passes its release, split, group-support and complete-block gates. Counting
+downloaded images as a trained result would be wrong. The backbone panel is
+MobileNetV3-Large, ViT-B/16 and ConvNeXt-Tiny where weights, preprocessing,
+first-run reproducibility and memory fit are verified. A backbone comparison
+is matched within a cell; a pilot score cannot select a favorable backbone.
+
+## Exact intervention and matched controls
+
+For unlabeled deployment images i, image model probabilities p_i(c), global
+capacity K, and metadata group g_i, the soft violations are
+
+    r_global = sum_i p_i(c) - K
+    r_g = sum_{i:g_i=g} p_i(c) - K_g.
+
+The hard deployment allocator chooses at most K class-c calls overall and at
+most K_g from each group, with fixed sample-ID tie breaking. Quotas are
+upper bounds, not forced referral targets. Fix K and K_g from a disclosed
+operational percentage and unlabeled group sizes before opening development
+labels. Include an explicit missing-metadata group if support permits; never
+silently drop rows. A 70/30 referral share is only one possible policy, not a
+fact inferred from outcomes; any such policy needs a dated protocol choice.
+
+The planned arms use the same backbone, initial weights, training images,
+order, augmentation, task optimizer, nominal task updates, precision,
+checkpoint rule, and deployment allocator:
+
+1. **PTO/Clipper:** supervised image training, then only the common allocator.
+2. **TraLO:** persistent task training plus the specified pooled and group
+   correction, with logged raw gradients and applied parameter displacement.
+3. **PHR-ALM:** persistent inexact primal correction and per-scope nonnegative
+   dual update, with the same correction opportunities and maximum dose.
+4. **Null/sham:** the same schedule and observations with zero correction;
+   a radius-matched sham is retained where the method makes a side step.
+
+The primary contrast is TraLO minus its schedule-matched null, then TraLO
+minus the deployment-only control. An ALM comparison alone cannot attribute a
+benefit to TraLO. Report both clip and focal-clip where their supervised
+training recipes have been independently validated; never substitute an old
+score from another data/optimizer recipe.
+
+## Measures, gates, and stopping
+
+Primary quality is deployed cc-F1 for the declared capped class; alongside it
+report precision, recall, macro-F1, weighted-F1, per-group confusion/counts,
+feasibility, model-selection rule, elapsed GPU-hours, and per-seed paired
+differences with a prespecified 95% interval. A bold best mean is not a
+significance claim. At least four matched seeds and two cap levels make a
+screen; a publishable comparison needs a separately frozen, sufficiently
+powered block and untouched evaluation. Pilot labels are not used to choose
+settings. The current knee and fMoW development pools are not untouched.
+
+Before dispatch: hash source/config/checkpoint/data/split; verify image-label
+alignment, patient/lesion overlap, exact duplicate pixels, missing groups,
+group support, and a label-free quota recount. Check analytic/autograd/finite
+difference gradients for active/slack/conflicting pooled/group constraints,
+real-image forward/backward parity, null neutrality, dose and allocator
+invariants. Record planned/attempted/applied/skipped task and correction
+updates; soft/hard counts, residual/dual, raw and transformed gradient norm,
+actual parameter displacement, training/stop loss, nonfinite events, host UUID
+and precision. First run on two genuinely free GPUs only, inspect events and
+outputs, then expand if the gate passes. SSH loss means unknown run state.
+
+The user authorized a weekend target of roughly 24 hours of work with up to
+four dsisco02 GPUs. This is a **maximum 96 aggregate GPU-hour planning ceiling**,
+not an instruction to occupy another user's cards or spend hours on unvalidated
+jobs. Each job needs its own exclusive root and per-job wall cap; the queue
+must not claim a seed with insufficient remaining time. Record actual card
+seconds and halt new dispatch at the ceiling. Use dsisco02 local `/tmp` for
+large new artifacts: shared `/home` had only 4.4 GB free at 20:32 UTC. Keep
+hashes and an off-host recovery copy before relying on `/tmp` alone.
+The persistent fMoW runner uses an exclusive root beneath
+`/tmp/tralo-weekend-michaer8-20261001/runs`; its small seed claims, cost
+receipts and physical GPU leases remain on shared `/home` so a second host
+cannot unknowingly reuse an identity or card. Its queue is restricted to
+dsisco02. Local `/tmp` is not durable after a host reset.
+
+## Tonight's order
+
+1. Forensically close the timed-out knee ViT queue. Preserve seed6705/6709
+   partial roots, do not reuse their IDs, and independently gate seed6708.
+2. Review the already prepared persistent fMoW runner/scorer and its negative
+   controls, complete focused tests and data/gradient checks, freeze a new
+   immutable release, and run one gated pilot if still cost-feasible. This is
+   exploratory because its development countries have been viewed.
+3. Freeze ISIC 2020 and 2024 patient-level train/stop/development boundaries
+   and broad group policy without looking at development quality. Validate
+   actual image decode, duplicates, labels, class/group support and costs.
+4. Download and audit a third qualifying dataset (HAM10000 is the current
+   candidate). If it fails access, overlap, size or group-support checks, keep
+   the failure record and do not manufacture a third cell.
+5. Only after first-run integrity and measured cost pass, launch bounded
+   independent queues that can finish during a VPN outage. A missed weekend
+   capacity target is preferable to invalid or duplicate evidence.
+
+The weekend output is a set of exact run receipts, audited metrics if a
+complete block finishes, and a clear list of failed gates and remaining work.
+No claim of a TraLO win is made in advance.

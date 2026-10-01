@@ -1,0 +1,19 @@
+{
+  "study": "fmow_persistent_local_v1",
+  "seed": 6700,
+  "pilot": true,
+  "reference": false,
+  "pretrained_sha256": "5c1a416349c4cf298f2a6a5e2600ed0ee55e604713578f5e74e6bc8bcaef7997",
+  "backbone": "mobilenet_v3_large",
+  "epochs": 7,
+  "batch_size": 32,
+  "development_batch_size": 16,
+  "lr": 0.0001,
+  "weight_decay": 0.0,
+  "decay_epoch": 5,
+  "decay_factor": 0.8,
+  "radius": 0.1,
+  "rho": 0.5,
+  "focal_alpha": 0.25,
+  "focal_gamma": 2.0
+}
