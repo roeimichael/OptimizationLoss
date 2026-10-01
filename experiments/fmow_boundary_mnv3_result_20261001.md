@@ -1,0 +1,20 @@
+# Result: boundary-calibrated MobileNetV3 local TraLO on fmow2
+
+Status: complete fixed 12-seed development block, independently audited. This is exploratory because the five development countries had already been viewed. The five reserved countries were not scored. Protocol: [fmow_boundary_mnv3_protocol_20260930.md](fmow_boundary_mnv3_protocol_20260930.md). Runner release `4334855f81c70596ff64c08bfa6c884c67e08e8a`; final scorer release `31d50d055d3ae5d68b7861652ee213ea85235c70`.
+
+All seeds 6401-6412 exited 0 once. The independent scorer passed exact source, data, config, artifact, allocator, dose and PHR FP32-dual continuity checks before opening development labels. Full per-seed score JSON: `C:/Users/roeym/.codex/rebuild-audit-20260922/fmow_boundary_full_score_31d50d05_20261001.json`, SHA256 `a2211d6e974a7075938ba49a3a80fcbd4bd19a01cc0129943c6d90ce7986c32e`.
+
+| Pooled cap | PTO cc-F1 | Joint cc-F1 | Joint - PTO, paired 95% CI | P | Six-test Holm P | Joint accuracy vs PTO |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 167 | 0.491732 | 0.495648 | +0.003916 [-0.001938, +0.009771] | 0.1689 | 0.9965 | 0.525154 vs 0.541243 |
+| 83 | 0.394649 | 0.397436 | +0.002787 [-0.001818, +0.007392] | 0.2098 | 0.9965 | 0.529289 vs 0.537209 |
+
+Both intervals cross zero, and secondary metrics decline. At cap 167, PTO to joint macro-F1 is 0.477342 to 0.463106 and weighted-F1 is 0.558474 to 0.544105. At cap 83, they are 0.461807 to 0.454928 and 0.550888 to 0.545200. The registered exploratory lead rule fails at both caps (`exploratory_signal_by_cap` is false for both in the scorer JSON).
+
+The source of the small point-estimate movement remains uncertain. At cap 167, pooled-only cc-F1 is 0.491297 and PHR snapshot cc-F1 is 0.494778. Joint minus pooled-only is +0.004352 [0.002436, 0.006267], but that contrast is descriptive and outside the registered six-test Holm family. At cap 83, pooled-only is 0.396321 and PHR 0.396878; joint minus pooled-only is +0.001115 [-0.001936, 0.004165]. The method must not be selected from these repeatedly viewed development outcomes.
+
+Training and intervention logs: all 72/72 joint snapshot opportunities at each cap applied a step. Mean radius was 0.01305 at cap 167 and 0.00733 at cap 83, versus 0.1 in the earlier harmful fixed-dose study. Mean raw class-1 calls fell from about 231.4 to 180.4 and 202.6, rather than to roughly 15-17 under the 0.1 policy. Joint versus PTO exchanged 181 selected slots across seeds at cap 167 (81 correct entries, 72 correct exits) and 63 at cap 83 (44 correct entries, 39 exits). All 12 seeds chose best stop epoch 1; mean training loss declined 0.9296 to 0.0995 while mean stop loss rose 1.2222 to 2.0836. The loss divergence is a plausible generalization bottleneck, not a causal explanation proven by this block. Independent log recount: `C:/Users/roeym/.codex/rebuild-audit-20260922/boundary_full_log_audit_20261001.json`.
+
+Two failed scorer attempts are preserved. Release `3aef5348` stopped before label scoring because the scorer replayed a PHR dual in Python double precision while the runner used FP32, with a 1.14e-6 gap against a 1e-6 tolerance. The scorer-only FP32 correction `0ec08b0e` passed that gate but failed source provenance after a later ViT runner-file change. The final `31d50d05` scorer pinned the original runner identity and passed all gates on the unchanged 12 completed runs; no seed was repeated or tolerance relaxed. See [fmow_boundary_scorer_fp32_amendment_20261001.md](fmow_boundary_scorer_fp32_amendment_20261001.md) and the original failure receipts under `C:/Users/roeym/.codex/rebuild-audit-20260922/`.
+
+Interpretation: smaller dose prevented the old raw-call collapse, but it did not establish better deployed class-1 selection than the strong zero-step, country-aware PTO baseline and it harmed accuracy and average-class scores. This is a negative/inconclusive local result, not a claimed new best model. It is a snapshot-side-step comparison, not matched persistent full ALM training.
