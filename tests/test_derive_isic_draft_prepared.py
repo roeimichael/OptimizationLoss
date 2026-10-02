@@ -7,7 +7,9 @@ import pytest
 from PIL import Image
 
 from analysis.derive_isic_draft_prepared import derive
-from tralo.tabular_image_data import ISIC_DRAFT_POLICY, load_runner_cohort
+from analysis.derive_isic_cached_prepared import derive as derive_cached
+from tralo.tabular_image_data import (ISIC_CACHED_DRAFT_POLICY,
+                                      ISIC_DRAFT_POLICY, load_runner_cohort)
 
 
 def _sha(path):
@@ -56,3 +58,16 @@ def test_derived_isic_cohort_preserves_split_and_private_targets(tmp_path):
         "runner_manifest_sha256"] == _sha(new / "manifest.json")
     with pytest.raises(FileExistsError):
         derive(old, new)
+    cached_root = tmp_path / "cached"
+    cached_receipt = derive_cached(new, cached_root)
+    cached_manifest, cached_rows = load_runner_cohort(cached_root, "isic2020")
+    assert cached_rows == records
+    assert cached_manifest["decode_policy"] == ISIC_CACHED_DRAFT_POLICY
+    assert cached_receipt["origin_sha256"] == _sha(new / "manifest.json")
+    for split in records:
+        assert ((cached_root / "runner" / f"{split}.jsonl").read_bytes() ==
+                (new / "runner" / f"{split}.jsonl").read_bytes())
+    assert ((cached_root / "scorer/development_labels.jsonl").read_bytes() ==
+            labels.read_bytes())
+    with pytest.raises(FileExistsError):
+        derive_cached(new, cached_root)

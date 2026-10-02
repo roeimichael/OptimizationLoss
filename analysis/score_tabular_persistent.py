@@ -20,7 +20,8 @@ from tralo.knee_experiment import digest, save, source
 from tralo.metrics import classification_metrics
 from tralo.tabular_backbones import (configure_fp32, image_transforms,
                                       make_binary_model)
-from tralo.tabular_image_data import (ISIC_DRAFT_POLICY, PreparedImageRows,
+from tralo.tabular_image_data import (ISIC_CACHED_DRAFT_POLICY,
+                                      ISIC_DRAFT_POLICY, PreparedImageRows,
                                       load_runner_cohort)
 from tralo.tabular_persistent_train import (ARMS, CORRECTION_STEP_SIZE,
                                              EPOCHS, MAX_DISPLACEMENT,
@@ -343,8 +344,13 @@ def score(full_root, prepared_root, output):
     root = Path(full_root)
     prepared_manifest = _json(Path(prepared_root) / "manifest.json")
     policy = prepared_manifest.get("decode_policy")
-    allowed = ((tuple(range(6811, 6815)), tuple(range(6821, 6825)))
-               if policy == ISIC_DRAFT_POLICY else (FULL_SEEDS,))
+    if policy == ISIC_DRAFT_POLICY:
+        allowed = (tuple(range(6811, 6815)), tuple(range(6821, 6825)))
+    elif policy == ISIC_CACHED_DRAFT_POLICY:
+        allowed = (tuple(range(6831, 6835)), tuple(range(6841, 6845)),
+                   tuple(range(6851, 6855)))
+    else:
+        allowed = (FULL_SEEDS,)
     found = {path.name for path in root.iterdir() if path.is_dir()}
     blocks = [block for block in allowed if found ==
               {f"seed{seed}" for seed in block}]
@@ -362,10 +368,11 @@ def score(full_root, prepared_root, output):
             row["quotas"] != first["quotas"] or
             row["sample_ids"] != first["sample_ids"]
             for seed, row in zip(seeds, audited)) or
-            (policy == ISIC_DRAFT_POLICY and
+            (policy in (ISIC_DRAFT_POLICY, ISIC_CACHED_DRAFT_POLICY) and
              (first["config"]["dataset"] != "isic2020" or
               first["config"]["backbone"] !=
-              ("mobilenet_v3_large" if seeds[0] == 6811 else "vit_b_16")))):
+              ("mobilenet_v3_large" if seeds[0] in (6811, 6831) else
+               "convnext_tiny" if seeds[0] == 6841 else "vit_b_16")))):
         raise RuntimeError("fixed seed/data/backbone parity failed before labels")
     if sum(row["elapsed_seconds"] for row in audited) / 3600 > 96:
         raise RuntimeError("complete block exceeds aggregate weekend ceiling")

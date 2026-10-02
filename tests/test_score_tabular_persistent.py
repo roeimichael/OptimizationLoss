@@ -5,7 +5,7 @@ import json
 import pytest
 
 from analysis import score_tabular_persistent as scorer
-from tralo.tabular_image_data import ISIC_DRAFT_POLICY
+from tralo.tabular_image_data import ISIC_CACHED_DRAFT_POLICY, ISIC_DRAFT_POLICY
 
 
 def test_partial_fixed_block_stops_before_private_development_labels(
@@ -29,6 +29,20 @@ def test_partial_draft_seed_block_stops_before_private_labels(tmp_path, monkeypa
     prepared.mkdir()
     (prepared / "manifest.json").write_text(
         json.dumps({"decode_policy": ISIC_DRAFT_POLICY}), encoding="utf-8")
+    monkeypatch.setattr(scorer, "_private_labels", lambda *_a, **_kw:
+                        pytest.fail("private labels opened for partial block"))
+    with pytest.raises(RuntimeError, match="complete fixed four-seed block"):
+        scorer.score(full, prepared, tmp_path / "score.json")
+
+
+def test_partial_cached_seed_block_stops_before_private_labels(tmp_path, monkeypatch):
+    full = tmp_path / "full"
+    full.mkdir()
+    (full / "seed6831").mkdir()
+    prepared = tmp_path / "prepared"
+    prepared.mkdir()
+    (prepared / "manifest.json").write_text(
+        json.dumps({"decode_policy": ISIC_CACHED_DRAFT_POLICY}), encoding="utf-8")
     monkeypatch.setattr(scorer, "_private_labels", lambda *_a, **_kw:
                         pytest.fail("private labels opened for partial block"))
     with pytest.raises(RuntimeError, match="complete fixed four-seed block"):

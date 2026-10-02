@@ -1,0 +1,7 @@
+{
+  "backbone": "convnext_tiny",
+  "dataset": "isic2020",
+  "pilot": false,
+  "seed": 6842,
+  "study": "tabular_persistent_v1"
+}

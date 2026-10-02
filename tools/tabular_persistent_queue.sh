@@ -8,7 +8,7 @@ SHA=$1 ROOT=$2 GPU=$3 DATASET=$4 BACKBONE=$5 BASE=${6:-6800}
 [[ $SHA =~ ^[0-9a-f]{40}$ && $ROOT = /* && $ROOT != / && $GPU =~ ^[0-9]+$ ]] || fail "invalid identity"
 [[ $DATASET = isic2020 || $DATASET = celeba ]] || fail "unfrozen dataset"
 [[ $BACKBONE = mobilenet_v3_large || $BACKBONE = vit_b_16 || $BACKBONE = convnext_tiny ]] || fail "unfrozen backbone"
-[[ $BASE = 6800 || ( $DATASET = isic2020 && ( $BASE = 6810 || $BASE = 6820 ) ) ]] || fail "unfrozen seed block"
+[[ $BASE = 6800 || ( $DATASET = isic2020 && ( $BASE = 6810 || $BASE = 6820 || $BASE = 6830 || $BASE = 6840 || $BASE = 6850 ) ) ]] || fail "unfrozen seed block"
 
 REL=/home/dsi/michaer8/tralo-rebuild/releases/$SHA
 RUNS=/tmp/tralo-weekend-michaer8-20261001/runs
@@ -20,6 +20,9 @@ case $DATASET in
             [[ $BASE = 6800 ]] || DATA=/tmp/tralo-isic2020-michaer8-20261001/prepared_v3_jpegdraft256 ;;
   celeba) DATA=/tmp/tralo-celeba-michaer8-20261001/prepared_v2 ;;
 esac
+if [[ $DATASET = isic2020 && ( $BASE = 6830 || $BASE = 6840 || $BASE = 6850 ) ]]; then
+  DATA=/tmp/tralo-isic2020-michaer8-20261001/prepared_v4_rgbcache
+fi
 [[ -d $REL && -d $DATA && -x $PY && -d $CONFIGS ]] || fail "release/data/Python missing"
 RUNS_CANON=$(realpath -e -- "$RUNS") || fail "run parent missing"
 ROOT_CANON=$(realpath -m -- "$ROOT") || fail "bad run root"
@@ -36,6 +39,13 @@ check_free() {
   [[ $current = "$UUID" ]] || fail "selected GPU UUID changed"
   pids=$(nvidia-smi -i "$UUID" --query-compute-apps=pid --format=csv,noheader 2>/dev/null) || fail "GPU process query failed"
   [[ -z $(printf '%s\n' "$pids" | sed '/^[[:space:]]*$/d') ]] || fail "GPU occupied by compute PID(s): $pids"
+}
+check_cache_memory() {
+  if [[ $DATASET = isic2020 && ( $BASE = 6830 || $BASE = 6840 || $BASE = 6850 ) ]]; then
+    local available
+    available=$(awk '/^MemAvailable:/ { print $2 }' /proc/meminfo) || fail "host memory unavailable"
+    [[ $available =~ ^[0-9]+$ && $available -ge 83886080 ]] || fail "cached image cell needs at least 80 GiB available host memory"
+  fi
 }
 check_release() {
   [[ $(git -c gc.auto=0 -C "$REL" rev-parse HEAD 2>/dev/null) = "$SHA" ]] || fail "release HEAD changed"
@@ -64,6 +74,7 @@ for seed in range(int(base), int(base) + 5):
 assert len(quota) == 2 and manifest['dataset'] == dataset
 PY
 check_free
+check_cache_memory
 LOCKS=$REGISTRY/.fmow-persistent-local-gpu-locks
 CLAIMS=$REGISTRY/.tabular-persistent-claims
 mkdir "$LOCKS" 2>/dev/null || [[ -d $LOCKS && ! -L $LOCKS ]] || fail "shared lock directory unavailable"
@@ -81,6 +92,7 @@ run_seed() {
   local SEED=$1 PHASE=$2 OUT=$3 CONFIG LOG LAUNCH COMPLETE CLAIM START END RC LIMIT
   check_release
   check_free
+  check_cache_memory
   CONFIG=$CONFIGS/${DATASET}_${BACKBONE}_${SEED}.json
   [[ -f $CONFIG && ! -L $CONFIG ]] || fail "missing or linked config"
   CLAIM=$CLAIMS/${DATASET}_${BACKBONE}_${SEED}

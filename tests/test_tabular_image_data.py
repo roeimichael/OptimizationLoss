@@ -6,7 +6,8 @@ import json
 import pytest
 from PIL import Image
 
-from tralo.tabular_image_data import (ISIC_DRAFT_POLICY, PreparedImageRows,
+from tralo.tabular_image_data import (ISIC_CACHED_DRAFT_POLICY,
+                                      ISIC_DRAFT_POLICY, PreparedImageRows,
                                       load_runner_cohort)
 
 
@@ -92,3 +93,25 @@ def test_decoder_policy_cannot_be_applied_to_other_dataset(tmp_path):
     (root / "manifest.json").write_text(json.dumps(manifest))
     with pytest.raises(RuntimeError, match="decoder policy"):
         load_runner_cohort(root, "celeba")
+    manifest["decode_policy"] = ISIC_CACHED_DRAFT_POLICY
+    (root / "manifest.json").write_text(json.dumps(manifest))
+    with pytest.raises(RuntimeError, match="decoder policy"):
+        load_runner_cohort(root, "celeba")
+
+
+def test_cached_isic_pixels_match_draft_and_cannot_be_mutated(tmp_path):
+    path = tmp_path / "one.jpg"
+    Image.new("RGB", (1600, 1000), (51, 91, 131)).save(path)
+    row = [{"sample_id": "one", "file": path.name, "group": "female", "label": 1}]
+    reader = lambda policy, transform: PreparedImageRows(
+        tmp_path, row, transform, policy)
+    cold = reader(ISIC_DRAFT_POLICY, lambda image: image.tobytes())[0][0]
+    cached = reader(ISIC_CACHED_DRAFT_POLICY, lambda image: image.tobytes())
+    assert cached[0][0] == cold == cached[0][0]
+
+    def mutate(image):
+        image.putpixel((0, 0), (255, 255, 255))
+        return image.tobytes()
+
+    assert reader(ISIC_CACHED_DRAFT_POLICY, mutate)[0][0] != cold
+    assert cached[0][0] == cold

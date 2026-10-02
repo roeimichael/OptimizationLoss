@@ -259,6 +259,34 @@ host-local path, plus release parity, fresh physical UUID/PID inspection and
 the real-image GPU smoke on dsisco01 before any seed claim. A failed or partial
 copy is not a valid cohort. Shared seed claims prevent cross-host duplicates.
 
+### Prospective decoded-RGB cache, separate from the live JPEG-draft cell
+
+The fresh seed 6810 JPEG-draft pilot remains immutable. Its first two PTO
+epochs required 445 and 524 seconds, so decoder overhead may still prevent a
+six-arm pilot and four fixed seeds from fitting their prespecified time caps.
+This is a compute observation, not a development-quality observation. A
+read-only 64-image probe on dsisco01 measured median cold JPEG-draft decode
+of 22.4 ms versus 0.20 ms to copy the identical decoded RGB pixels. The
+estimated full 33,126-image cache is 34.7 GiB on a host with 358.7 GiB
+available at the probe. The probe verified pixel-byte parity but does not
+predict full training wall time.
+
+An isolated cache policy may reuse the exact draft-decoded RGB pixels across
+arms within one process. It copies cached pixels before each stochastic
+training transform; the original JPEG bytes, train/stop/development rows,
+private labels, groups, caps, weights, optimizers, six arms, six epochs and
+allocator remain unchanged. The derived prepared manifest records the source
+draft manifest hash and copies all public and private rows byte-for-byte.
+The host must have at least 80 GiB available before each cached seed claim.
+The fresh prospective seed blocks are 6830 pilot/6831-6834 MobileNetV3,
+6840 pilot/6841-6844 ConvNeXt-Tiny and 6850 pilot/6851-6854 ViT-B/16.
+These are *unclaimed plans*: no cached training begins until focused/native
+tests, exact real-image cold/cache tensor parity, both-host immutable release
+parity, label-blind source/data/gradient smoke, physical GPU ownership and
+measured first-run cost gates pass. A backbone whose lower bound exceeds its
+six-hour per-job or 24-hour cell ceiling does not start merely to occupy a GPU.
+No pilot development score may select whether to use the cache or a backbone.
+
 1. Forensically close the timed-out knee ViT queue. Preserve seed6705/6709
    partial roots, do not reuse their IDs, and independently gate seed6708.
 2. Review the already prepared persistent fMoW runner/scorer and its negative
