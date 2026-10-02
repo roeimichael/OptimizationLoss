@@ -34,3 +34,29 @@ retaining the failed attempt. A passing gate is a data/model integrity result,
 not evidence that TraLO improves classification. Only the originally fixed,
 conditional 6831–6834 block may be considered after the gate and measured
 cost check; no pilot score may decide that.
+
+## Re-audit outcome
+
+The scorer-only change was committed and deployed as immutable release
+`53435a48be183bb34962d0625fdcccb4bcd88672`; both hosts had identical
+tracked-file hashes and passed the focused native tests and CLI check. The
+exclusive re-audit of the **same** seed 6830 ran on dsisco01 GPU1 and failed
+at a later, independent label-blind gate. It did not open development labels.
+The cached pilot made **zero applied constraint corrections in all four treated
+arms** across five opportunities each. Every attempt was rejected by the
+original 0.10 parameter-displacement veto: proposed displacements ranged
+0.902–2.220 for level-1 TraLO, 3.750–20.789 for level-1 PHR, 1.391–2.028
+for level-2 TraLO, and 0.340–3.082 for level-2 PHR. The PTO and sham arms
+correctly made zero scheduled corrections. The pilot took 6,382 seconds;
+four analogous seeds would project about 7.09 aggregate GPU-hours *before*
+any changed method or contention allowance, but cost feasibility cannot
+override an inactive-arm failure.
+
+The new failed-gate launch, completion, log and unchanged pilot summary were
+copied with SHA-256 manifest to
+`C:/Users/roeym/.codex/rebuild-audit-20260922/isic_cached_pilot6830_reaudit_53435a48`.
+The original probability-replay failure is also retained. Fixed seeds
+6831–6834 remain **unclaimed and unscored**. Any next pilot must be a new,
+prospectively specified dose condition with fresh seed IDs and release,
+analytic/real-image gradient checks, matched controls, and a finite ceiling;
+it cannot be presented as a continuation of the original six-epoch condition.
