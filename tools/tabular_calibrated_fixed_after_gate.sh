@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Continue only the four unclaimed fixed seeds after a separate, successful
 # label-blind pilot re-audit. Never re-run the completed pilot.
-# Usage: bash tools/tabular_calibrated_fixed_after_gate.sh SCRIPT_SHA DATASET GPU_INDEX GATE_JSON
+# Usage: bash tools/tabular_calibrated_fixed_after_gate.sh SCRIPT_SHA DATASET GPU_INDEX GATE_JSON [--check-only]
 set -euo pipefail
 fail() { echo "$*" >&2; exit 2; }
-[[ $# -eq 4 ]] || fail "expected SCRIPT_SHA DATASET GPU_INDEX GATE_JSON"
+[[ $# -ge 4 && $# -le 5 ]] || fail "expected SCRIPT_SHA DATASET GPU_INDEX GATE_JSON [--check-only]"
+MODE=${5:-run}
+[[ $MODE = run || $MODE = --check-only ]] || fail "invalid mode"
 SCRIPT_SHA=$1 DATASET=$2 GPU=$3 GATE_SOURCE=$4
 [[ $SCRIPT_SHA =~ ^[0-9a-f]{40}$ && $GPU =~ ^[0-9]+$ && $GATE_SOURCE = /* ]] || fail "invalid identity"
 RUNNER_SHA=034ae537bd6eb0a474eff286ea5225471a260e2c
@@ -110,6 +112,25 @@ for SEED in $(seq "$((BASE+1))" "$((BASE+4))"); do
      ! -e $ROOT/full_${SEED}.log && ! -e $ROOT/full_${SEED}.complete.json ]] ||
     fail "fixed seed already claimed: $SEED"
 done
+PILOT_START=$("$PY" - "$ROOT/pilot_${BASE}.launch.json" <<'PY'
+import json,sys
+from datetime import datetime
+print(int(datetime.fromisoformat(json.load(open(sys.argv[1]))['started_utc']).timestamp()))
+PY
+)
+PILOT_SECONDS=$("$PY" - "$ROOT/pilot_${BASE}.complete.json" <<'PY'
+import json,sys
+print(int(json.load(open(sys.argv[1]))['elapsed_seconds']))
+PY
+)
+MAX_CELL_SECONDS=86400
+MAX_JOB_SECONDS=21600
+REMAINING=$((MAX_CELL_SECONDS - $(date +%s) + PILOT_START))
+(( REMAINING > PILOT_SECONDS * 4 * 3 / 2 )) || fail "insufficient measured cell budget for fixed block"
+if [[ $MODE = --check-only ]]; then
+  echo "preflight_pass dataset=$DATASET base=$BASE gpu_uuid=$UUID remaining_seconds=$REMAINING pilot_seconds=$PILOT_SECONDS"
+  exit 0
+fi
 mkdir "$ROOT/.fixed-continuation-claim" || fail "fixed continuation claim collision"
 "$PY" - "$GATE_SOURCE" "$ROOT/pilot_gate.json" <<'PY' || fail "gate receipt preservation failed"
 from pathlib import Path
@@ -132,19 +153,6 @@ with open(path,'x',encoding='utf-8') as stream:
               stream,sort_keys=True,indent=2)
     stream.write('\n')
 PY
-PILOT_START=$("$PY" - "$ROOT/pilot_${BASE}.launch.json" <<'PY'
-import json,sys
-from datetime import datetime
-print(int(datetime.fromisoformat(json.load(open(sys.argv[1]))['started_utc']).timestamp()))
-PY
-)
-PILOT_SECONDS=$("$PY" - "$ROOT/pilot_${BASE}.complete.json" <<'PY'
-import json,sys
-print(int(json.load(open(sys.argv[1]))['elapsed_seconds']))
-PY
-)
-MAX_CELL_SECONDS=86400
-MAX_JOB_SECONDS=21600
 for SEED in $(seq "$((BASE+1))" "$((BASE+4))"); do
   REMAINING=$((MAX_CELL_SECONDS - $(date +%s) + PILOT_START))
   (( REMAINING > PILOT_SECONDS * 6 / 5 )) || fail "insufficient cell budget before fixed seed"
