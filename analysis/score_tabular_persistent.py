@@ -60,6 +60,14 @@ def _finite(value, name, *, minimum=None):
         raise RuntimeError("invalid " + name)
 
 
+def _expected_proposed_displacement(config, arm, gradient_norm):
+    if arm in ("pto", "sham"):
+        if gradient_norm != 0.0:
+            raise RuntimeError("zero-correction control has nonzero gradient")
+        return 0.0
+    return correction_step_size_for_arm(config, arm) * gradient_norm
+
+
 def _private_labels(prepared_root, expected_ids, manifest_sha):
     """The only function that opens development targets; call after all gates."""
     root = Path(prepared_root)
@@ -163,7 +171,8 @@ def audit_seed(run_root, prepared_root, *, replay=True):
                         "correction gradient", minimum=0)
                 if dose["actual_displacement_norm"] > MAX_DISPLACEMENT * (1 + 1e-5):
                     raise RuntimeError("constraint correction exceeded frozen dose")
-                expected_proposed = (correction_step_size_for_arm(config, name) *
+                expected_proposed = _expected_proposed_displacement(
+                    config, name,
                     correction["gradient"]["parameter_gradient_norm"])
                 if (abs(dose["proposed_displacement_norm"] - expected_proposed) >
                         1e-7 * max(1.0, expected_proposed) or

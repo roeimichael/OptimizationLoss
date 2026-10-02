@@ -1,11 +1,24 @@
 """A partial block cannot access private development labels."""
 
 import json
+from pathlib import Path
 
 import pytest
 
 from analysis import score_tabular_persistent as scorer
 from tralo.tabular_image_data import ISIC_CACHED_DRAFT_POLICY, ISIC_DRAFT_POLICY
+
+
+def test_calibrated_dose_audit_accepts_zero_step_controls_and_checks_treated_scale():
+    config = json.loads((Path(__file__).parents[1] / "experiments" / "configs" /
+                         "tabular_persistent_20261002" /
+                         "isic2020_mobilenet_v3_large_6890.json").read_text())
+    for arm in ("pto", "sham"):
+        assert scorer._expected_proposed_displacement(config, arm, 0.0) == 0.0
+        with pytest.raises(RuntimeError, match="nonzero gradient"):
+            scorer._expected_proposed_displacement(config, arm, 1.0)
+    for arm, step in config["correction_step_sizes"].items():
+        assert scorer._expected_proposed_displacement(config, arm, 2.0) == 2 * step
 
 
 def test_partial_fixed_block_stops_before_private_development_labels(
