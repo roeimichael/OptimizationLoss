@@ -29,25 +29,53 @@ from .tabular_quota_policy import caps_for_unlabeled_pool
 
 
 STUDY = "tabular_persistent_v1"
+CALIBRATED_STUDY = "tabular_persistent_dose_calibrated_v2"
 EPOCHS = 6
 BACKBONES = {"mobilenet_v3_large": (32, 1e-4),
              "vit_b_16": (8, 2e-5), "convnext_tiny": (16, 5e-5)}
 ARMS = ("pto", "sham", "level1_tralo", "level1_phr",
         "level2_tralo", "level2_phr")
 CORRECTION_STEP_SIZE = 0.01
+CALIBRATED_STEP_SIZES = {
+    "celeba": {"level1_tralo": 0.0045, "level1_phr": 0.0027,
+               "level2_tralo": 0.0074, "level2_phr": 0.0112},
+    "isic2020": {"level1_tralo": 0.00036, "level1_phr": 0.000038,
+                 "level2_tralo": 0.00039, "level2_phr": 0.00025},
+}
 MAX_DISPLACEMENT = 0.1
 RHO = 0.5
 MULTIPLIER = 1.0
 
 
 def validate_config(config):
-    if (not isinstance(config, dict) or set(config) !=
-            {"study", "dataset", "backbone", "seed", "pilot"} or
-            config["study"] != STUDY or config["dataset"] not in
-            ("isic2020", "celeba") or config["backbone"] not in BACKBONES or
+    base = {"study", "dataset", "backbone", "seed", "pilot"}
+    if (not isinstance(config, dict) or not base <= set(config) or
+            config["dataset"] not in ("isic2020", "celeba") or
+            config["backbone"] not in BACKBONES or
             type(config["seed"]) is not int or config["seed"] < 0 or
             type(config["pilot"]) is not bool):
         raise ValueError("unfrozen tabular training configuration")
+    if config["study"] == STUDY and set(config) == base:
+        return
+    calibrated = (config["study"] == CALIBRATED_STUDY and
+                  set(config) == base | {"correction_step_sizes"} and
+                  config["backbone"] == "mobilenet_v3_large" and
+                  ((config["dataset"] == "celeba" and
+                    config["seed"] in range(6880, 6885) and
+                    config["pilot"] == (config["seed"] == 6880)) or
+                   (config["dataset"] == "isic2020" and
+                    config["seed"] in range(6890, 6895) and
+                    config["pilot"] == (config["seed"] == 6890))) and
+                  config["correction_step_sizes"] ==
+                  CALIBRATED_STEP_SIZES[config["dataset"]])
+    if not calibrated:
+        raise ValueError("unfrozen tabular training configuration")
+
+
+def correction_step_size_for_arm(config, arm):
+    if config.get("study") == CALIBRATED_STUDY:
+        return config["correction_step_sizes"][arm]
+    return CORRECTION_STEP_SIZE
 
 
 def _sha(value):
@@ -215,7 +243,8 @@ def _run_arm(name, initial, rows, image_dir, orders, train_tf, eval_tf,
                         model, pool_batches, pool_groups, quota, method,
                         multipliers=multipliers, dual=dual, rho=RHO)
                     correction = apply_fixed_correction(
-                        model, CORRECTION_STEP_SIZE, MAX_DISPLACEMENT)
+                        model, correction_step_size_for_arm(config, name),
+                        MAX_DISPLACEMENT)
                     if method == "phr":
                         dual = gradient["next_dual"]
                 else:

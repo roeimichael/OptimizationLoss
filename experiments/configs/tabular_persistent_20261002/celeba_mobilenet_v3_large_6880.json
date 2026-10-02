@@ -1,0 +1,13 @@
+{
+  "backbone": "mobilenet_v3_large",
+  "correction_step_sizes": {
+    "level1_tralo": 0.0045,
+    "level1_phr": 0.0027,
+    "level2_tralo": 0.0074,
+    "level2_phr": 0.0112
+  },
+  "dataset": "celeba",
+  "pilot": true,
+  "seed": 6880,
+  "study": "tabular_persistent_dose_calibrated_v2"
+}

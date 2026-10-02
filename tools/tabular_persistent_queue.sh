@@ -8,7 +8,10 @@ SHA=$1 ROOT=$2 GPU=$3 DATASET=$4 BACKBONE=$5 BASE=${6:-6800}
 [[ $SHA =~ ^[0-9a-f]{40}$ && $ROOT = /* && $ROOT != / && $GPU =~ ^[0-9]+$ ]] || fail "invalid identity"
 [[ $DATASET = isic2020 || $DATASET = celeba ]] || fail "unfrozen dataset"
 [[ $BACKBONE = mobilenet_v3_large || $BACKBONE = vit_b_16 || $BACKBONE = convnext_tiny ]] || fail "unfrozen backbone"
-[[ $BASE = 6800 || ( $DATASET = isic2020 && ( $BASE = 6810 || $BASE = 6820 || $BASE = 6830 || $BASE = 6840 || $BASE = 6850 ) ) ]] || fail "unfrozen seed block"
+[[ $BASE = 6800 ||
+   ( $DATASET = celeba && $BACKBONE = mobilenet_v3_large && $BASE = 6880 ) ||
+   ( $DATASET = isic2020 && ( $BASE = 6810 || $BASE = 6820 || $BASE = 6830 || $BASE = 6840 || $BASE = 6850 ||
+     ( $BASE = 6890 && $BACKBONE = mobilenet_v3_large ) ) ) ]] || fail "unfrozen seed block"
 
 REL=/home/dsi/michaer8/tralo-rebuild/releases/$SHA
 RUNS=/tmp/tralo-weekend-michaer8-20261001/runs
@@ -20,7 +23,7 @@ case $DATASET in
             [[ $BASE = 6800 ]] || DATA=/tmp/tralo-isic2020-michaer8-20261001/prepared_v3_jpegdraft256 ;;
   celeba) DATA=/tmp/tralo-celeba-michaer8-20261001/prepared_v2 ;;
 esac
-if [[ $DATASET = isic2020 && ( $BASE = 6830 || $BASE = 6840 || $BASE = 6850 ) ]]; then
+if [[ $DATASET = isic2020 && ( $BASE = 6830 || $BASE = 6840 || $BASE = 6850 || $BASE = 6890 ) ]]; then
   DATA=/tmp/tralo-isic2020-michaer8-20261001/prepared_v4_rgbcache
 fi
 [[ -d $REL && -d $DATA && -x $PY && -d $CONFIGS ]] || fail "release/data/Python missing"
@@ -41,7 +44,7 @@ check_free() {
   [[ -z $(printf '%s\n' "$pids" | sed '/^[[:space:]]*$/d') ]] || fail "GPU occupied by compute PID(s): $pids"
 }
 check_cache_memory() {
-  if [[ $DATASET = isic2020 && ( $BASE = 6830 || $BASE = 6840 || $BASE = 6850 ) ]]; then
+  if [[ $DATASET = isic2020 && ( $BASE = 6830 || $BASE = 6840 || $BASE = 6850 || $BASE = 6890 ) ]]; then
     local available
     available=$(awk '/^MemAvailable:/ { print $2 }' /proc/meminfo) || fail "host memory unavailable"
     [[ $available =~ ^[0-9]+$ && $available -ge 83886080 ]] || fail "cached image cell needs at least 80 GiB available host memory"

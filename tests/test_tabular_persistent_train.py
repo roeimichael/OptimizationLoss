@@ -10,6 +10,8 @@ from torchvision import transforms
 from tralo.tabular_image_data import PreparedImageRows
 from tralo.tabular_persistent_train import (_orders, _pool_batches,
                                              _run_arm, _train_epoch,
+                                             CALIBRATED_STEP_SIZES,
+                                             correction_step_size_for_arm,
                                              validate_config)
 from tralo.events import EventLog
 
@@ -20,6 +22,22 @@ def test_frozen_config_rejects_unregistered_fields():
     validate_config(config)
     with pytest.raises(ValueError, match="unfrozen"):
         validate_config({**config, "learning_rate": 1.0})
+
+
+def test_calibrated_config_freezes_dataset_arm_dose_and_fresh_seeds():
+    config = {"study": "tabular_persistent_dose_calibrated_v2",
+              "dataset": "celeba", "backbone": "mobilenet_v3_large",
+              "seed": 6880, "pilot": True,
+              "correction_step_sizes": CALIBRATED_STEP_SIZES["celeba"].copy()}
+    validate_config(config)
+    assert correction_step_size_for_arm(config, "level1_tralo") == 0.0045
+    assert correction_step_size_for_arm(config, "level1_phr") == 0.0027
+    for invalid in ({**config, "seed": 6800},
+                    {**config, "correction_step_sizes": {
+                        **config["correction_step_sizes"], "level1_tralo": 0.01}},
+                    {**config, "pilot": False}):
+        with pytest.raises(ValueError, match="unfrozen"):
+            validate_config(invalid)
 
 
 def test_two_arms_use_exact_same_stochastic_images_and_task_updates(tmp_path):
@@ -52,8 +70,10 @@ def test_constraint_pool_refuses_any_development_target(tmp_path):
         list(_pool_batches(data, 1, torch.device("cpu"))())
 
 
+@pytest.mark.parametrize("calibrated, expected_step", [(False, 0.01),
+                                                    (True, 0.0045)])
 def test_treated_arm_writes_replayable_selected_artifacts_without_dev_labels(
-        tmp_path, monkeypatch):
+        tmp_path, monkeypatch, calibrated, expected_step):
     from tralo import tabular_persistent_train as runner
     image_dir = tmp_path / "images"
     image_dir.mkdir()
@@ -74,15 +94,27 @@ def test_treated_arm_writes_replayable_selected_artifacts_without_dev_labels(
         model[1].weight.zero_()
         model[1].bias.copy_(torch.tensor([0., 2.]))
     monkeypatch.setitem(runner.BACKBONES, "mobilenet_v3_large", (2, 0.001))
+    actual_step = []
+    original_apply = runner.apply_fixed_correction
+    def record_step(model, step, maximum):
+        actual_step.append(step)
+        return original_apply(model, step, maximum)
+    monkeypatch.setattr(runner, "apply_fixed_correction", record_step)
     quotas = {"level1": {"global_cap": 1,
                          "local_caps": {"female": 1, "male": 1}}}
     output = tmp_path / "run"
     output.mkdir()
     with EventLog(output / "events.jsonl") as log:
+        config = {"seed": 6880 if calibrated else 6800,
+                  "backbone": "mobilenet_v3_large"}
+        if calibrated:
+            config.update(study="tabular_persistent_dose_calibrated_v2",
+                          correction_step_sizes=CALIBRATED_STEP_SIZES["celeba"])
         result = _run_arm("level1_tralo", model, rows, image_dir,
                           [[0, 1, 2, 3], [3, 2, 1, 0]], train_tf, eval_tf,
-                          quotas, {"seed": 6800, "backbone": "mobilenet_v3_large"},
+                          quotas, config,
                           output, log, torch.device("cpu"))
+    assert actual_step == [expected_step]
     assert len(result["epochs"]) == 2
     assert result["selected_epoch"] in (1, 2)
     snapshot = torch.load(output / result["probabilities"], weights_only=True)

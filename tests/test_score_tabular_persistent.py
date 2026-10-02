@@ -49,6 +49,23 @@ def test_partial_cached_seed_block_stops_before_private_labels(tmp_path, monkeyp
         scorer.score(full, prepared, tmp_path / "score.json")
 
 
+@pytest.mark.parametrize("seed,policy", [(6881, None),
+                                         (6891, ISIC_CACHED_DRAFT_POLICY)])
+def test_partial_calibrated_block_stops_before_private_labels(
+        tmp_path, monkeypatch, seed, policy):
+    full = tmp_path / "full"
+    full.mkdir()
+    (full / f"seed{seed}").mkdir()
+    prepared = tmp_path / "prepared"
+    prepared.mkdir()
+    (prepared / "manifest.json").write_text(
+        json.dumps({"decode_policy": policy}), encoding="utf-8")
+    monkeypatch.setattr(scorer, "_private_labels", lambda *_a, **_kw:
+                        pytest.fail("private labels opened for partial block"))
+    with pytest.raises(RuntimeError, match="complete fixed four-seed block"):
+        scorer.score(full, prepared, tmp_path / "score.json")
+
+
 def test_weighted_and_group_metrics_include_zero_support_class():
     report = scorer._metrics([0, 0, 1, 1], [0, 1, 1, 0],
                              ["female", "female", "male", "male"])

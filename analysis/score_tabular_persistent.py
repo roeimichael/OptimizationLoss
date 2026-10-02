@@ -23,7 +23,8 @@ from tralo.tabular_backbones import (configure_fp32, image_transforms,
 from tralo.tabular_image_data import (ISIC_CACHED_DRAFT_POLICY,
                                       ISIC_DRAFT_POLICY, PreparedImageRows,
                                       load_runner_cohort)
-from tralo.tabular_persistent_train import (ARMS, BACKBONES, CORRECTION_STEP_SIZE,
+from tralo.tabular_persistent_train import (ARMS, BACKBONES,
+                                             correction_step_size_for_arm,
                                              EPOCHS, MAX_DISPLACEMENT,
                                              _pool_batches, _predict,
                                              validate_config)
@@ -162,7 +163,7 @@ def audit_seed(run_root, prepared_root, *, replay=True):
                         "correction gradient", minimum=0)
                 if dose["actual_displacement_norm"] > MAX_DISPLACEMENT * (1 + 1e-5):
                     raise RuntimeError("constraint correction exceeded frozen dose")
-                expected_proposed = (CORRECTION_STEP_SIZE *
+                expected_proposed = (correction_step_size_for_arm(config, name) *
                     correction["gradient"]["parameter_gradient_norm"])
                 if (abs(dose["proposed_displacement_norm"] - expected_proposed) >
                         1e-7 * max(1.0, expected_proposed) or
@@ -348,9 +349,9 @@ def score(full_root, prepared_root, output):
         allowed = (tuple(range(6811, 6815)), tuple(range(6821, 6825)))
     elif policy == ISIC_CACHED_DRAFT_POLICY:
         allowed = (tuple(range(6831, 6835)), tuple(range(6841, 6845)),
-                   tuple(range(6851, 6855)))
+                   tuple(range(6851, 6855)), tuple(range(6891, 6895)))
     else:
-        allowed = (FULL_SEEDS,)
+        allowed = (FULL_SEEDS, tuple(range(6881, 6885)))
     found = {path.name for path in root.iterdir() if path.is_dir()}
     blocks = [block for block in allowed if found ==
               {f"seed{seed}" for seed in block}]
@@ -371,7 +372,7 @@ def score(full_root, prepared_root, output):
             (policy in (ISIC_DRAFT_POLICY, ISIC_CACHED_DRAFT_POLICY) and
              (first["config"]["dataset"] != "isic2020" or
               first["config"]["backbone"] !=
-              ("mobilenet_v3_large" if seeds[0] in (6811, 6831) else
+              ("mobilenet_v3_large" if seeds[0] in (6811, 6831, 6891) else
                "convnext_tiny" if seeds[0] == 6841 else "vit_b_16")))):
         raise RuntimeError("fixed seed/data/backbone parity failed before labels")
     if sum(row["elapsed_seconds"] for row in audited) / 3600 > 96:
