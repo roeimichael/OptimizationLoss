@@ -21,8 +21,19 @@ configs, original failure evidence, numerical tolerances and label boundary are
 unchanged. A regression test covers both zero-step controls and all four
 calibrated treated scales.
 
-No development quality was scored. A new immutable scorer release must re-audit
-the **same** completed seed 6890. The fixed block remains unclaimed until an
-independent label-blind gate passes and its measured cost is under the cell
-ceiling. The pilot training logs already show nonzero corrections in all four
-treated arms, but they do not establish predictive benefit.
+No development quality was scored. Immutable scorer release
+`2619a5d2e0b8bdab0e4eadb6525ba249a1d9d847` was verified byte-for-byte
+on both DSI hosts and re-audited the **same** completed seed 6890. The
+label-blind gate passed: corrections applied 4/5, 5/5, 2/5 and 3/5 in the four
+treated arms. Its projected four-seed cost is 7.123 GPU-hours, or 10.685 with
+the registered 1.5 safety factor, below the 24 GPU-hour cell ceiling. The
+independent receipt and log are archived offhost in
+`reaudit_isic6890_2619a5d2e0b8bdab0e4eadb6525ba249a1d9d847`.
+
+The fixed seeds 6891–6894 remain unclaimed. They require a separately guarded
+continuation that authenticates the new gate, uses the original immutable runner,
+checks physical GPU ownership before each seed, and never reruns the pilot. The
+pilot training logs show nonzero corrections, but they do not establish
+predictive benefit. Its treated stop losses often exceeded PTO's; the full
+prespecified block, if completed, must report that evidence without selecting
+settings from it.
