@@ -23,7 +23,7 @@ from tralo.tabular_backbones import (configure_fp32, image_transforms,
 from tralo.tabular_image_data import (ISIC_CACHED_DRAFT_POLICY,
                                       ISIC_DRAFT_POLICY, PreparedImageRows,
                                       load_runner_cohort)
-from tralo.tabular_persistent_train import (ARMS, CORRECTION_STEP_SIZE,
+from tralo.tabular_persistent_train import (ARMS, BACKBONES, CORRECTION_STEP_SIZE,
                                              EPOCHS, MAX_DISPLACEMENT,
                                              _pool_batches, _predict,
                                              validate_config)
@@ -136,7 +136,7 @@ def audit_seed(run_root, prepared_root, *, replay=True):
         _training_tf, eval_tf = image_transforms(config["backbone"])
         data = PreparedImageRows(manifest["image_dir"], rows["development_pool"],
                                  eval_tf, manifest.get("decode_policy"))
-        batch_size = 8 if config["backbone"] == "vit_b_16" else 16
+        batch_size = BACKBONES[config["backbone"]][0]
         batches = _pool_batches(data, batch_size, torch.device("cuda"))
     for name in ARMS:
         arm = summary["arms"][name]
