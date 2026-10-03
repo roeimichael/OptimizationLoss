@@ -37,3 +37,14 @@ pilot training logs show nonzero corrections, but they do not establish
 predictive benefit. Its treated stop losses often exceeded PTO's; the full
 prespecified block, if completed, must report that evidence without selecting
 settings from it.
+
+The first continuation script was prepared before the VPN outage. Its 24-hour
+cell guard mistakenly subtracted calendar time since the pilot launched. The
+registered limit is **24 aggregate GPU-hours**, so an idle day without a GPU job
+must not spend that budget. Before any fixed seed was claimed, the guard was
+corrected to sum elapsed seconds from successful, seed-matched completion
+receipts and reject failed or inconsistent receipts. The separate six-hour
+per-job timeout and the 1.5-times pilot cost projection remain in force. This
+is scheduling accounting only; no model, data, scorer, tolerance, label access,
+or scientific setting changed. The original continuation script release is
+preserved and was never deployed to run fixed seeds.

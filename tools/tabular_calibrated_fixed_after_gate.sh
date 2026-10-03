@@ -112,12 +112,6 @@ for SEED in $(seq "$((BASE+1))" "$((BASE+4))"); do
      ! -e $ROOT/full_${SEED}.log && ! -e $ROOT/full_${SEED}.complete.json ]] ||
     fail "fixed seed already claimed: $SEED"
 done
-PILOT_START=$("$PY" - "$ROOT/pilot_${BASE}.launch.json" <<'PY'
-import json,sys
-from datetime import datetime
-print(int(datetime.fromisoformat(json.load(open(sys.argv[1]))['started_utc']).timestamp()))
-PY
-)
 PILOT_SECONDS=$("$PY" - "$ROOT/pilot_${BASE}.complete.json" <<'PY'
 import json,sys
 print(int(json.load(open(sys.argv[1]))['elapsed_seconds']))
@@ -125,7 +119,10 @@ PY
 )
 MAX_CELL_SECONDS=86400
 MAX_JOB_SECONDS=21600
-REMAINING=$((MAX_CELL_SECONDS - $(date +%s) + PILOT_START))
+remaining_cell_seconds() {
+  "$PY" "$SCRIPT_REL/tools/tabular_cell_budget.py" "$ROOT" "$BASE" "$MAX_CELL_SECONDS"
+}
+REMAINING=$(remaining_cell_seconds) || fail "cell GPU-hour accounting failed"
 (( REMAINING > PILOT_SECONDS * 4 * 3 / 2 )) || fail "insufficient measured cell budget for fixed block"
 if [[ $MODE = --check-only ]]; then
   echo "preflight_pass dataset=$DATASET base=$BASE gpu_uuid=$UUID remaining_seconds=$REMAINING pilot_seconds=$PILOT_SECONDS"
@@ -154,7 +151,7 @@ with open(path,'x',encoding='utf-8') as stream:
     stream.write('\n')
 PY
 for SEED in $(seq "$((BASE+1))" "$((BASE+4))"); do
-  REMAINING=$((MAX_CELL_SECONDS - $(date +%s) + PILOT_START))
+  REMAINING=$(remaining_cell_seconds) || fail "cell GPU-hour accounting failed"
   (( REMAINING > PILOT_SECONDS * 6 / 5 )) || fail "insufficient cell budget before fixed seed"
   LIMIT=$REMAINING
   (( LIMIT > MAX_JOB_SECONDS )) && LIMIT=$MAX_JOB_SECONDS
