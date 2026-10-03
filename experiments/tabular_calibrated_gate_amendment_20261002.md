@@ -57,3 +57,25 @@ and its failed check are preserved. The handler was removed from each embedded
 Python block; `set -e` now stops on a Python error. A local test compiles every
 embedded Python block, and the corrected remote preflight must reject an
 invalid gate and accept the authentic gate before any new seed is claimed.
+
+On 2026-10-03, immutable script release
+`4d3d0676209cd854dd8904461aee25e89b9656bd` was deployed byte-identically
+to both hosts. On dsisco01, its genuine ISIC `--check-only` passed and a
+deliberately invalid copy of the gate failed with a nonzero exit. The guarded
+ISIC fixed-seed queue started once at 17:31:46 UTC on the pilot's physical
+GPU. Seed 6891 exited zero, passed its separate label-blind gate, and was
+backed up offhost; 6892 started next. No development quality has been scored.
+
+The completed CelebA seed 6880 was independently re-audited under the same
+corrected scorer on its original physical GPU after that GPU became free.
+Its original `KeyError` failure remains preserved. The corrected label-blind
+gate passed: all four treated arms applied five of five corrections, and the
+four fixed seeds project to 13.516 GPU-hours (20.274 with the frozen 1.5
+safety factor), within the 24 aggregate GPU-hour cell ceiling. The gate receipt
+was copied offhost with matching SHA-256
+`c73c1a2b635c0df0a3572a24aedc3694ed414ffd7386ac2bc7723e053cdf5aa1`.
+The authentic CelebA `--check-only` passed, then its guarded fixed-seed queue
+started once at 20:15:17 UTC on dsisco02 GPU 2. Seed 6881 was running at the
+post-launch inventory. This establishes correction activity and provenance,
+not predictive benefit; the pilot's treated stop losses were substantially
+worse than PTO's, and no CelebA development labels have been opened.
