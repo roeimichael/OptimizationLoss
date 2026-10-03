@@ -63,8 +63,7 @@ check_free
 check_memory
 cd "$RUNNER_REL"
 export PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=8 MKL_NUM_THREADS=8
-"$PY" - "$DATASET" "$BASE" "$ROOT" "$GATE_SOURCE" "$SCORER_REL" "$RUNNER_SHA" "$UUID" "$DATA" <<'PY' ||
-  fail "label-blind pilot, ownership or fixed-config preflight failed"
+"$PY" - "$DATASET" "$BASE" "$ROOT" "$GATE_SOURCE" "$SCORER_REL" "$RUNNER_SHA" "$UUID" "$DATA" <<'PY'
 import json, sys
 from pathlib import Path
 from tralo.knee_experiment import digest, source
@@ -129,15 +128,14 @@ if [[ $MODE = --check-only ]]; then
   exit 0
 fi
 mkdir "$ROOT/.fixed-continuation-claim" || fail "fixed continuation claim collision"
-"$PY" - "$GATE_SOURCE" "$ROOT/pilot_gate.json" <<'PY' || fail "gate receipt preservation failed"
+"$PY" - "$GATE_SOURCE" "$ROOT/pilot_gate.json" <<'PY'
 from pathlib import Path
 import sys
 source, target = map(Path, sys.argv[1:])
 with target.open('xb') as output:
     output.write(source.read_bytes())
 PY
-"$PY" - "$ROOT/fixed_continuation.launch.json" "$SCRIPT_SHA" "$SCORER_SHA" "$RUNNER_SHA" "$GATE_SOURCE" "$UUID" <<'PY' ||
-  fail "continuation launch receipt failed"
+"$PY" - "$ROOT/fixed_continuation.launch.json" "$SCRIPT_SHA" "$SCORER_SHA" "$RUNNER_SHA" "$GATE_SOURCE" "$UUID" <<'PY'
 import json,socket,sys
 from datetime import datetime,timezone
 from tralo.knee_experiment import digest
@@ -167,8 +165,7 @@ for SEED in $(seq "$((BASE+1))" "$((BASE+4))"); do
     fail "fixed seed already claimed: $SEED"
   mkdir "$CLAIM" || fail "atomic fixed seed claim collision: $SEED"
   START=$(date +%s)
-  "$PY" - "$LAUNCH" "$CLAIM/owner.json" "$SEED" "$UUID" "$RUNNER_SHA" "$CONFIG" "$DATA" "$OUT" "$SCRIPT_SHA" "$SCORER_SHA" <<'PY' ||
-    fail "fixed launch receipt failed"
+  "$PY" - "$LAUNCH" "$CLAIM/owner.json" "$SEED" "$UUID" "$RUNNER_SHA" "$CONFIG" "$DATA" "$OUT" "$SCRIPT_SHA" "$SCORER_SHA" <<'PY'
 import json,sys
 from datetime import datetime,timezone
 from pathlib import Path
@@ -192,8 +189,7 @@ PY
   RC=$?
   set -e
   END=$(date +%s)
-  "$PY" - "$COMPLETE" "$SEED" "$RC" "$UUID" "$RUNNER_SHA" "$OUT" "$((END-START))" <<'PY' ||
-    fail "fixed completion receipt failed"
+  "$PY" - "$COMPLETE" "$SEED" "$RC" "$UUID" "$RUNNER_SHA" "$OUT" "$((END-START))" <<'PY'
 import json,sys,socket
 from datetime import datetime,timezone
 path,seed,rc,uuid,sha,out,elapsed=sys.argv[1:]
@@ -219,8 +215,7 @@ PY
   (( GATE_RC == 0 )) && [[ -f $GATE ]] || fail "fixed seed label-blind gate failed; preserve evidence"
   echo "$(date -u +%FT%TZ) GATE $SEED PASSED"
 done
-"$PY" - "$ROOT/fixed_continuation.complete.json" "$SCRIPT_SHA" "$UUID" <<'PY' ||
-  fail "continuation completion receipt failed"
+"$PY" - "$ROOT/fixed_continuation.complete.json" "$SCRIPT_SHA" "$UUID" <<'PY'
 import json,socket,sys
 from datetime import datetime,timezone
 path,sha,uuid=sys.argv[1:]

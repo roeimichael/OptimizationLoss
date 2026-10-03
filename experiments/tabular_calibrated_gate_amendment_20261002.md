@@ -48,3 +48,12 @@ per-job timeout and the 1.5-times pilot cost projection remain in force. This
 is scheduling accounting only; no model, data, scorer, tolerance, label access,
 or scientific setting changed. The original continuation script release is
 preserved and was never deployed to run fixed seeds.
+
+The first remote `--check-only` of the budget-corrected release exposed a
+second script defect: a shell error handler was parsed into the embedded Python
+preflight. Python raised `IndentationError`, yet the shell returned a false
+`preflight_pass`. No seed or continuation was claimed or launched. That release
+and its failed check are preserved. The handler was removed from each embedded
+Python block; `set -e` now stops on a Python error. A local test compiles every
+embedded Python block, and the corrected remote preflight must reject an
+invalid gate and accept the authentic gate before any new seed is claimed.
