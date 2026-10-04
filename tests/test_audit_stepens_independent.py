@@ -53,8 +53,10 @@ def toy_block(root):
         (directory / "manifest.json").write_text(json.dumps(dict(rows=rows)))
         (directory / "events.jsonl").write_text(json.dumps(dict(
             event="model_initialized", architecture="toy", model_class="Tiny")) + "\n")
+        no_step = dict(applied=False, hard_before=1, displacement=0.0)
         step = dict(applied=True, radius=0.01, hard_after=1)
-        steps = {str(e): dict(tralo=dict(step), sham=dict(step)) for e in (1, 2)}
+        steps = {"1": dict(tralo=dict(no_step), sham=dict(no_step)),
+                 "2": dict(tralo=dict(step), sham=dict(step))}
         (directory / "summary.json").write_text(json.dumps(dict(
             seed=seed, retrains=[dict(best_epoch=1, epochs_run=2, snapshot_steps=steps)])))
         for epoch in (1, 2):

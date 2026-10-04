@@ -115,7 +115,7 @@ def preflight(root, architecture, study):
             raise RuntimeError(f"seed{seed}: incomplete snapshot steps")
         for e in range(1, last + 1):
             target, sham = steps[str(e)]["tralo"], steps[str(e)]["sham"]
-            if (target["radius"] != sham["radius"] or target["applied"] != sham["applied"]
+            if (target.get("radius") != sham.get("radius") or target["applied"] != sham["applied"]
                     or (target["applied"] and target["hard_after"] > study["cap"])):
                 raise RuntimeError(f"seed{seed} epoch{e}: unmatched or invalid step")
         window = range(max(1, best - 2), last + 1)
