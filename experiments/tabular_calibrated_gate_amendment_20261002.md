@@ -93,3 +93,28 @@ evidence; it produced no score file. The scorer-only correction sums successful
 pilot and fixed queue durations, validates their ownership and provenance,
 and rejects a sum above 24 GPU-hours. It leaves model training, data, quotas,
 metric definitions, score contrasts and the label boundary unchanged.
+
+Scorer-only release `358bfd3e8925adc7eabc2e1dbc8c53348c091840` passed
+11 relevant tests on each DSI host with identical scorer SHA-256
+`c34bb759d3a4e2cd97c33e61c22c907da29874517ba24acb3e0928671c2bdf8a`.
+It independently replayed the complete fixed ISIC block and scored the
+development pool once. The output is archived offhost as
+`isic2020_mnv3_calibrated_6891_6894_score_358bfd3e8925adc7eabc2e1dbc8c53348c091840.json`
+with SHA-256 `c0e60de9878300e9e14b2352d11982038564e02f8bde111beedb6933e2a13c8c`.
+Successful pilot plus four fixed queue jobs used 9.059 GPU-hours by measured
+receipts; the four fixed runners used 7.268 GPU-hours. Separate independent
+gate/scoring replay time is additional and remains well below the 24 GPU-hour
+cell ceiling. All four fixed seed backups are verified offhost.
+
+The prespecified allocated cc-F1 contrasts, averaged over the four fixed
+seeds with paired 95% t intervals, are:
+
+| Quota | TraLO minus PTO/sham | TraLO minus PHR |
+| --- | ---: | ---: |
+| Level 1 | -0.0061 [-0.0707, +0.0586] | +0.0053 [-0.0790, +0.0896] |
+| Level 2 | +0.0365 [-0.0496, +0.1225] | +0.1010 [-0.0436, +0.2456] |
+
+No contrast excludes zero. Level 2 points toward a possible benefit but is
+imprecise at four seeds; level 1 points slightly against TraLO versus PTO.
+This is viewed-development evidence, not a held-out result or grounds to
+select a setting and spend more compute on the same labels.
