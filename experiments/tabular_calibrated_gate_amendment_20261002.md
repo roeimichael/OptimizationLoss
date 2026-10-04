@@ -79,3 +79,17 @@ started once at 20:15:17 UTC on dsisco02 GPU 2. Seed 6881 was running at the
 post-launch inventory. This establishes correction activity and provenance,
 not predictive benefit; the pilot's treated stop losses were substantially
 worse than PTO's, and no CelebA development labels have been opened.
+
+The ISIC fixed seeds 6891–6894 all exited zero and passed separate label-blind
+gates by 2026-10-04 01:00:06 UTC. The entire cell, including checkpoints and
+receipts, is backed up offhost. The first complete-block score attempt under
+scorer release `2619a5d2e0b8bdab0e4eadb6525ba249a1d9d847` independently
+replayed all four seeds, then stopped before opening development labels with
+`RuntimeError: completed cell wall exceeds fixed 24-hour ceiling`. That stale
+scorer check counted the VPN outage between pilot and fixed seeds as GPU time,
+contrary to the registered **24 aggregate GPU-hour** ceiling and the guarded
+continuation's measured-receipt accounting. The failed score attempt remains
+evidence; it produced no score file. The scorer-only correction sums successful
+pilot and fixed queue durations, validates their ownership and provenance,
+and rejects a sum above 24 GPU-hours. It leaves model training, data, quotas,
+metric definitions, score contrasts and the label boundary unchanged.

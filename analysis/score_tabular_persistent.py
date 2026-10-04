@@ -8,7 +8,6 @@ Only --score opens scorer/development_labels.jsonl, after every seed is gated.
 import hashlib
 import json
 import math
-from datetime import datetime
 from pathlib import Path
 import sys
 
@@ -301,13 +300,16 @@ def _metrics(labels, predictions, groups):
 
 
 def _completed_cell_cost(full_root, audited, pilot_seed):
-    """Authenticate all guarded queue receipts before opening private labels."""
+    """Authenticate guarded receipts and aggregate GPU time before private labels."""
     cell = Path(full_root).parent
     pilot_launch = _json(cell / f"pilot_{pilot_seed}.launch.json")
     pilot_complete = _json(cell / f"pilot_{pilot_seed}.complete.json")
     gate = _json(cell / "pilot_gate.json")
-    if (pilot_launch["seed"] != pilot_seed or pilot_complete["exit_code"] != 0 or
+    if (pilot_launch["seed"] != pilot_seed or
+            pilot_complete["seed"] != pilot_seed or
+            pilot_complete["exit_code"] != 0 or
             pilot_launch["release_commit"] != pilot_complete["release_commit"] or
+            pilot_launch["gpu_uuid"] != pilot_complete["gpu_uuid"] or
             gate["status"] != "label_blind_integrity_pass" or
             gate["seed"] != pilot_seed or
             pilot_launch["prepared_manifest_sha256"] !=
@@ -316,9 +318,10 @@ def _completed_cell_cost(full_root, audited, pilot_seed):
             gate["summary_sha256"] != digest(
                 cell / f"pilot/seed{pilot_seed}/summary.json")):
         raise RuntimeError("pilot launch, completion or gate receipt changed")
-    beginning = datetime.fromisoformat(pilot_launch["started_utc"])
+    pilot_seconds = pilot_complete["elapsed_seconds"]
+    if type(pilot_seconds) is not int or pilot_seconds < 0:
+        raise RuntimeError("invalid pilot queue elapsed seconds")
     elapsed_full = 0
-    last_end = None
     for row in audited:
         seed = row["config"]["seed"]
         launch = _json(cell / f"full_{seed}.launch.json")
@@ -335,16 +338,16 @@ def _completed_cell_cost(full_root, audited, pilot_seed):
                 launch["gpu_uuid"] != complete["gpu_uuid"] or
                 launch["gpu_uuid"] != pilot_launch["gpu_uuid"]):
             raise RuntimeError("full queue cost/ownership provenance changed")
-        _finite(complete["elapsed_seconds"], "queue elapsed", minimum=0)
+        if type(complete["elapsed_seconds"]) is not int or complete["elapsed_seconds"] < 0:
+            raise RuntimeError("invalid full queue elapsed seconds")
         if complete["elapsed_seconds"] + 2 < row["elapsed_seconds"]:
             raise RuntimeError("runner duration exceeds guarded queue receipt")
         elapsed_full += complete["elapsed_seconds"]
-        last_end = datetime.fromisoformat(complete["ended_utc"])
-    cell_wall = (last_end - beginning).total_seconds()
-    if cell_wall < elapsed_full or cell_wall > 86400 + 60:
-        raise RuntimeError("completed cell wall exceeds fixed 24-hour ceiling")
+    cell_seconds = pilot_seconds + elapsed_full
+    if cell_seconds > 86400:
+        raise RuntimeError("completed cell exceeds fixed 24 GPU-hour ceiling")
     return {"full_queue_gpu_hours": elapsed_full / 3600,
-            "cell_lease_gpu_hours_including_pilot_gate": cell_wall / 3600,
+            "cell_queue_gpu_hours_including_pilot": cell_seconds / 3600,
             "pilot_gate_sha256": digest(cell / "pilot_gate.json"),
             "gpu_uuid": pilot_launch["gpu_uuid"],
             "release_commit": pilot_launch["release_commit"]}
