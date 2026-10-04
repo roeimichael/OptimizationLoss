@@ -1,39 +1,113 @@
 \documentclass[11pt,a4paper]{article}
 \usepackage[margin=2.2cm]{geometry}
 \usepackage[T1]{fontenc}
-\usepackage[utf8]{inputenc}
-\usepackage{lmodern}
-\usepackage{amsmath,amssymb}
-\usepackage{booktabs}
-\usepackage{longtable}
-\usepackage{tabularx}
-\usepackage{array}
-\usepackage{multirow}
-\usepackage{xcolor}
-\usepackage{fancyvrb}
-\usepackage{caption}
-\usepackage{enumitem}
+\usepackage{lmodern,booktabs,xurl}
 \usepackage[hidelinks]{hyperref}
-\setlist{itemsep=2pt,topsep=4pt}
-\fvset{fontsize=\scriptsize}
-\newcommand{\arm}[1]{\texttt{#1}}
-\newcommand{\pos}{\textcolor{green!50!black}}
-\newcommand{\negv}{\textcolor{red!70!black}}
-\title{TraLO on the knee task after Yuval Kassif's pipeline:\ what we ran, what we fixed, and what the numbers say}
-\author{Overnight report, 2026-09-27/28}
+\title{TraLO evidence and paper-claim boundary}
+\author{Research status through 4 October 2026}
 \date{}
 \begin{document}
 \maketitle
-\tableofcontents
-\clearpage
-\input{sections/01_summary}
-\input{sections/02_background}
-\input{sections/03_statistics}
-\input{sections/04_history}
-\input{sections/05_yuval}
-\input{sections/06_stepens}
-\input{sections/07_fixes}
-\input{sections/08_limitations}
-\appendix
-\input{appendix/A_outputs}
+\begin{abstract}
+Completed studies support a bounded development-set finding for a
+snapshot side-copy intervention on knee radiographs. They do not
+establish that training-time dual-constraint TraLO beats a matched
+post-hoc clipper without secondary tradeoffs or on untouched data.
+This is a reproducibility and claim-readiness report, not held-out confirmation.
+\end{abstract}
+
+\section{Question and intervention}
+The maintained question is whether training-time TraLO improves
+deployed constrained-class F1 (cc-F1) over a matched post-hoc clipper
+without being dominated on the rest of the profile. The positive knee
+study instead trains the base model once per seed, applies a targeted
+constraint step to side copies of saved epoch models, and averages
+their probabilities. Controls are an unstepped snapshot ensemble and
+a same-radius random-direction sham. All use the same capped-first
+allocator with 76 grade-3 slots. This is a side-copy intervention,
+not a training-time dual-constraint loss result.
+
+\section{Completed results}
+\begin{center}
+\small
+\begin{tabular}{lrrl}
+\toprule
+Knee backbone & Seeds & TraLO--PTO cc-F1 & 95\% paired seed CI \\
+\midrule
+ResNet18 & 72 & $+1.11$ pp & $[+0.78,+1.45]$ pp \\
+RegNetY-400MF & 72 & $+0.93$ pp & $[+0.57,+1.29]$ pp \\
+MobileNetV3-Large & 72 & $+1.18$ pp & $[+0.84,+1.51]$ pp \\
+EfficientNet-B5 & 48 & $-0.87$ pp & $[-1.52,-0.22]$ pp \\
+\bottomrule
+\end{tabular}
+\end{center}
+These prespecified E2 contrasts use a two-contrast Holm family within
+each backbone. ResNet18 and RegNetY also lost weighted-F1 against PTO:
+$-0.25$ $[-0.48,-0.03]$ and $-0.52$ $[-0.84,-0.20]$
+percentage points. Thus their cc-F1 gains are not all-metric wins;
+B5 reverses the primary effect. All knee outcomes are on an inspected
+development pool. Seed intervals do not measure variation over unseen
+patients or sites. The 1,656-image Chen test remains unopened.
+
+The fMoW cap-10 TraLO-minus-focal-clipper class-conditional F1 was
+$-0.01393$ with interval $[-0.01964,-0.00821]$ on viewed development
+countries. The reserved countries remain unopened.
+
+For the calibrated four-seed MobileNetV3 cells, allocated
+TraLO-minus-PTO cc-F1 was:
+\begin{itemize}
+\item ISIC 2020 level 1: $-0.0061$ (CI $-0.0707$ to $+0.0586$).
+\item ISIC 2020 level 2: $+0.0365$ (CI $-0.0496$ to $+0.1225$).
+\item CelebA level 1: $+0.000045$ (CI $-0.000140$ to $+0.000230$).
+\item CelebA level 2: $+0.000079$ (CI $-0.000951$ to $+0.001110$).
+\end{itemize}
+Neither exploratory cell demonstrates a positive local
+dual-constraint effect.
+
+\newpage
+\section{Code and artifact validation}
+Release \path{0d90bc6bff90fdf7555f19c00061e0e5b0426147}
+passed the complete local suite (646 passed, one skipped, 42 subtests)
+and focused CPU tests on both DSI hosts with GPUs hidden. Git identity
+and committed SHA-256 bytes match the immutable release on both hosts.
+CPU replay of all four complete knee blocks reproduced every archived
+outcome line exactly; the four error logs were empty. A separate
+read-only implementation at release \path{5f74ce387a48cb22e69742c3d8db71a4ead95c62}
+recomputed capped-slot allocation, class metrics, paired intervals and
+Holm correction from the saved snapshot tensors. Its expanded local suite
+passed (649 passed, one skipped); focused CPU tests passed on dsisco01.
+Direct dsisco02 access was unavailable for this second release. An
+off-host comparison checked 96 summary fields and 792 per-seed cc-F1
+values against archived reports within published rounding, including
+the B5 reversal and weighted-F1 harms. This is
+arithmetic validation on the same development pool, not new evaluation.
+
+The old snapshot pilot gate called a helper that internally read
+development labels and computed metrics, although it printed no pilot
+score. We found no evidence of pilot-quality-based tuning, but the old
+gate was not technically label-blind. The new release separates the
+integrity gate from label-based scoring, detects a corrupt side snapshot,
+and checks every fixed seed before opening labels. Historical runs and
+results remain unchanged.
+
+\section{Open gates}
+A stronger paper claim needs a frozen training-time method, matched
+controls, allocator, caps, primary contrast, secondary tradeoff rule,
+and analysis plan before sealed labels are opened. Opening the Chen
+test or reserved countries requires a user decision under project rules.
+The proposed HAM10000 melanoma-versus-rest cell changes the scientific
+question and is not approved; patient IDs are unavailable. ISIC 2024
+still lacks a frozen patient-disjoint split and several data and
+training gates. The verified nonoverlapping compute spend is at least
+72.175499 GPU-hours of a finite 96-hour ceiling; 23.824501 hours is
+only an upper bound on unspent budget, not a certified balance.
+
+\section{Evidence locations}
+The detailed audit and numerical sources are
+\path{experiments/paper_claim_readiness_20261004.md},
+\path{experiments/tralo_paper_results_draft_20260930.md},
+the preregistered reports under \path{experiments/}, and scorer
+outputs under \path{analysis/}. The older incomplete overnight
+report entry point is preserved at
+\path{report/archive/overnight_20260927_main.tex}.
 \end{document}
