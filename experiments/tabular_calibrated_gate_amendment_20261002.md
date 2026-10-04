@@ -118,3 +118,29 @@ No contrast excludes zero. Level 2 points toward a possible benefit but is
 imprecise at four seeds; level 1 points slightly against TraLO versus PTO.
 This is viewed-development evidence, not a held-out result or grounds to
 select a setting and spend more compute on the same labels.
+
+The CelebA pilot 6880 and fixed seeds 6881–6884 all exited zero. Each fixed
+seed independently passed its label-blind integrity gate with five of five
+corrections in every treated arm. The checkpoint and receipt backups are
+hash-verified offhost under `tabular_calibrated_v2_backup/celeba_6880`.
+Measured queue time was 13.353 GPU-hours for the four fixed seeds, or 16.733
+including the pilot, below the registered 24 GPU-hour cell ceiling.
+
+After those gates, scorer release
+`358bfd3e8925adc7eabc2e1dbc8c53348c091840` replayed and scored the
+complete fixed block once. Its result is archived offhost as
+`celeba_mnv3_calibrated_6881_6884_score_358bfd3e8925adc7eabc2e1dbc8c53348c091840.json`
+with SHA-256 `db27919bb100ad3b06ee18d23a06a895364c3229ec590c3be2fa001b189c6b9f`.
+The prespecified allocated cc-F1 contrasts across four seeds are:
+
+| Quota | TraLO minus PTO/sham | TraLO minus PHR |
+| --- | ---: | ---: |
+| Level 1 | +0.000045 [-0.000140, +0.000230] | -0.000023 [-0.000094, +0.000049] |
+| Level 2 | +0.000079 [-0.000951, +0.001110] | 0.000000 [0.000000, 0.000000] |
+
+These development contrasts show no meaningful allocated cc-F1 advantage.
+The exact level-2 PHR tie is a property of these four allocated outputs, not
+evidence of method equivalence outside this cell. The worse treated stop losses
+remain visible in the preserved runs. No CelebA held-out set was scored, and
+these viewed development labels do not justify selecting a dose or expanding
+this cell.
