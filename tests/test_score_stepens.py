@@ -57,7 +57,14 @@ def tree(root, seeds, signal=0.1, best=6, run=9, edit=None, arch=None):
         (d / 'events.jsonl').write_text(json.dumps(dict(event='run_started')) + '\n' + json.dumps(event) + '\n')
 
 
-def test_ensembles_average_the_window_and_recover_the_built_in_signal(tmp_path, capsys):
+def test_ensembles_average_the_window_and_recover_the_built_in_signal(tmp_path, capsys, monkeypatch):
+    def score_complete_mini_block(root, seeds):
+        block = next(b for b in se.BLOCKS if seeds[0] in b[2])
+        with monkeypatch.context() as scoped:
+            scoped.setattr(se, 'BLOCKS', tuple(
+                (b[0], b[1], tuple(seeds), b[3], b[4]) if b is block else b for b in se.BLOCKS))
+            se.main(root)
+
     tree(tmp_path / 'study', (4500, 4501, 4502, 4503))
     d = tmp_path / 'study' / 'seed4500'
     s = se.load(d)
@@ -67,16 +74,16 @@ def test_ensembles_average_the_window_and_recover_the_built_in_signal(tmp_path, 
     report = evaluate_global(manual.tolist(), [r['label'] for r in rows], CAPS, [r['sample_id'] for r in rows])
     assert s['arms']['ens_pto']['cc_f1'] == se.metrics([r['label'] for r in rows], report['capped_first']['predictions'])['cc_f1']
     assert s['arms']['ens_tralo']['cc_f1'] > s['arms']['ens_sham']['cc_f1'] == s['arms']['ens_pto']['cc_f1']
-    se.main(tmp_path / 'study')
+    score_complete_mini_block(tmp_path / 'study', (4500, 4501, 4502, 4503))
     out = capsys.readouterr().out
-    assert 'resnet18: 4 complete seeds of 72' in out and 'E1 ens_tralo - ens_sham' in out and 'slots' in out
+    assert 'resnet18: 4 complete seeds of 4' in out and 'E1 ens_tralo - ens_sham' in out and 'slots' in out
     tree(tmp_path / 'rgy', (4600, 4601, 4671))
-    se.main(tmp_path / 'rgy')
-    assert 'regnet_y_400mf: 3 complete seeds of 72' in capsys.readouterr().out
+    score_complete_mini_block(tmp_path / 'rgy', (4600, 4601, 4671))
+    assert 'regnet_y_400mf: 3 complete seeds of 3' in capsys.readouterr().out
     for name, seeds, backbone, n in (('mn3', (4700, 4771), 'mobilenet_v3_large', 72), ('b5', (4800, 4847), 'efficientnet_b5', 48)):
         tree(tmp_path / name, seeds)
-        se.main(tmp_path / name)
-        assert f'{backbone}: 2 complete seeds of {n}' in capsys.readouterr().out
+        score_complete_mini_block(tmp_path / name, seeds)
+        assert f'{backbone}: 2 complete seeds of 2' in capsys.readouterr().out
     for name, seeds, arch in (('foreign', (4572,), None), ('mixed', (4500, 4600), None), ('pilot', (4400,), None),
                               ('beyond', (4848,), None), ('mn3b5', (4700, 4800), None), ('mn3pilot', (4300,), None)):
         tree(tmp_path / name, seeds, arch=arch)
@@ -84,10 +91,10 @@ def test_ensembles_average_the_window_and_recover_the_built_in_signal(tmp_path, 
             se.main(tmp_path / name)
     tree(tmp_path / 'wrongnet', (4600,), arch=('resnet18', 'ResNet'))
     with pytest.raises(RuntimeError, match='not trained on regnet_y_400mf'):
-        se.main(tmp_path / 'wrongnet')
+        score_complete_mini_block(tmp_path / 'wrongnet', (4600,))
     tree(tmp_path / 'wrongb5', (4800,), arch=('mobilenet_v3_large', 'MobileNetV3'))
     with pytest.raises(RuntimeError, match='not trained on efficientnet_b5'):
-        se.main(tmp_path / 'wrongb5')
+        score_complete_mini_block(tmp_path / 'wrongb5', (4800,))
 
 
 def test_load_rejects_missing_or_out_of_spec_snapshot_steps(tmp_path):
@@ -124,6 +131,18 @@ def test_gate_passes_only_a_byte_identical_pilot(tmp_path, capsys):
         tree(base / 'ref', (seed,))                   # the same generator: the stored run and the pilot agree
         se.gate(base / 'pilot', base / 'ref')
         assert f'PILOT GATE PASSED for {seed} ({backbone})' in capsys.readouterr().out
+        # The integrity gate must not even open development labels or arm reports.
+        d = base / 'pilot' / f'seed{seed}_stepens'
+        (d / 'manifest.json').unlink()
+        for arm in ('pto', 'tralo_final', 'sham_final'):
+            (d / arm / 'report.json').unlink()
+        se.gate(base / 'pilot', base / 'ref')
+        side = d / 'retrain1' / 'epoch03_tralo.pt'
+        original = torch.load(side, weights_only=True)
+        torch.save(original[:, :-1], side)
+        with pytest.raises(RuntimeError, match='invalid _tralo snapshot'):
+            se.gate(base / 'pilot', base / 'ref')
+        torch.save(original, side)
         epoch = base / 'ref' / f'seed{seed}' / 'retrain1' / 'epoch05.pt'
         torch.save(torch.load(epoch, weights_only=True) + 1e-7, epoch)
         with pytest.raises(SystemExit):
@@ -149,6 +168,28 @@ def test_gate_passes_only_a_byte_identical_pilot(tmp_path, capsys):
         dict(event='model_initialized', architecture='regnet_y_400mf', initial_sha256='another')) + '\n')
     with pytest.raises(SystemExit, match='initial weights'):
         se.gate(tmp_path / 'otherinit', tmp_path / 'otherref')
+
+
+def test_main_rejects_incomplete_block_before_opening_labels(tmp_path):
+    d = tmp_path / 'study' / 'seed4500'
+    d.mkdir(parents=True)
+    (d / 'summary.json').write_text(json.dumps({'seed': 4500}))
+    with pytest.raises(SystemExit, match='incomplete fixed block'):
+        se.main(tmp_path / 'study')
+
+
+def test_main_preflights_every_seed_before_loading_any_labels(tmp_path, monkeypatch):
+    root = tmp_path / 'study'
+    tree(root, (4500, 4501))
+    later = root / 'seed4501' / 'summary.json'
+    summary = json.loads(later.read_text())
+    summary['retrains'][0]['snapshot_steps']['3']['sham']['radius'] = 0.02
+    later.write_text(json.dumps(summary))
+    block = se.BLOCKS[0]
+    monkeypatch.setattr(se, 'BLOCKS', ((block[0], block[1], (4500, 4501), block[3], block[4]),) + se.BLOCKS[1:])
+    monkeypatch.setattr(se, 'load', lambda _: pytest.fail('development labels opened before the full preflight'))
+    with pytest.raises(RuntimeError, match='step or sham out of spec'):
+        se.main(root)
 
 
 def test_gate_on_dsisco02_compares_the_pilot_with_its_steps_off_reference(tmp_path, capsys):

@@ -19,6 +19,7 @@ Development labels are read here, offline, and nowhere else.
 import hashlib
 import json
 from pathlib import Path
+import re
 import sys
 
 import numpy as np
@@ -55,19 +56,34 @@ def window(retrain):
     return range(max(1, retrain['best_epoch'] - 2), retrain['epochs_run'] + 1)
 
 
+def validate_snapshot_steps(seed_dir, retrain, check_tensors=False):
+    """Check a pilot's step records and tensors without opening its label-bearing manifest."""
+    if not 1 <= retrain['best_epoch'] <= retrain['epochs_run']:
+        raise RuntimeError(f'{seed_dir.name}: invalid snapshot window')
+    steps = retrain.get('snapshot_steps') or {}
+    if set(steps) != {str(e) for e in range(1, retrain['epochs_run'] + 1)}:
+        raise RuntimeError(f'{seed_dir.name}: snapshot steps missing for some epochs')
+    for e, s in steps.items():
+        t, h = s['tralo'], s['sham']
+        if t.get('radius') != h.get('radius') or t['applied'] != h['applied'] or (t['applied'] and t['hard_after'] > CAP):
+            raise RuntimeError(f'{seed_dir.name} epoch {e}: step or sham out of spec')
+        if check_tensors:
+            epoch = int(e)
+            base = torch.load(seed_dir / 'retrain1' / f'epoch{epoch:02d}.pt', weights_only=True)
+            for suffix in ('_tralo', '_sham'):
+                side = torch.load(seed_dir / 'retrain1' / f'epoch{epoch:02d}{suffix}.pt', weights_only=True)
+                if side.shape != base.shape or not torch.isfinite(side).all():
+                    raise RuntimeError(f'{seed_dir.name} epoch {e}: invalid {suffix} snapshot')
+    return steps
+
+
 def load(d):
     """One seed: the single-model arms from report.json and the three snapshot ensembles."""
     out = load_yuval(d, ('pto', 'tralo_final', 'sham_final'))
     if len(out['retrains']) != 1 or (d / 'pao').exists() or (d / 'retrain2').exists():
         raise RuntimeError(f'{d.name}: the step-ensemble study trains PTO once')
     retrain = out['retrains'][0]
-    steps = retrain.get('snapshot_steps') or {}
-    if set(steps) != {str(e) for e in range(1, retrain['epochs_run'] + 1)}:
-        raise RuntimeError(f'{d.name}: snapshot steps missing for some epochs')
-    for e, s in steps.items():
-        t, h = s['tralo'], s['sham']
-        if t.get('radius') != h.get('radius') or t['applied'] != h['applied'] or (t['applied'] and t['hard_after'] > CAP):
-            raise RuntimeError(f'{d.name} epoch {e}: step or sham out of spec')
+    steps = validate_snapshot_steps(d, retrain)
     rows = [r for r in json.loads((d / 'manifest.json').read_text())['rows'] if r['split'] == 'val']
     labels, ids = [r['label'] for r in rows], [r['sample_id'] for r in rows]
     for name, suffix in SUFFIX.items():
@@ -86,18 +102,34 @@ def load(d):
 
 def main(root):
     dirs = [d for d in sorted(Path(root).glob('seed*')) if d.is_dir()]
+    if any(re.fullmatch(r'seed\d+', d.name) is None for d in dirs):
+        raise RuntimeError('not a study seed: unexpected seed directory')
     block = next((b for b in BLOCKS if dirs and int(dirs[0].name[4:]) in b[2]), None)
-    seeds = {}
     for d in dirs:
         if block is None or int(d.name[4:]) not in block[2]:
             raise RuntimeError(f'{d.name} is not a study seed of one block')
-        if (d / 'summary.json').exists():
-            row = initialised(d)
-            if (row.get('architecture'), row.get('model_class')) != block[:2]:
-                raise RuntimeError(f"{d.name} was not trained on {block[0]}: {row.get('architecture')}")
-            seeds[int(d.name[4:])] = load(d)
     study = block[2] if block else ()
-    missing = sorted(set(study) - set(seeds))
+    found = {int(d.name[4:]) for d in dirs if (d / 'summary.json').exists()}
+    missing = sorted(set(study) - found)
+    if missing or not study:
+        raise SystemExit(f'incomplete fixed block: missing or unfinished seeds {missing or "all"}; development labels unopened')
+    # Check every fixed seed, including the saved snapshots, before opening any development labels.
+    for d in dirs:
+        summary = json.loads((d / 'summary.json').read_text())
+        if summary.get('seed') != int(d.name[4:]):
+            raise RuntimeError(f'{d.name}: summary seed differs from directory')
+        required = [d / 'manifest.json'] + [d / arm / 'report.json' for arm in ('pto', 'tralo_final', 'sham_final')]
+        if any(not p.exists() for p in required):
+            raise SystemExit(f'incomplete fixed block: {d.name} lacks a manifest or arm report; development labels unopened')
+        row = initialised(d)
+        if (row.get('architecture'), row.get('model_class')) != block[:2]:
+            raise RuntimeError(f"{d.name} was not trained on {block[0]}: {row.get('architecture')}")
+        if len(summary['retrains']) != 1 or (d / 'pao').exists() or (d / 'retrain2').exists():
+            raise RuntimeError(f'{d.name}: the step-ensemble study trains PTO once')
+        validate_snapshot_steps(d, summary['retrains'][0], check_tensors=True)
+    seeds = {}
+    for d in dirs:
+        seeds[int(d.name[4:])] = load(d)
     print(f'{block[0] if block else "no block"}: {len(seeds)} complete seeds of {len(study)}; '
           f'missing or incomplete: {missing or "none"}')
     owner = {}
@@ -150,8 +182,11 @@ def gate(pilot_root, reference_root):
     if ((row.get('architecture'), row.get('model_class')) != block[:2]
             or initialised(ref).get('initial_sha256') != row.get('initial_sha256')):
         raise SystemExit(f'PILOT GATE FAILED: {d.name} is not {block[0]} from the initial weights of the stored run')
-    s = load(d)
-    run, stored = s['retrains'][0], json.loads((ref / 'summary.json').read_text())['retrains'][0]
+    pilot_summary = json.loads((d / 'summary.json').read_text())
+    if pilot_summary.get('seed') != block[3] or len(pilot_summary['retrains']) != 1:
+        raise SystemExit('PILOT GATE FAILED: invalid pilot seed or retrain count')
+    run, stored = pilot_summary['retrains'][0], json.loads((ref / 'summary.json').read_text())['retrains'][0]
+    validate_snapshot_steps(d, run, check_tensors=True)
     problems = []
     if (run['best_epoch'], run['epochs_run']) != (stored['best_epoch'], stored['epochs_run']):
         problems.append(f"best/run epochs {run['best_epoch']}/{run['epochs_run']} vs stored "
