@@ -8,7 +8,9 @@ Only --score opens scorer/development_labels.jsonl, after every seed is gated.
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
+import re
 import sys
 
 import torch
@@ -89,8 +91,19 @@ def _private_labels(prepared_root, expected_ids, manifest_sha):
         "development_labels_sha256": digest(private_path)}
 
 
+def _requested_replay_gpu_uuid():
+    """Refuse default/index-based CUDA selection; ownership is a launch gate."""
+    selected = os.environ.get("CUDA_VISIBLE_DEVICES", "")
+    if re.fullmatch(r"GPU-[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}",
+                    selected) is None:
+        raise RuntimeError("independent replay requires one physical GPU UUID in "
+                           "CUDA_VISIBLE_DEVICES after both-host ownership checks")
+    return selected
+
+
 def audit_seed(run_root, prepared_root, *, replay=True):
     """Return authenticated label-free probabilities for every arm."""
+    requested_gpu = _requested_replay_gpu_uuid() if replay else None
     root = Path(run_root)
     config_path = root / "config.json"
     summary_path = root / "summary.json"
@@ -254,6 +267,7 @@ def audit_seed(run_root, prepared_root, *, replay=True):
     return {"config": config, "identity": identity, "quotas": quotas,
             "groups": groups, "sample_ids": expected_ids,
             "probabilities": probabilities, "elapsed_seconds": summary["elapsed_seconds"],
+            "requested_replay_gpu_uuid": requested_gpu,
             "summary_sha256": digest(summary_path)}
 
 
@@ -275,6 +289,7 @@ def gate(run_root, prepared_root, output):
               "applied_correction_counts": applied,
               "projected_four_seed_gpu_hours": audited["elapsed_seconds"] * 4 / 3600,
               "summary_sha256": audited["summary_sha256"],
+              "requested_replay_gpu_uuid": audited["requested_replay_gpu_uuid"],
               "development_labels_accessed": False}
     if record["projected_four_seed_gpu_hours"] > 96:
         raise RuntimeError("pilot projects above the weekend aggregate ceiling")
@@ -434,6 +449,7 @@ def score(full_root, prepared_root, output):
               "pretrained_weight": first["identity"]["weight"],
               "runner_source_sha256": first["identity"]["source_sha256"],
               "queue_cost_and_ownership": cost,
+              "requested_replay_gpu_uuid": first["requested_replay_gpu_uuid"],
               "private_labels": private_identity, "seeds": per_seed,
               "paired_contrasts": contrasts,
               "training_only_gpu_hours": sum(row["elapsed_seconds"] for row in audited) / 3600,

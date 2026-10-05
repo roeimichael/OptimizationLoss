@@ -9,6 +9,26 @@ from analysis import score_tabular_persistent as scorer
 from tralo.tabular_image_data import ISIC_CACHED_DRAFT_POLICY, ISIC_DRAFT_POLICY
 
 
+@pytest.mark.parametrize("selection", [None, "", "0", "1", "0,1", "GPU-test",
+    "GPU-ec6c969c-9a16-be18-0ef3-559565fff938,GPU-aa377381-804a-f7df-8903-167cea7c7414"])
+def test_replay_refuses_unpinned_or_ambiguous_device_before_cuda_or_artifacts(
+        tmp_path, monkeypatch, selection):
+    if selection is None:
+        monkeypatch.delenv("CUDA_VISIBLE_DEVICES", raising=False)
+    else:
+        monkeypatch.setenv("CUDA_VISIBLE_DEVICES", selection)
+    monkeypatch.setattr(scorer.torch.cuda, "is_available", lambda:
+                        pytest.fail("CUDA initialized before device pin validation"))
+    with pytest.raises(RuntimeError, match="one physical GPU UUID"):
+        scorer.audit_seed(tmp_path / "absent_run", tmp_path / "absent_data")
+
+
+def test_replay_accepts_an_explicit_uuid_without_claiming_ownership(monkeypatch):
+    uuid = "GPU-ec6c969c-9a16-be18-0ef3-559565fff938"
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", uuid)
+    assert scorer._requested_replay_gpu_uuid() == uuid
+
+
 def test_calibrated_dose_audit_accepts_zero_step_controls_and_checks_treated_scale():
     config = json.loads((Path(__file__).parents[1] / "experiments" / "configs" /
                          "tabular_persistent_20261002" /
