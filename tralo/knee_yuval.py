@@ -157,14 +157,16 @@ class Images:
 
     def __init__(self, root, rows):
         from PIL import Image
+        import io
         self.images, self.labels = [], []
         for row in rows:
             if row['split'] != 'train':
                 raise ValueError('only train rows may carry labels into training')
             path = Path(root) / row['path']
-            if digest(path) != row['sha256']:
+            data = path.read_bytes()
+            if hashlib.sha256(data).hexdigest() != row['sha256']:
                 raise RuntimeError('training image changed after audit')
-            with Image.open(path) as image:
+            with Image.open(io.BytesIO(data)) as image:
                 self.images.append(image.convert('RGB'))
             self.labels.append(row['label'])
 

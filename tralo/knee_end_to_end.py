@@ -52,6 +52,7 @@ def image_transform():
 def development_images(data_root, rows, transform, batch_size):
     """An image-only replayable cohort, with no label output or label lookup."""
     from PIL import Image
+    import io
     cohort = [dict(path=r['path'], sha256=r['sha256']) for r in rows if r['split'] == 'val']
     if not cohort:
         raise ValueError('empty development cohort')
@@ -60,9 +61,10 @@ def development_images(data_root, rows, transform, batch_size):
         tensors = []
         for row in cohort[start:start + batch_size]:
             path = Path(data_root) / row['path']
-            if digest(path) != row['sha256']:
+            data = path.read_bytes()
+            if hashlib.sha256(data).hexdigest() != row['sha256']:
                 raise RuntimeError('development image changed after audit')
-            with Image.open(path) as image:
+            with Image.open(io.BytesIO(data)) as image:
                 tensors.append(transform(image.convert('RGB')))
         import torch
         chunks.append(torch.stack(tensors))
