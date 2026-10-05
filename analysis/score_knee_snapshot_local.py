@@ -27,22 +27,33 @@ def metrics(truth, prediction):
 
 
 def paired(values):
-    """Four-seed paired t(3) interval and two-sided p-value, in F1 units."""
+    """Four-seed paired t(3) inference; zero empirical variance is unavailable."""
     from scipy.stats import t
     if len(values) != 4 or any(not math.isfinite(v) for v in values):
         raise ValueError('paired pilot contrast requires four finite values')
     mean = statistics.mean(values)
-    error = statistics.stdev(values)/2
+    sd = statistics.stdev(values)
+    if sd == 0:
+        return dict(seed_differences=values, mean=mean, seed_sd=sd, interval95=None,
+                    p_two_sided=None, df=3, inference_status='unavailable_zero_empirical_variance')
+    error = sd/2
     radius = float(t.ppf(.975, 3))*error
-    probability = float(2*t.sf(abs(mean/error),3)) if error else (1. if mean == 0 else 0.)
-    return dict(seed_differences=values, mean=mean, interval95=[mean-radius,mean+radius],
-                p_two_sided=probability, df=3)
+    probability = float(2*t.sf(abs(mean/error),3))
+    return dict(seed_differences=values, mean=mean, seed_sd=sd, interval95=[mean-radius,mean+radius],
+                p_two_sided=probability, df=3, inference_status='available_t3')
 
 
 def holm(rows):
-    ordered = sorted(rows, key=lambda key: rows[key]['p_two_sided'])
+    # Unavailable tests retain their place in the prespecified family, with a
+    # conservative sorting value of one, but never acquire a reported p-value.
+    ordered = sorted(rows, key=lambda key: (1. if rows[key]['p_two_sided'] is None
+                                            else rows[key]['p_two_sided']))
     floor = 0.
     for rank,key in enumerate(ordered):
+        if rows[key]['p_two_sided'] is None:
+            rows[key]['p_holm'] = None
+            floor = 1.
+            continue
         floor = max(floor, min(1., (len(ordered)-rank)*rows[key]['p_two_sided']))
         rows[key]['p_holm'] = floor
 

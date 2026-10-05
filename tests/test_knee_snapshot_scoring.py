@@ -31,7 +31,12 @@ def test_fictitious_panel_scores_all_arms_policies_and_primary_family(pack, pane
                 assert item['pooled_feasible']
                 assert 0 <= item['metrics']['weighted_f1'] <= 1
                 assert set(item['groups']) == {'H0','H1'}
-    assert all(row['p_holm'] >= row['p_two_sided'] for row in scored['contrasts'].values())
+    for row in scored['contrasts'].values():
+        if row['inference_status'] == 'unavailable_zero_empirical_variance':
+            assert row['interval95'] is None and row['p_two_sided'] is None and row['p_holm'] is None
+        else:
+            assert row['inference_status'] == 'available_t3'
+            assert row['p_holm'] >= row['p_two_sided']
 
 
 def test_weighted_metrics_match_fixed_golden_confusion_fixture():
@@ -81,6 +86,6 @@ def test_four_seed_interval_and_holm_match_independent_arithmetic():
     rows = {str(i):dict(p_two_sided=p) for i,p in enumerate([.01,.04,.03,.8])}
     holm(rows)
     assert [rows[str(i)]['p_holm'] for i in range(4)] == pytest.approx([.04,.09,.09,.8])
-    assert paired([0.]*4)['p_two_sided'] == 1
-    assert paired([.1]*4)['p_two_sided'] == 0
+    assert paired([0.]*4)['p_two_sided'] is None
+    assert paired([.1]*4)['p_two_sided'] is None
     with pytest.raises(ValueError): paired([0.]*3)
