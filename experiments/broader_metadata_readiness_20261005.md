@@ -138,3 +138,8 @@ the target or split from those counts.
 
 This checkpoint advances breadth and validation. It establishes no new
 performance win and adds no full GPU training run.
+
+The later [prospective ISIC2024 protocol](isic2024_prospective_protocol_for_review_20261005.md)
+records one explicit quota proposal, its diagnosis-blind geometry check, adapter
+requirements and the additional compute-accounting evidence. It is a review
+proposal and does not freeze the data design or authorize GPU dispatch.
