@@ -16,12 +16,54 @@ direction with the real step's per-tensor norms. Only development IMAGES are use
 no labels enter.
 """
 
+from dataclasses import dataclass
+import hashlib
 import math
+import weakref
 
 import torch
 
 from .knee_end_to_end import infer
 from .streamed_constraint import streamed_step
+
+
+@dataclass(frozen=True, eq=False)
+class _RadiusCalibration:
+    """Ephemeral native-search result; never serialized or accepted by a CLI."""
+    binding: str
+    gradient_sha256: str | None
+    radius: float
+    radius_violating: float
+    evaluations: int
+
+
+_issued_calibrations = weakref.WeakKeyDictionary()
+
+
+def _calibration_signature(token):
+    return (token.binding, token.gradient_sha256, token.radius, token.radius_violating, token.evaluations)
+
+
+def _publish_calibration(destination, token):
+    _issued_calibrations[token] = _calibration_signature(token)
+    destination.append(token)
+
+
+def _tensor_digest(values):
+    digest = hashlib.sha256()
+    for name, value in values:
+        digest.update(repr((name, tuple(value.shape), str(value.dtype), str(value.device))).encode())
+        digest.update(value.detach().cpu().contiguous().reshape(-1).view(torch.uint8).numpy().tobytes())
+    return digest.hexdigest()
+
+
+def _calibration_binding(model, chunks, caps, settings):
+    identity = (type(model).__module__, type(model).__qualname__, model.training,
+                tuple((name, p.requires_grad) for name, p in model.named_parameters()),
+                tuple(caps), settings, _tensor_digest(model.state_dict().items()),
+                _tensor_digest(model.named_buffers()),
+                _tensor_digest((str(i), x) for i, x in enumerate(chunks)))
+    return hashlib.sha256(repr(identity).encode()).hexdigest()
 
 
 class _Capture:
@@ -56,7 +98,25 @@ def _place(params, origin, direction, r):
             p.copy_(o + r * d)
 
 
-def targeted_step(model, chunks, caps, sham_generator=None, r0=1e-3, max_doublings=30, iterations=20):
+def targeted_step(model, chunks, caps, sham_generator=None, r0=1e-3, max_doublings=30, iterations=20,
+                  *, calibration_out=None, calibration=None):
+    """Optionally reuse a native search only for its identical-copy seeded sham.
+
+    The sham still recomputes and authenticates the exact real gradient. Only
+    its redundant hard-count search is omitted; placement and RNG are unchanged.
+    """
+    if calibration_out is not None and (type(calibration_out) is not list or calibration_out
+                                         or sham_generator is not None or calibration is not None):
+        raise ValueError('calibration export requires an empty native-only destination')
+    if calibration is not None and (type(calibration) is not _RadiusCalibration
+                                     or _issued_calibrations.get(calibration) != _calibration_signature(calibration)
+                                     or sham_generator is None):
+        raise ValueError('calibration reuse requires a native token and seeded sham')
+    binding = None
+    if calibration_out is not None or calibration is not None:
+        binding = _calibration_binding(model, chunks, caps, (r0, max_doublings, iterations))
+    if calibration is not None and calibration.binding != binding:
+        raise ValueError('calibration copy/input/cap/search identity differs')
     constrained = [c for c, cap in enumerate(caps) if cap is not None]
     if len(constrained) != 1:
         raise ValueError('targeted_step is defined for exactly one capped class')
@@ -67,6 +127,12 @@ def targeted_step(model, chunks, caps, sham_generator=None, r0=1e-3, max_doublin
                soft_before=soft_before, soft_after=soft_before,
                gradient_norm=0.0, applied=False, displacement=0.0, evaluations=1)
     if before <= cap:
+        if calibration is not None and calibration.gradient_sha256 is not None:
+            raise ValueError('calibration activation differs')
+        if calibration_out is not None:
+            _publish_calibration(calibration_out, _RadiusCalibration(binding, None, 0.0, 0.0, 1))
+        if calibration is not None:
+            out.update(radius_calibration_reused=True, radius_calibration_evaluations=calibration.evaluations)
         return out
     params = [p for p in model.parameters() if p.requires_grad]
     capture = _Capture(params)
@@ -86,26 +152,36 @@ def targeted_step(model, chunks, caps, sham_generator=None, r0=1e-3, max_doublin
         raise RuntimeError('capped class has no soft-count gradient')
     out['gradient_norm'] = norm
     unit = [None if g is None else -g / norm for g in grads]
+    gradient_sha256 = (_tensor_digest((str(i), g) for i, g in enumerate(grads) if g is not None)
+                       if binding is not None else None)
+    if calibration is not None and calibration.gradient_sha256 != gradient_sha256:
+        raise ValueError('calibration real gradient differs')
     origin = [p.detach().clone() for p in params]
     evaluations = 1
-    lo, hi = 0.0, r0
-    for _ in range(max_doublings):
-        _place(params, origin, unit, hi)
-        evaluations += 1
-        if _hard(model, chunks, c) <= cap:
-            break
-        lo, hi = hi, 2 * hi
+    if calibration is not None:
+        lo, hi = calibration.radius_violating, calibration.radius
+        if not (math.isfinite(lo) and math.isfinite(hi) and 0 <= lo < hi):
+            raise ValueError('calibration radius bracket is invalid')
+        out.update(radius_calibration_reused=True, radius_calibration_evaluations=calibration.evaluations)
     else:
-        _place(params, origin, unit, 0.0)
-        raise RuntimeError('no displacement along the constraint direction meets the cap')
-    for _ in range(iterations):
-        mid = 0.5 * (lo + hi)
-        _place(params, origin, unit, mid)
-        evaluations += 1
-        if _hard(model, chunks, c) <= cap:
-            hi = mid
+        lo, hi = 0.0, r0
+        for _ in range(max_doublings):
+            _place(params, origin, unit, hi)
+            evaluations += 1
+            if _hard(model, chunks, c) <= cap:
+                break
+            lo, hi = hi, 2 * hi
         else:
-            lo = mid
+            _place(params, origin, unit, 0.0)
+            raise RuntimeError('no displacement along the constraint direction meets the cap')
+        for _ in range(iterations):
+            mid = 0.5 * (lo + hi)
+            _place(params, origin, unit, mid)
+            evaluations += 1
+            if _hard(model, chunks, c) <= cap:
+                hi = mid
+            else:
+                lo = mid
     if sham_generator is None:
         step = unit
     else:
@@ -125,4 +201,6 @@ def targeted_step(model, chunks, caps, sham_generator=None, r0=1e-3, max_doublin
     hard_after, soft_after = _counts(model, chunks, c)
     out.update(applied=True, displacement=moved, radius=hi, radius_violating=lo, evaluations=evaluations + 1,
                hard_after=hard_after, soft_after=soft_after)
+    if calibration_out is not None:
+        _publish_calibration(calibration_out, _RadiusCalibration(binding, gradient_sha256, hi, lo, evaluations + 1))
     return out

@@ -96,6 +96,7 @@ def snapshot(model, pool, groups, quota, seed, epoch, directory, pto_probabiliti
     origin = [p.detach().clone() for p in model.parameters()]
     records, files = {}, {}
     joint_delta = pooled_delta = None
+    native_calibration = []
     caps = [None, None, None, quota["global_cap"], None]
     before_counts = _counts(pto_probabilities, groups, 3)
 
@@ -139,7 +140,9 @@ def snapshot(model, pool, groups, quota, seed, epoch, directory, pto_probabiliti
                 if arm in ("global_native", "global_native_sham"):
                     generator = (torch.Generator().manual_seed(seed + 7 + 1000 * epoch)
                                  if arm.endswith("sham") else None)
-                    record = targeted_step(side, pool, caps, sham_generator=generator)
+                    reuse = (dict(calibration=native_calibration[0]) if generator is not None
+                             else dict(calibration_out=native_calibration))
+                    record = targeted_step(side, pool, caps, sham_generator=generator, **reuse)
                 elif arm == "joint_local":
                     record = local_targeted_step(side, pool, groups, 3, quota["global_cap"],
                                                  quota["local_caps"], r0=.001, max_doublings=30,
