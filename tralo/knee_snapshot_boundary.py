@@ -49,6 +49,7 @@ def cpu_command(*, runtime, release, public, weights, operator, output):
     command+=['--bind',output,'/output']
     environment=dict(PATH='/usr/bin:/bin',HOME='/tmp',TMPDIR='/tmp',LC_ALL='C.UTF-8',
                      CUDA_VISIBLE_DEVICES='',PYTHONDONTWRITEBYTECODE='1',
+                     TORCHINDUCTOR_CACHE_DIR='/tmp/torchinductor-cache',
                      OMP_NUM_THREADS='1',OPENBLAS_NUM_THREADS='1',MKL_NUM_THREADS='1')
     for name,value in environment.items(): command+=['--setenv',name,value]
     return command+['--chdir','/release','--',runtime+'/bin/python','-I','-B',
