@@ -18,6 +18,11 @@ alone accepts them; three corrected-command checks execute authenticated source,
 leave the original cache intact and create no prefix cache. One check binds the
 prefix to fresh namespace `/tmp`. The directly affected mount-contract check is
 also required. Original local four failures are preserved outside source.
+The first two-host focused attempt exposed a fixture assumption: its cache path
+inherited the parent's new cache prefix, while the negative-control child had
+none. All six cache fixtures stopped before their assertions. Those originals
+remain preserved; the fixture now places the intended ordinary source-cache
+path explicitly. The production command and all assertions remain unchanged.
 
 Source/host receipts and any new fictitious namespace execution belong outside
 the immutable release. No real image, weight, model, development target, GPU or

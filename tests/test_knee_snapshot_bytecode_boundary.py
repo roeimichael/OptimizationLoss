@@ -28,7 +28,9 @@ def substituted_cache(root, mode):
     source.write_bytes(b"VALUE = 'authenticated fictitious source'\n")
     counterfeit = root / 'counterfeit.py'
     counterfeit.write_bytes(b"VALUE = 'substituted fictitious cache'\n")
-    cache = Path(importlib.util.cache_from_source(str(source)))
+    # The child negative control has no prefix. Do not inherit the parent's
+    # prefix when placing the cache whose acceptance that child must expose.
+    cache = root / '__pycache__' / (source.stem + '.' + sys.implementation.cache_tag + '.pyc')
     cache.parent.mkdir()
     py_compile.compile(str(counterfeit), cfile=str(cache), doraise=True,
                        invalidation_mode=mode)
