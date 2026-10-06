@@ -29,7 +29,8 @@ def test_namespace_mounts_only_declared_public_sources_and_exclusive_output():
     assert set(declared)=={'/usr','/lib','/lib64','/etc',PATHS['runtime'],PATHS['public'],
                            PATHS['release'],PATHS['weights'],PATHS['operator']}
     assert '--dev-bind' not in command and '--share-net' not in command and '--keep-fd' not in command
-    assert command[-4:]==[PATHS['runtime']+'/bin/python','-I','-B','/operator.py']
+    assert command[-6:]==[PATHS['runtime']+'/bin/python','-I','-B',
+                         '-X','pycache_prefix=/tmp/python-bytecode','/operator.py']
     environment={command[i+1]:command[i+2] for i,x in enumerate(command) if x=='--setenv'}
     assert environment['CUDA_VISIBLE_DEVICES']=='' and environment['HOME']=='/tmp'
     assert environment['OMP_NUM_THREADS']==environment['MKL_NUM_THREADS']=='1'

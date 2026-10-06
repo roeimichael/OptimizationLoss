@@ -20,6 +20,8 @@ def cpu_command(*, runtime, release, public, weights, operator, output):
     Callers must authenticate source bytes and refuse source symlinks before
     running this preparation command. No private tree or host GPU is mounted.
     Python isolated mode excludes user-site and PYTHONPATH startup injection.
+    A cache prefix in fresh /tmp avoids existing release/library bytecode caches;
+    -B alone prevents writes, but still accepts existing .pyc files.
     An operator importing product code must explicitly add /release to sys.path.
     """
     paths=dict(runtime=runtime,release=release,public=public,weights=weights,operator=operator,output=output)
@@ -49,7 +51,8 @@ def cpu_command(*, runtime, release, public, weights, operator, output):
                      CUDA_VISIBLE_DEVICES='',PYTHONDONTWRITEBYTECODE='1',
                      OMP_NUM_THREADS='1',OPENBLAS_NUM_THREADS='1',MKL_NUM_THREADS='1')
     for name,value in environment.items(): command+=['--setenv',name,value]
-    return command+['--chdir','/release','--',runtime+'/bin/python','-I','-B','/operator.py']
+    return command+['--chdir','/release','--',runtime+'/bin/python','-I','-B',
+                   '-X','pycache_prefix=/tmp/python-bytecode','/operator.py']
 
 
 def finite_child(command, output, wall_seconds):
