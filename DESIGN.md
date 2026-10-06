@@ -1,5 +1,17 @@
 # Small rebuild: design and implementation plan
 
+## 2026-10-06: public tabular PHR scope names
+
+`global` remains reserved for the pooled constraint in the tabular loss API,
+as it already is in the bounded scalar loss. PHR now refuses that name in
+groups or local caps before deriving coefficients or dual updates. This avoids
+silently replacing the pooled cap and double-counting its coefficient. A new
+key-schema migration was unnecessary because the declared tabular quota policies
+already permit only female, male and (for ISIC2020) missing. Valid scope math,
+recipes and existing scores are unchanged. Fixed analytic/autograd, permutation,
+relabeling and zero-gradient refusal cases check this contract; they do not
+explain real-data F1 or constitute a scientific campaign.
+
 ## Contract
 
 Scope amendment, 2026-09-22: the user explicitly requests global-only constraints

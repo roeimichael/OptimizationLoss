@@ -16,6 +16,8 @@ from .local_bounded_penalty import bounded_local_logit_gradient
 def phr_local_logit_gradient(probabilities, groups, capped_class, global_cap,
                              local_caps, dual, rho):
     """Derivative of a pooled/group positive-part PHR penalty at fixed duals."""
+    if "global" in local_caps or "global" in groups:
+        raise ValueError("global is reserved for the pooled constraint")
     if (not isinstance(dual, dict) or set(dual) != {"global", *local_caps} or
             any(not isinstance(value, (int, float)) or not math.isfinite(value) or
                 value < 0 for value in dual.values()) or
