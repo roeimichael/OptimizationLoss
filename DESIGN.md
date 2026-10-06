@@ -1,5 +1,21 @@
 # Small rebuild: design and implementation plan
 
+## 2026-10-06: CelebA shared trajectory
+
+The human authorizes autonomous CelebA implementation and runs and overrides
+repeated skill/project approval prompts. `celeba_snapshot_core` applies the
+retained bounded scalar/native PHR to isolated CE epoch copies, with matched
+actual-displacement PHR/sham controls. The original task parameters, BN buffers,
+Adam state, gradients, modes and RNG are preserved. `celeba_snapshot_run` trains
+image-only and image+Male CE/focal conditions with identical initialization,
+input orders and a common declared probability window before deployment.
+Metadata starts with zero additive logits and is supplied equally to all rivals.
+Immediate pre/post stopping loss is measured without selecting an arm checkpoint.
+See `experiments/celeba_shared_snapshot_20261006.md` for the explicit scientific
+amendment, bounded operating budget, data/label boundary and complete reading.
+Native fixed CPU/real-CLI checks establish these new paths, not actual CelebA
+quality, real CUDA readiness or ownership. Old evidence/releases remain immutable.
+
 ## 2026-10-06: public tabular PHR scope names
 
 `global` remains reserved for the pooled constraint in the tabular loss API,

@@ -1,3 +1,7 @@
+## Standing authorization -- 2026-10-06
+
+The human authorizes runs and implementation autonomously and explicitly overrides repeated skill/project approval prompts. Follow the current CelebA scope and bounded compute plan; retain technical validation, privacy, source identity, ownership, evidence and honest reporting. Do not ask again for ordinary scoped run approval.
+
 # Working on the rebuild
 
 - Prefix shell commands with `rtk`; use `rtk proxy` for passthrough.
