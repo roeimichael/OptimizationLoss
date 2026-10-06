@@ -110,7 +110,8 @@ def _snapshot_phr_step_impl(model, chunks, groups, capped_class, global_cap,
     record = dict(applied=False, displacement=0.0, penalty_before=float(penalty),
                   residuals_before=residuals.tolist(), dual_before=dual.tolist(),
                   hard_before_global=hard_before, hard_before_local=hard_local_before,
-                  soft_before_local=soft_local_before, rho=rho, radius=radius)
+                  soft_before_local=soft_local_before, rho=rho, radius=radius,
+                  scope_derivative_schema="pooled-local-v1")
     try:
         model.eval()
         model.zero_grad(set_to_none=True)
@@ -135,7 +136,7 @@ def _snapshot_phr_step_impl(model, chunks, groups, capped_class, global_cap,
             direction = [-g / norm for g in gradients]
             # Record every capacity-normalized scope's exact parameter-space
             # directional derivative at the untouched PTO snapshot.
-            scope_names = ["global"] + sorted(local_caps)
+            scope_names = ["pooled"] + ["local:" + group for group in sorted(local_caps)]
             scope_dots = {name: 0.0 for name in scope_names}
             start = 0
             for images in chunks:
@@ -145,7 +146,7 @@ def _snapshot_phr_step_impl(model, chunks, groups, capped_class, global_cap,
                 terms = [q.sum() / max(global_cap, 1)]
                 terms += [q[torch.tensor([g == group for g in groups[start:end]],
                                          device=q.device)].sum() / max(local_caps[group], 1)
-                          for group in scope_names[1:]]
+                          for group in sorted(local_caps)]
                 for index, (name, term) in enumerate(zip(scope_names, terms)):
                     scope_grads = torch.autograd.grad(term, params,
                                                       retain_graph=index + 1 < len(terms),
@@ -167,8 +168,8 @@ def _snapshot_phr_step_impl(model, chunks, groups, capped_class, global_cap,
 
                 policy = choose_boundary_step(
                     hard_before, math.fsum(soft_local_before.values()), global_cap,
-                    soft_local_before, local_caps, scope_dots["global"],
-                    {group: scope_dots[group] for group in local_caps}, probe,
+                    soft_local_before, local_caps, scope_dots["pooled"],
+                    {group: scope_dots["local:" + group] for group in local_caps}, probe,
                     max_radius=radius)
                 record["boundary_policy"] = policy
                 selected_radius = policy["radius"]

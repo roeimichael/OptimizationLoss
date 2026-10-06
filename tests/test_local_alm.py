@@ -129,11 +129,12 @@ def test_snapshot_step_has_fixed_dose_and_neutral_buffers_rng():
     assert record["applied"]
     assert abs(record["displacement"] - 0.1) < 1e-5
     assert torch.any(dual > 0)
-    assert set(record["scope_directional_derivatives"]) == {"global", "A", "B"}
+    assert record["scope_derivative_schema"] == "pooled-local-v1"
+    assert set(record["scope_directional_derivatives"]) == {"pooled", "local:A", "local:B"}
     coefficients = [(lam + 0.5 * g) for lam, g in
                     zip(record["dual_before"], record["residuals_before"])]
     weighted = sum(max(0, coefficient) * record["scope_directional_derivatives"][name]
-                   for coefficient, name in zip(coefficients, ("global", "A", "B")))
+                    for coefficient, name in zip(coefficients, ("pooled", "local:A", "local:B")))
     assert abs(weighted + record["gradient_norm"]) < 1e-4
     assert record["hard_before_global"] == 4
     assert sum(record["hard_after_local"].values()) == record["hard_after_global"]

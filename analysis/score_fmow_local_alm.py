@@ -190,14 +190,29 @@ def _audit_side(record, pto, side, groups, quota, arm):
                 raise RuntimeError(f"nonfinite/incomplete joint {field}")
 
 
-def _scope_values(probabilities, groups, quota):
+def _phr_scope_names(record, local_caps):
+    """Keep positional PHR scopes distinct while reading old, unambiguous logs."""
+    if "scope_derivative_schema" in record:
+        if record["scope_derivative_schema"] != "pooled-local-v1":
+            raise RuntimeError("unknown PHR scope derivative schema")
+        return ["pooled", *["local:" + group for group in sorted(local_caps)]]
+    if "global" in local_caps:
+        raise RuntimeError("ambiguous legacy PHR pooled/local derivative identity")
+    return ["global", *sorted(local_caps)]
+
+
+def _scope_values(probabilities, groups, quota, *, namespaced=False):
+    # The legacy return shape is retained for existing unambiguous fixtures.
+    names = _phr_scope_names(
+        {"scope_derivative_schema": "pooled-local-v1"} if namespaced else {},
+        quota["local_caps"])
     q = probabilities[:, prior.CAPPED]
-    counts = {"global": float(q.sum())}
-    counts.update({group: float(q[[g == group for g in groups]].sum())
-                   for group in sorted(quota["local_caps"])})
-    caps = {"global": quota["global_cap"], **quota["local_caps"]}
-    residuals = [(counts[name] - caps[name]) / max(caps[name], 1)
-                 for name in ["global", *sorted(quota["local_caps"])]]
+    values = [float(q.sum()), *[float(q[[g == group for g in groups]].sum())
+                               for group in sorted(quota["local_caps"])]]
+    caps = [quota["global_cap"], *[quota["local_caps"][group]
+                                 for group in sorted(quota["local_caps"])]]
+    counts = dict(zip(names, values))
+    residuals = [(value - cap) / max(cap, 1) for value, cap in zip(values, caps)]
     return counts, residuals
 
 
@@ -210,7 +225,7 @@ def _near(actual, expected, message, tol=1e-5):
 def _audit_phr(record, pto, side, groups, quota, dual):
     """Recount every PHR scope and its projected dual without development labels."""
     prior._audit_displacement(record)
-    names = ["global", *sorted(quota["local_caps"])]
+    names = _phr_scope_names(record, quota["local_caps"])
     if type(record.get("rho")) not in (int, float) or record["rho"] != RHO:
         raise RuntimeError("PHR rho differs from fixed protocol")
     if (len(dual) != len(names) or any(not math.isfinite(x) or x < 0 for x in dual)
@@ -219,19 +234,19 @@ def _audit_phr(record, pto, side, groups, quota, dual):
                 abs(value - expected) > 1e-6
                 for value, expected in zip(record["dual_before"], dual))):
         raise RuntimeError("PHR dual continuity differs from previous snapshot")
-    before, residual_before = _scope_values(pto, groups, quota)
-    after, residual_after = _scope_values(side, groups, quota)
+    before, residual_before = _scope_values(pto, groups, quota, namespaced=True)
+    after, residual_after = _scope_values(side, groups, quota, namespaced=True)
     for field, matrix, counts in (("before", pto, before), ("after", side, after)):
         hard, local = prior._count(matrix.argmax(1).tolist(), groups)
         if (record[f"hard_{field}_global"] != hard or
                 record[f"hard_{field}_local"] != local):
             raise RuntimeError("PHR hard-count recount differs from snapshot")
-        _near(record[f"soft_{field}_global"], counts["global"], "PHR pooled soft recount differs", 1e-3)
+        _near(record[f"soft_{field}_global"], counts["pooled"], "PHR pooled soft recount differs", 1e-3)
         values = record[f"soft_{field}_local"]
         if set(values) != set(quota["local_caps"]):
             raise RuntimeError("PHR local soft scopes incomplete")
         for name in quota["local_caps"]:
-            _near(values[name], counts[name], "PHR local soft recount differs", 1e-3)
+            _near(values[name], counts["local:" + name], "PHR local soft recount differs", 1e-3)
     for field, expected in (("residuals_before", residual_before),
                             ("residuals_after", residual_after)):
         values = record[field]

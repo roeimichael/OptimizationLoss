@@ -348,6 +348,7 @@ def _audit_side(record, pto, side, groups, quota, arm, dual=None):
                       1e-3 * max(1.0, norm))
             _policy(record, before, after, quota, require_local_hard=True)
         else:
+            derivative_names = alm._phr_scope_names(record, quota["local_caps"])
             if (record["rho"] != RHO or dual is None or
                      len(record["dual_before"]) != len(dual)):
                 raise RuntimeError("PHR rho/dual scope mismatch")
@@ -392,7 +393,7 @@ def _audit_side(record, pto, side, groups, quota, arm, dual=None):
                 raise RuntimeError("PHR gradient norm invalid")
             if norm > 0:
                 derivatives = record["scope_directional_derivatives"]
-                names = ["global", *sorted(quota["local_caps"])]
+                names = derivative_names
                 if set(derivatives) != set(names):
                     raise RuntimeError("PHR directional derivatives incomplete")
                 weighted = sum(max(0.0, lam + RHO * g) * derivatives[name]
@@ -400,8 +401,9 @@ def _audit_side(record, pto, side, groups, quota, arm, dual=None):
                 _near(weighted, -norm, "PHR directional gradient identity",
                       1e-3 * max(1.0, norm))
                 policy_record = {**record, "scope_directional_derivatives": {
-                    "pooled": derivatives["global"],
-                    **{f"local:{g}": derivatives[g] for g in quota["local_caps"]}}}
+                    "pooled": derivatives[names[0]],
+                    **{f"local:{g}": derivatives[name]
+                       for g, name in zip(sorted(quota["local_caps"]), names[1:])}}}
                 _policy(policy_record, before, after, quota,
                         require_local_hard=False, pooled_from_local=True)
             elif (record["applied"] or record["boundary_policy"].get("applied") is not False or
