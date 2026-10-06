@@ -58,6 +58,56 @@ def repin(directory, relative, value):
     return sha256((directory / 'complete.json').read_bytes())
 
 
+def test_self_resource_observations_bind_start_result_and_completion(tmp_path, pack):
+    # Prospectively declared fictitious logging fixture; never a science seed.
+    pin = fit(pack, tmp_path/'run', seed=9482001)
+    checked = verify_run(tmp_path/'run', pin, allow_simulation=True)
+    result, events = checked['result'], checked['events']
+    usage = result['process_usage']
+    assert events[0]['process_usage'] == usage['start']
+    assert events[-1]['process_usage'] == usage
+    assert usage['start']['scope'] == 'process_self_not_children_or_gpu'
+    assert usage['start']['pid'] == usage['end']['pid']
+    assert usage['delta']['status'] in {'observed', 'unavailable'}
+
+
+def test_rehashed_self_resource_tampering_is_semantically_refused(tmp_path, pack):
+    pin = fit(pack, tmp_path/'run', seed=9482002)
+    result = json.loads((tmp_path/'run/result.json').read_bytes())
+    result['process_usage']['end']['pid'] += 1
+    events = [json.loads(line) for line in (tmp_path/'run/events.jsonl').read_bytes().splitlines()]
+    events[-1]['process_usage'] = result['process_usage']
+    (tmp_path/'run/events.jsonl').write_bytes(b''.join(encode(e) for e in events))
+    completion = json.loads((tmp_path/'run/complete.json').read_bytes())
+    completion['files']['events.jsonl'] = sha256((tmp_path/'run/events.jsonl').read_bytes())
+    (tmp_path/'run/complete.json').write_bytes(encode(completion))
+    pin = repin(tmp_path/'run', 'result.json', result)
+    with pytest.raises(ValueError, match='process|usage'):
+        verify_run(tmp_path/'run', pin, allow_simulation=True)
+
+
+def test_usage_observer_failure_preserves_original_fit_failure(tmp_path, pack, monkeypatch):
+    from tralo.process_usage import self_usage
+    first = self_usage()
+    calls = []
+    def usage():
+        calls.append(True)
+        if len(calls) == 1: return first
+        raise OSError('fictitious resource observation failure')
+    def failed(*args, **kwargs):
+        raise RuntimeError('fictitious original correction failure')
+    monkeypatch.setattr('tralo.process_usage.self_usage', usage)
+    monkeypatch.setattr('tralo.knee_snapshot_local.local_targeted_step', failed)
+    output = tmp_path/'run'
+    with pytest.raises(RuntimeError, match='original correction failure'):
+        fit(pack, output, seed=9482003)
+    event = json.loads((output/'events.jsonl').read_bytes().splitlines()[-1])
+    assert event['reason'] == 'fictitious original correction failure'
+    assert event['process_usage']['status'] == 'observation_failed'
+    assert event['process_usage']['error'] == 'OSError'
+    assert not (output/'complete.json').exists()
+
+
 def test_complete_real_reader_fit_logs_and_verifies_without_private_reads(tmp_path, pack, monkeypatch):
     original = Path.open
     def guarded(path, *args, **kwargs):
@@ -183,6 +233,8 @@ def test_failed_fit_preserves_log_and_partial_snapshot_without_completion(tmp_pa
         fit(pack, output)
     events = [json.loads(line) for line in (output/'events.jsonl').read_text().splitlines()]
     assert events[-1]['event'] == 'run_failed'
+    assert events[-1]['process_usage']['start'] == events[0]['process_usage']
+    assert events[-1]['process_usage']['delta']['status'] in {'observed', 'unavailable'}
     assert (output/'snapshots/epoch01/global_native.pt').exists()
     assert not (output/'complete.json').exists()
 

@@ -58,6 +58,7 @@ def fit_public(model, public, manifest_sha256, config, output, *, source_commit,
     from .knee_end_to_end import development_images
     from .knee_snapshot_local import ARMS, average_snapshots, snapshot, validate
     from .knee_yuval import Images, train_run, transforms_for
+    from .process_usage import self_usage, usage_delta
 
     if type(simulation) is not bool or re.fullmatch(r'[0-9a-f]{40}', source_commit or '') is None:
         raise ValueError('invalid execution/source identity')
@@ -82,6 +83,7 @@ def fit_public(model, public, manifest_sha256, config, output, *, source_commit,
         raise ValueError('approved driver requires float32 parameters')
     output.mkdir(parents=True, exist_ok=False)
     started = time.monotonic()
+    process_start = self_usage()
     execution = dict(mode='cpu_fictitious' if simulation else 'campaign_driver',
                      host=socket.gethostname(), device=str(next(model.parameters()).device),
                      cuda_initialized=torch.cuda.is_initialized(), torch_version=str(torch.__version__),
@@ -96,7 +98,8 @@ def fit_public(model, public, manifest_sha256, config, output, *, source_commit,
             return dict(file=path.relative_to(output).as_posix(), sha256=sha256(path.read_bytes()))
         try:
             log.emit('run_started', seed=config['seed'], config=config, public_manifest_sha256=manifest_sha256,
-                     source_commit=source_commit, source_sha256=source_pins, execution=execution)
+                     source_commit=source_commit, source_sha256=source_pins, execution=execution,
+                     process_usage=process_start)
             _write(output/'config.json', encode(config))
             _write(output/'public_manifest.json', manifest_data)
             _write(output/'public_rows.json', row_data)
@@ -126,20 +129,31 @@ def fit_public(model, public, manifest_sha256, config, output, *, source_commit,
                 raise RuntimeError('training-only best state was not restored')
             if simulation and torch.cuda.is_initialized():
                 raise RuntimeError('CPU driver initialized CUDA')
+            process_end = self_usage()
+            process_usage = dict(start=process_start, end=process_end,
+                                 delta=usage_delta(process_start, process_end))
             result = dict(format=FORMAT, seed=config['seed'], source_commit=source_commit,
                           source_sha256=source_pins, execution=execution, fit=fitted, window=window,
                           public_manifest_sha256=manifest_sha256, snapshots=records,
                           epoch_state_sha256=epoch_hashes, initial_model_sha256=initial_hash,
                           restored_model_sha256=restored, final=final, ensemble=ensemble,
                           elapsed_wall_seconds=time.monotonic()-started,
+                          process_usage=process_usage,
                           limitation='Driver wall time is not GPU runtime/ownership/budget certification; model provenance is a separate gate.')
             _write(output/'result.json', encode(result))
             log.emit('run_completed', seed=config['seed'], fit=fitted, window=window,
                      ensemble=ensemble, restored_model_sha256=restored,
-                     elapsed_wall_seconds=result['elapsed_wall_seconds'])
+                     elapsed_wall_seconds=result['elapsed_wall_seconds'], process_usage=process_usage)
         except BaseException as exc:
+            try:
+                failed_end = self_usage()
+                failed_usage = dict(start=process_start, end=failed_end,
+                                    delta=usage_delta(process_start, failed_end))
+            except BaseException as usage_error:
+                failed_usage = dict(status='observation_failed', error=type(usage_error).__name__,
+                                    reason=str(usage_error))
             log.emit('run_failed', seed=config['seed'], exception=type(exc).__name__, reason=str(exc),
-                     elapsed_wall_seconds=time.monotonic()-started)
+                     elapsed_wall_seconds=time.monotonic()-started, process_usage=failed_usage)
             raise
     files = {p.relative_to(output).as_posix():sha256(p.read_bytes())
              for p in sorted(output.rglob('*')) if p.is_file()}
@@ -224,6 +238,12 @@ def verify_run(directory, completion_sha256, *, allow_simulation=False):
             or any(e['event'].endswith('failed') for e in events)):
         raise ValueError('incomplete/nonsequential event log')
     start, end = events[0], events[-1]
+    from .process_usage import usage_delta
+    usage = result.get('process_usage')
+    if (not isinstance(usage, dict) or set(usage) != {'start','end','delta'}
+            or usage_delta(usage['start'], usage['end']) != usage['delta']
+            or start.get('process_usage') != usage['start'] or end.get('process_usage') != usage):
+        raise ValueError('process usage event/result mismatch')
     if (any(start[k] != result[k] for k in ['seed','source_commit','source_sha256','execution','public_manifest_sha256'])
             or start['config'] != config or any(end[k] != result[k] for k in
                 ['seed','fit','window','ensemble','restored_model_sha256','elapsed_wall_seconds'])):
