@@ -355,10 +355,13 @@ def local_targeted_step(model, chunks, groups, capped_class, global_cap, local_c
             raise RuntimeError("joint constraint gradient is zero")
         out['gradient_norm'] = norm
         unit = [-g / norm for g in grads]
-        derivatives = {('global' if kind == 'global' else group):
+        # A group may itself be named "global" or "pooled". Keep its identity
+        # separate from the pooled constraint before checking common descent.
+        derivatives = {('pooled' if kind == 'global' else 'local:' + group):
                        sum(float((g.double() * d.double()).sum())
                            for g, d in zip(scope_grads[(kind, group)], unit))
                        for kind, group, _ in scopes}
+        out['scope_derivative_schema'] = 'pooled-local-v1'
         out['scope_directional_derivatives'] = derivatives
         if require_common_descent and any(value >= 0 for value in derivatives.values()):
             raise RuntimeError('joint direction fails first-order scope descent: ' + str(derivatives))

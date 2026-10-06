@@ -178,7 +178,7 @@ def _audit_side(record, pto, side, groups, quota, arm):
         # Conflicting derivatives are scientific evidence, not an integrity failure.
         if record["applied"]:
             derivatives = record["scope_directional_derivatives"]
-            expected = set(active_local) | ({"global"} if active_global else set())
+            expected = prior._scope_derivative_keys(record)
             if set(derivatives) != expected or any(not math.isfinite(x) for x in derivatives.values()):
                 raise RuntimeError("missing/nonfinite joint scope derivatives")
         for field in ("soft_before_global", "soft_after_global", "directional_soft_delta_global"):

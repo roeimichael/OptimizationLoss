@@ -158,6 +158,19 @@ def allocate_joint(probabilities, ids, groups, global_cap, local_caps):
             for i in range(len(rows))]
 
 
+def _scope_derivative_keys(record):
+    """Read explicit new identities while retaining unambiguous old records."""
+    local = record["active_local"]
+    pooled = record["active_global"]
+    if "scope_derivative_schema" in record:
+        if record["scope_derivative_schema"] != "pooled-local-v1":
+            raise RuntimeError("unknown joint scope derivative schema")
+        return {"local:" + group for group in local} | ({"pooled"} if pooled else set())
+    if pooled and "global" in local:
+        raise RuntimeError("ambiguous legacy pooled/local derivative identity")
+    return set(local) | ({"global"} if pooled else set())
+
+
 def _audit_scope_numbers(record, quota):
     """The declared first-order direction must descend every active scope."""
     required = {"soft_before_global", "soft_before_local"}
@@ -174,7 +187,7 @@ def _audit_scope_numbers(record, quota):
                                 any(not math.isfinite(value) for value in record[field].values())):
             raise RuntimeError(f"nonfinite or incomplete side-step {field}")
     if record["applied"]:
-        expected = set(record["active_local"]) | ({"global"} if record["active_global"] else set())
+        expected = _scope_derivative_keys(record)
         derivatives = record["scope_directional_derivatives"]
         if set(derivatives) != expected or any(not math.isfinite(x) or x >= 0 for x in derivatives.values()):
             raise RuntimeError("joint direction does not descend every active scope")
