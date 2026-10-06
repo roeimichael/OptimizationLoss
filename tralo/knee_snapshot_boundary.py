@@ -1,4 +1,4 @@
-"""CPU namespace preparation, never a scientific campaign authorization.
+"""Namespace command preparation, never a scientific campaign authorization.
 
 The command builder exposes only explicit read-only public sources and one
 writable output. The finite child collector closes inherited descriptors and
@@ -54,6 +54,34 @@ def cpu_command(*, runtime, release, public, weights, operator, output):
     for name,value in environment.items(): command+=['--setenv',name,value]
     return command+['--chdir','/release','--',runtime+'/bin/python','-I','-B',
                    '-X','pycache_prefix=/tmp/python-bytecode','/operator.py']
+
+
+def gpu_command(*, gpu_uuid, physical_device_node, **paths):
+    """Prepare one requested physical-device mount plan, without executing it.
+
+    Caller-supplied UUID and device node are declarations, not an authenticated
+    mapping or ownership observation. Before any real use, an external launcher
+    must authenticate their same-host mapping and source/private/seed boundaries,
+    fresh both-host exclusive ownership and certified finite budget. This builder
+    neither observes CUDA nor authorizes entry; scientific CLIs remain closed.
+    Control/UVM nodes are shared driver interfaces. Restricting device mounts
+    alone is not a proof of CUDA/driver isolation from other physical devices.
+    """
+    import re
+    import uuid
+    pattern=r'GPU-[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}'
+    if (type(gpu_uuid) is not str or re.fullmatch(pattern,gpu_uuid) is None
+            or uuid.UUID(gpu_uuid[4:]).int==0
+            or type(physical_device_node) is not str
+            or re.fullmatch(r'/dev/nvidia(?:0|[1-9][0-9]*)',physical_device_node) is None):
+        raise ValueError('one complete nonzero physical UUID and explicit physical device node are required')
+    command=cpu_command(**paths)
+    command[command.index('CUDA_VISIBLE_DEVICES')+1]=gpu_uuid
+    devices=[physical_device_node,'/dev/nvidiactl','/dev/nvidia-uvm','/dev/nvidia-uvm-tools']
+    bindings=[item for device in devices for item in ('--dev-bind',device,device)]
+    index=command.index('--tmpfs')  # /dev already exists; other host devices stay unmounted.
+    command[index:index]=bindings
+    return command
 
 
 def finite_child(command, output, wall_seconds):
