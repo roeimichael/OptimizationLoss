@@ -47,3 +47,51 @@ def observe_single_device(requested_uuid):
                 capability=[major, minor], total_memory_bytes=memory,
                 ownership_certified=False, campaign_permission=False,
                 limitation='Runtime identity only; exclusive ownership, source/private isolation, seed freshness, derivative/dose/cost and certified budget remain external.')
+
+
+def observe_model_device(model, requested_uuid=None):
+    """Bind a constructed model's entire placement to the runtime observation.
+
+    CPU readiness does not query CUDA. GPU use requires external launch gates
+    before this call, just like observe_single_device; no model is moved here.
+    All parameters and buffers must occupy the one selected visible index zero.
+    """
+    parameters = list(model.parameters())
+    tensors = parameters + list(model.buffers())
+    placement = [(value.device.type, value.device.index) for value in tensors]
+    if not parameters:
+        raise RuntimeError('model must have parameters for placement observation')
+    if all(kind == 'cpu' and index is None for kind,index in placement) and requested_uuid is None:
+        return None
+    if requested_uuid is None or any(kind != 'cuda' or type(index) is not int or index != 0 for kind,index in placement):
+        raise RuntimeError('GPU model placement requires a request and every tensor on visible index zero')
+    return observe_single_device(requested_uuid)
+
+
+def verify_device_log(device, cuda_initialized, record):
+    """Validate recorded bindings without importing Torch or observing a device.
+
+    Self-consistent saved metadata is not authenticated runtime, ownership or
+    permission evidence; the producing driver must obtain its own observation.
+    """
+    if device == 'cpu' and cuda_initialized is False and record is None:
+        return
+    keys = {'requested_gpu_uuid','observed_gpu_uuid','visible_device_index','visible_device_count',
+            'device_name','capability','total_memory_bytes','ownership_certified','campaign_permission','limitation'}
+    if device != 'cuda:0' or cuda_initialized is not True or type(record) is not dict or set(record) != keys:
+        raise ValueError('device log does not bind the execution device')
+    pattern = r'GPU-[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}'
+    ids = [record[k] for k in ('requested_gpu_uuid','observed_gpu_uuid')]
+    if (any(type(value) is not str or re.fullmatch(pattern,value) is None for value in ids)
+            or uuid.UUID(ids[0][4:]).int == 0 or uuid.UUID(ids[0][4:]) != uuid.UUID(ids[1][4:])):
+        raise ValueError('device UUID log mismatch')
+    capability = record['capability']
+    if (type(record['visible_device_index']) is not int or record['visible_device_index'] != 0
+            or type(record['visible_device_count']) is not int or record['visible_device_count'] != 1
+            or type(record['device_name']) is not str or not record['device_name']
+            or type(capability) is not list or len(capability) != 2
+            or any(type(value) is not int for value in capability) or capability[0] <= 0 or capability[1] < 0
+            or type(record['total_memory_bytes']) is not int or record['total_memory_bytes'] <= 0
+            or record['ownership_certified'] is not False or record['campaign_permission'] is not False
+            or type(record['limitation']) is not str or not record['limitation']):
+        raise ValueError('device hardware/permission log is malformed')

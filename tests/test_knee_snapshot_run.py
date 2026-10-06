@@ -58,6 +58,31 @@ def repin(directory, relative, value):
     return sha256((directory / 'complete.json').read_bytes())
 
 
+def test_cpu_execution_binding_and_rehashed_device_refusal(tmp_path, pack):
+    # NEW prospectively declared CPU fixture; no scientific seed or CUDA entry.
+    output = tmp_path/'device_binding'
+    pin = fit(pack, output, seed=9483001)
+    checked = verify_run(output, pin, allow_simulation=True)
+    execution = checked['result']['execution']
+    assert execution['device'] == 'cpu' and execution['cuda_initialized'] is False
+    assert execution['runtime_device'] is None
+    (tmp_path/'verified_cpu_execution.json').write_bytes(encode(dict(
+        execution=execution, seed=checked['config']['seed'], fit=checked['result']['fit'],
+        process_usage=checked['result']['process_usage'], all_six_ensembles_verified=len(checked['averages'])==6)))
+    result = json.loads((output/'result.json').read_bytes())
+    result['execution']['device'] = 'cuda:0'
+    result['execution']['cuda_initialized'] = True
+    events = [json.loads(line) for line in (output/'events.jsonl').read_bytes().splitlines()]
+    events[0]['execution'] = result['execution']
+    (output/'events.jsonl').write_bytes(b''.join(encode(e) for e in events))
+    completion = json.loads((output/'complete.json').read_bytes())
+    completion['files']['events.jsonl'] = sha256((output/'events.jsonl').read_bytes())
+    (output/'complete.json').write_bytes(encode(completion))
+    pin = repin(output, 'result.json', result)
+    with pytest.raises(ValueError, match='device'):
+        verify_run(output, pin, allow_simulation=True)
+
+
 def test_self_resource_observations_bind_start_result_and_completion(tmp_path, pack):
     # Prospectively declared fictitious logging fixture; never a science seed.
     pin = fit(pack, tmp_path/'run', seed=9482001)

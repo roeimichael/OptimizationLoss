@@ -45,7 +45,7 @@ def _source_pins():
 
 
 def fit_public(model, public, manifest_sha256, config, output, *, source_commit,
-               simulation=False, transforms=None):
+               simulation=False, transforms=None, requested_gpu_uuid=None):
     """One PTO fit, six isolated corrections per epoch and identical ensembles.
 
     This is not an authorization boundary: a future campaign launcher must first
@@ -57,6 +57,7 @@ def fit_public(model, public, manifest_sha256, config, output, *, source_commit,
     from .global_comparison import _state_hash
     from .knee_end_to_end import development_images
     from .knee_snapshot_local import ARMS, average_snapshots, snapshot, validate
+    from .knee_snapshot_device import observe_model_device, verify_device_log
     from .knee_yuval import Images, train_run, transforms_for
     from .process_usage import self_usage, usage_delta
 
@@ -64,12 +65,14 @@ def fit_public(model, public, manifest_sha256, config, output, *, source_commit,
         raise ValueError('invalid execution/source identity')
     if simulation:
         _simulation_config(config)
-        if torch.cuda.is_initialized() or any(p.device.type != 'cpu' for p in model.parameters()):
+        if requested_gpu_uuid is not None or torch.cuda.is_initialized() or any(p.device.type != 'cpu' for p in model.parameters()):
             raise ValueError('fictitious readiness driver is CPU only')
     else:
         validate(config)
         if transforms is not None:
             raise ValueError('campaign transforms cannot be replaced')
+    runtime_device = observe_model_device(model, requested_gpu_uuid)
+    verify_device_log(str(next(model.parameters()).device), torch.cuda.is_initialized(), runtime_device)
     public, output = Path(public).resolve(), Path(output).resolve()
     if output == public or public in output.parents or output in public.parents:
         raise ValueError('run output must be separate from public pack')
@@ -87,7 +90,7 @@ def fit_public(model, public, manifest_sha256, config, output, *, source_commit,
     execution = dict(mode='cpu_fictitious' if simulation else 'campaign_driver',
                      host=socket.gethostname(), device=str(next(model.parameters()).device),
                      cuda_initialized=torch.cuda.is_initialized(), torch_version=str(torch.__version__),
-                     precision='float32', model_class=type(model).__name__)
+                     precision='float32', model_class=type(model).__name__, runtime_device=runtime_device)
     source_pins = _source_pins()
     with EventLog(output / 'events.jsonl') as log:
         def emit(event):
@@ -231,6 +234,11 @@ def verify_run(directory, completion_sha256, *, allow_simulation=False):
             or result['execution']['mode'] != completion['mode']
             or not math.isfinite(result['elapsed_wall_seconds']) or result['elapsed_wall_seconds'] <= 0):
         raise ValueError('result identity/time mismatch')
+    from .knee_snapshot_device import verify_device_log
+    execution = result['execution']
+    if 'runtime_device' not in execution or simulation and execution['device'] != 'cpu':
+        raise ValueError('missing or incompatible execution device binding')
+    verify_device_log(execution['device'], execution['cuda_initialized'], execution['runtime_device'])
     events = [json.loads(line) for line in read('events.jsonl').splitlines()]
     if (not events or [e['sequence'] for e in events] != list(range(len(events)))
             or any(e['schema_version'] != 1 for e in events)
