@@ -1,0 +1,9 @@
+Pilot 7107 is separately prospectively declared on 2026-10-07 under standing CelebA authorization, after a new data-free Torchvision/cache and fixed FP32 CUDA gradient case passed. Failed and claimed 7100, 7105 and 7106 remain terminal and burned; none is resumed, relabeled or substituted in the evidence.
+
+This amendment registers exactly seed7107 and adds an immediate device receipt before dependency, cohort or model access. The launcher sets TORCHINDUCTOR_CACHE_DIR to /tmp/torchinductor-cache inside the same isolated namespace with the two exact read-only NVIDIA module-status files. It does not expose a host identity database, full sysfs, extra GPU nodes or private development targets.
+
+Every scientific setting equals the prior declared recipe except the explicitly new pilot seed. The full cohort, target/groups, task epochs, modalities, contrasts, caps, ensemble, optimizers, doses and fixed native matching tolerances remain unchanged. Study7101–7104 stay unclaimed. No pilot quality is scored, and these are exploratory runs after viewed development data.
+
+Preclaim validation must use the actual committed config and runner; both hosts must verify all committed bytes and the new relevant CPU checks. Fresh both-host GPU/PID/UID/command/memory observations, physical-node mapping, exclusive cooperative lease, named-root non-use and shared exclusive seed claim remain required. Runtime7200s/controller7380s/32GiBAS/28800CPU/2.1GPUh upper reservation and the existing24GPUh aggregate ceiling remain unchanged. Failed reservations are not refunded or added to their nested observed wall as separate charges.
+
+The prior data-free result certifies only the tested import, fixed FP32 tensor gradient and one matching CUDA UUID on dsisco02. This pilot must supply its own source/config/runtime, public/private boundary and full label-free integrity evidence before any study forecast or expansion; no accepted scientific score is implied by initialization.

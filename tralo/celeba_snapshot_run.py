@@ -21,8 +21,8 @@ from .celeba_snapshot_core import (InputModel,average_epochs,encode_groups,predi
 
 
 STUDY='celeba_shared_snapshot_v1'
-# 7106 is separately declared after failed 7100/7105; lifecycle claims remain exclusive.
-PILOT_SEEDS=(7100,7106)
+# Each additional pilot is separately declared; lifecycle claims remain exclusive.
+PILOT_SEEDS=(7100,7106,7107)
 PRETRAINED_SHA='5c1a416349c4cf298f2a6a5e2600ed0ee55e604713578f5e74e6bc8bcaef7997'
 RECIPE=dict(study=STUDY,dataset='celeba',backbone='mobilenet_v3_large',epochs=6,
             warmup_epochs=1,ensemble_epochs=[4,5,6],batch_size=32,lr=1e-4,weight_decay=0.,
@@ -198,6 +198,8 @@ def run(public_root,config_path,output,uuid):
     with EventLog(output/'events.jsonl') as log:
         try:
             device_info=observe_single_device(uuid)
+            log.emit('device_observed',device=device_info,seed=config['seed'],
+                     config_sha256=_sha(raw),source=os.environ.get('DECLARED_SOURCE'))
             from .tabular_backbones import configure_fp32,image_transforms
             from .tabular_image_data import PreparedImageRows,load_runner_cohort
             from .tabular_quota_policy import caps_for_unlabeled_pool
