@@ -62,24 +62,37 @@ def pooled_logit_gradient(probabilities, groups, quota, method, *,
 
 def streaming_parameter_gradient(model, batches, groups, quota, method, *,
                                   multipliers=None, dual=None, rho=0.5,
-                                  capped_class=1, parity_atol=1e-5):
+                                  capped_class=1, parity_atol=1e-5, first_pass=None):
     """Accumulate exact constrained parameter gradient over a repeatable pool.
 
     `batches` is a zero-argument factory yielding `(images, sample_ids)` in
     the same order both passes. Group order must match that sample order.
     The model is held in eval mode; no optimizer or parameter update occurs.
+    An optional `(probabilities, sample_ids)` first pass must come from the
+    same unchanged eval model and ordered pool. The backward pass still
+    checks sample order and the original probability parity tolerance.
     """
     if model.training:
         raise ValueError("constraint pass requires frozen evaluation behavior")
-    first, identities = [], []
-    with torch.no_grad():
-        for images, sample_ids in batches():
-            probabilities = model(images).softmax(1).detach().cpu()
-            first.append(probabilities)
-            identities.extend(sample_ids)
-    if not first or len(identities) != len(groups) or len(set(identities)) != len(identities):
+    if first_pass is None:
+        first, identities = [], []
+        with torch.no_grad():
+            for images, sample_ids in batches():
+                probabilities = model(images).softmax(1).detach().cpu()
+                first.append(probabilities)
+                identities.extend(sample_ids)
+        if not first:raise RuntimeError("empty constraint pool")
+        probabilities = torch.cat(first)
+    else:
+        probabilities, identities = first_pass
+        identities = list(identities)
+        if (not isinstance(probabilities,torch.Tensor) or probabilities.ndim != 2
+                or probabilities.device.type != 'cpu' or probabilities.requires_grad
+                or not torch.isfinite(probabilities).all()):
+            raise RuntimeError("invalid reused constraint probabilities")
+    if (len(probabilities) != len(groups) or not identities or
+            len(identities) != len(groups) or len(set(identities)) != len(identities)):
         raise RuntimeError("empty, duplicate or misaligned constraint pool")
-    probabilities = torch.cat(first)
     logit_gradient, new_dual = pooled_logit_gradient(
         probabilities, groups, quota, method, multipliers=multipliers,
         dual=dual, rho=rho, capped_class=capped_class)
@@ -107,10 +120,12 @@ def streaming_parameter_gradient(model, batches, groups, quota, method, *,
     norm = float(torch.sqrt(torch.stack(norms).sum())) if norms else 0.0
     if not math.isfinite(norm):
         raise RuntimeError("constraint gradient is nonfinite")
-    return {"parameter_gradient_norm": norm,
+    result = {"parameter_gradient_norm": norm,
             "active": norm > 0,
             "fixed_weight_probability_max_abs_gap": worst_gap,
             "sample_count": len(groups), "next_dual": new_dual}
+    if first_pass is not None:result['first_pass_reused'] = True
+    return result
 
 
 def apply_fixed_correction(model, step_size, max_displacement):

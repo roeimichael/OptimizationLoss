@@ -148,6 +148,8 @@ def snapshot_arms(model,optimizer,batches,groups,quota,*,tralo_scale,phr_scale,d
                     if arm=='null':
                         common_pre_loss=measure(side);common_values,common_ids=predict(side,batches)
                         if len(common_ids)!=len(groups):raise RuntimeError('pool/group alignment changed')
+                        if state_hash(side.state_dict())!=origin_hash:
+                            raise RuntimeError('origin observation changed model state')
                     gradient={'parameter_gradient_norm':0.,'active':False,'next_dual':None}
                     correction=_no_step('scheduled_zero_step')
                     evaluated=enabled and arm!='null'
@@ -161,7 +163,8 @@ def snapshot_arms(model,optimizer,batches,groups,quota,*,tralo_scale,phr_scale,d
                         else:
                             gradient=streaming_parameter_gradient(side,batches,groups,quota,method,rho=rho,
                                 multipliers={k:1. for k in ('global',*quota['local_caps'])} if method=='tralo' else None,
-                                dual=dual if method=='phr' else None)
+                                dual=dual if method=='phr' else None,
+                                first_pass=(common_values,common_ids))
                         if arm=='tralo':
                             correction=apply_fixed_correction(side,tralo_scale,maximum)
                             reference=correction['actual_displacement_norm']
