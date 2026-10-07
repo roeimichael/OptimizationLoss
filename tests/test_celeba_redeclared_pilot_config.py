@@ -30,7 +30,7 @@ def test_declared_7106_cli_checks_device_before_any_cohort_access(tmp_path):
 def test_no_implicit_pilot_seed_or_science_amendment():
     from tralo.celeba_snapshot_run import campaign_config,validate_config
     config=campaign_config(7106);validate_config(config)
-    for change in ({'seed':7105},{'seed':7107},{'pilot':False},
+    for change in ({'seed':7105},{'seed':7108},{'pilot':False},
                    {'epochs':5},{'dose_rtol':1e-3}):
         with pytest.raises(ValueError):validate_config({**config,**change})
 
