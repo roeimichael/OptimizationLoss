@@ -78,8 +78,10 @@ def predict(model,batches):
 
 
 def _norm(model):
-    return math.sqrt(sum(float(p.grad.detach().double().square().sum())
-                         for p in model.parameters() if p.grad is not None))
+    # Preserve per-parameter float64 sums and Python addition order, with one transfer.
+    squared=[p.grad.detach().double().square().sum()
+             for p in model.parameters() if p.grad is not None]
+    return math.sqrt(sum(torch.stack(squared).cpu().tolist())) if squared else 0.
 
 
 def _no_step(reason,norm=0.):

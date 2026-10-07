@@ -16,7 +16,7 @@ import time
 import torch
 import torch.nn.functional as F
 
-from .celeba_snapshot_core import (InputModel,average_epochs,encode_groups,predict,
+from .celeba_snapshot_core import (InputModel,_norm,average_epochs,encode_groups,predict,
                                    snapshot_arms,state_hash)
 
 
@@ -102,7 +102,7 @@ def _task_epoch(model,optimizer,data,order,seed,epoch,config,loss_kind):
             loss=(-(1-logp.exp()).pow(config.get('focal_gamma',2.))*logp).mean()
         if not torch.isfinite(loss):raise RuntimeError('nonfinite task loss')
         loss.backward()
-        norm=math.sqrt(sum(float(p.grad.detach().double().square().sum()) for p in model.parameters() if p.grad is not None))
+        norm=_norm(model)
         if not math.isfinite(norm):raise RuntimeError('nonfinite task gradient')
         optimizer.step();updates+=1;maximum=max(maximum,norm);total+=float(loss.detach())*len(selected)
     return dict(training_loss=total/len(order),task_updates=updates,max_task_gradient_norm=maximum,
